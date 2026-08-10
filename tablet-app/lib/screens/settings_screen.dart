@@ -38,6 +38,101 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const MethodChannel _perfChannel =
+      MethodChannel('com.digiads.tabletop/performance');
+
+  bool _bootGuardTripped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _readBootGuard();
+  }
+
+  Future<void> _readBootGuard() async {
+    try {
+      final tripped =
+          await _perfChannel.invokeMethod<bool>('isCircuitBreakerTripped');
+      if (mounted) setState(() => _bootGuardTripped = tripped ?? false);
+    } catch (e) {
+      debugPrint('[SETTINGS] Boot guard read failed: $e');
+    }
+  }
+
+  /// Clears the boot-guard counter and re-arms kiosk lockdown. Used after the
+  /// underlying fault has been dealt with, so the tablet resumes normal kiosk
+  /// behaviour on the next boot.
+  Future<void> _clearBootGuard() async {
+    try {
+      await _perfChannel.invokeMethod('resetCircuitBreaker');
+      await _perfChannel.invokeMethod('startKioskMode');
+      if (!mounted) return;
+      setState(() => _bootGuardTripped = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Safe Mode cleared. Kiosk lockdown re-armed.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear Safe Mode: $e')),
+      );
+    }
+  }
+
+  /// Last-resort field recovery. These kiosks have no USB port, so without an
+  /// on-screen way to surrender Device Owner a wedged unit can only be fixed by
+  /// a factory reset.
+  Future<void> _releaseDeviceOwner() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
+        title: const Text('Release Device Owner?'),
+        content: const Text(
+          'This permanently surrenders enterprise Device Owner privileges for this '
+          'app. Kiosk Lock Task mode will stop working and CANNOT be granted again '
+          'without a full factory reset of the tablet.\n\n'
+          'Only do this if the tablet is stuck in a reboot loop and no other '
+          'recovery option is available.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Release'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final released =
+          await _perfChannel.invokeMethod<bool>('clearDeviceOwner') ?? false;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(released
+              ? 'Device Owner released. Kiosk lockdown is now disabled.'
+              : 'App is not Device Owner — nothing to release.'),
+          backgroundColor: released ? Colors.orange.shade800 : Colors.grey,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to release Device Owner: $e')),
+      );
+    }
+  }
+
   Future<void> _resetDevice() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -128,6 +223,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (_bootGuardTripped) _buildSafeModeBanner(),
           _buildInfoCard(),
           const SizedBox(height: 20),
           _buildActionCard(
@@ -147,6 +243,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Reset device',
             subtitle: 'Clear all credentials. Requires full setup before kiosk can run.',
             onTap: _resetDevice,
+            danger: true,
+          ),
+          _buildActionCard(
+            icon: Icons.admin_panel_settings_rounded,
+            title: 'Release Device Owner',
+            subtitle:
+                'Emergency only. Surrenders kiosk lockdown permanently — cannot be undone without a factory reset.',
+            onTap: _releaseDeviceOwner,
             danger: true,
           ),
           const SizedBox(height: 20),
@@ -172,6 +276,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSafeModeBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: kCardBorderRadius,
+        border: Border.all(color: Colors.amber.shade700, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'SAFE MODE ACTIVE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'This tablet restarted repeatedly without completing a stable run. Kiosk '
+            'lockdown, the status-bar policy and native video playback are disabled so '
+            'the device stays usable for on-site recovery.\n\n'
+            'Once the cause is resolved, clear Safe Mode to restore normal kiosk operation.',
+            style: TextStyle(fontSize: 12, color: kTextDark, height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _clearBootGuard,
+              icon: const Icon(Icons.restart_alt_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'Clear Safe Mode & Re-arm Kiosk',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber.shade800,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
             ),
           ),
         ],

@@ -10,7 +10,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
-        android:testOnly="true">
+        android:largeHeap="true">
         <!-- Disable Impeller OpenGLES experimental renderer which causes lag and frame drops on budget tablets -->
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
@@ -18,7 +18,9 @@
         <activity
             android:name="com.digiads.tabletop.MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -58,15 +60,20 @@
             </intent-filter>
         </receiver>
 
-        <!-- Auto Boot Receiver for automatic cold boot launch -->
+        <!-- Fallback cold-boot launcher.
+             LOCKED_BOOT_COMPLETED is intentionally NOT registered: MainActivity is not
+             directBootAware, so it cannot be started before the user storage is
+             unlocked, and registering it only produced a second racing launch during
+             the exact window the RK3326 GPU driver cannot tolerate.
+             android:permission is intentionally omitted: BOOT_COMPLETED is a protected
+             broadcast, while OEM QUICKBOOT_POWERON senders may not hold
+             RECEIVE_BOOT_COMPLETED and would be silently filtered out. -->
         <receiver
             android:name="com.digiads.tabletop.BootReceiver"
             android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
-            <intent-filter android:priority="999">
+            android:exported="true">
+            <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>

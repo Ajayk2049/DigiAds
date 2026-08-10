@@ -195,12 +195,6 @@ class AdViewWidget extends StatelessWidget {
   }
 
   Widget _buildVideoView(String videoPath) {
-    // Configured by user to best screen scaling proportions
-    const double baseWidth = 800.0;
-    const double baseHeight = 1200.0;
-    const double overflowW = baseWidth + 160.0;
-    const double leftOffset = 5.0;
-
     final videoPaths = playerState.value.playlist
         .where((path) => !path.startsWith('static__') && path.isNotEmpty)
         .toList();
@@ -217,30 +211,16 @@ class AdViewWidget extends StatelessWidget {
         color: Colors.black,
         width: double.infinity,
         height: double.infinity,
-        child: ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.centerLeft,
-            minWidth: 0.0,
-            maxWidth: overflowW,
-            minHeight: 0.0,
-            maxHeight: baseHeight,
-            child: Transform.translate(
-              offset: const Offset(leftOffset, 0),
-              child: IgnorePointer(
-                child: SizedBox(
-                  width: overflowW,
-                  height: baseHeight,
-                  child: AndroidView(
-                    key: const Key('native_ad_player'),
-                    viewType: 'native_video_view',
-                    creationParams: {
-                      'paths': videoPaths,
-                      'initialIndex': initialIndex,
-                    },
-                    creationParamsCodec: const StandardMessageCodec(),
-                  ),
-                ),
-              ),
+        child: IgnorePointer(
+          child: SizedBox.expand(
+            child: AndroidView(
+              key: const Key('native_ad_player'),
+              viewType: 'native_video_view',
+              creationParams: {
+                'paths': videoPaths,
+                'initialIndex': initialIndex,
+              },
+              creationParamsCodec: const StandardMessageCodec(),
             ),
           ),
         ),

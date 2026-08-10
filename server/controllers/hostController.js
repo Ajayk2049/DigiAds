@@ -676,6 +676,13 @@ class HostController {
         } else {
           doc.status = 'offline';
         }
+
+        // Calculate session runtime (daily session start to latest heartbeat)
+        const sessionStartTime = doc.sessionStart ? new Date(doc.sessionStart).getTime() : new Date(doc.createdAt).getTime();
+        const lastPingTime = doc.lastHeartbeat ? new Date(doc.lastHeartbeat).getTime() : now.getTime();
+        doc.sessionStart = doc.sessionStart || doc.createdAt;
+        doc.runtimeMinutes = Math.max(0, Math.round((lastPingTime - sessionStartTime) / 60000));
+
         return doc;
       });
 

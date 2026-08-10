@@ -1413,15 +1413,14 @@ export default function AdminPortal() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, x: 100, scale: 0.9 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
-              className={`pointer-events-auto p-4 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-start justify-between space-x-3 transition-all duration-300 ${
-                toast.type === 'error' || toast.type === 'destructive'
+              className={`pointer-events-auto p-4 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-start justify-between space-x-3 transition-all duration-300 ${toast.type === 'error' || toast.type === 'destructive'
                   ? '!bg-red-600 !border-red-500 !text-white shadow-[0_0_25px_rgba(239,68,68,0.4)]'
                   : toast.type === 'warning'
-                  ? '!bg-amber-600 !border-amber-500 !text-white shadow-[0_0_25px_rgba(245,158,11,0.4)]'
-                  : toast.type === 'info'
-                  ? '!bg-blue-600 !border-blue-500 !text-white shadow-[0_0_25px_rgba(59,130,246,0.4)]'
-                  : '!bg-emerald-600 !border-emerald-500 !text-white shadow-[0_0_25px_rgba(16,185,129,0.4)]'
-              }`}
+                    ? '!bg-amber-600 !border-amber-500 !text-white shadow-[0_0_25px_rgba(245,158,11,0.4)]'
+                    : toast.type === 'info'
+                      ? '!bg-blue-600 !border-blue-500 !text-white shadow-[0_0_25px_rgba(59,130,246,0.4)]'
+                      : '!bg-emerald-600 !border-emerald-500 !text-white shadow-[0_0_25px_rgba(16,185,129,0.4)]'
+                }`}
             >
               <div className="flex items-start space-x-3 min-w-0">
                 <div className="shrink-0 mt-0.5">
@@ -1440,10 +1439,10 @@ export default function AdminPortal() {
                     {toast.type === 'error' || toast.type === 'destructive'
                       ? 'System Error'
                       : toast.type === 'warning'
-                      ? 'Warning Notice'
-                      : toast.type === 'info'
-                      ? 'System Info'
-                      : 'Success'}
+                        ? 'Warning Notice'
+                        : toast.type === 'info'
+                          ? 'System Info'
+                          : 'Success'}
                   </h5>
                   <p className="text-xs font-semibold leading-relaxed break-words !text-white">
                     {toast.message}
@@ -2357,23 +2356,21 @@ export default function AdminPortal() {
                                     {req.currentMode}
                                   </span>
                                   <span className="text-muted-foreground font-black">→</span>
-                                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
-                                    req.requestedMode === 'closed'
+                                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${req.requestedMode === 'closed'
                                       ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
                                       : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                  }`}>
+                                    }`}>
                                     {req.requestedMode} MODE
                                   </span>
                                 </div>
                               </td>
                               <td className="p-4 text-center">
-                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                                  req.status === 'approved'
+                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${req.status === 'approved'
                                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                     : req.status === 'rejected'
                                       ? 'bg-destructive/10 text-destructive border border-destructive/20'
                                       : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                }`}>
+                                  }`}>
                                   {req.status}
                                 </span>
                               </td>
@@ -2478,7 +2475,6 @@ export default function AdminPortal() {
                         <th className="p-4 pl-6">Venue Outlet</th>
                         <th className="p-4">Owner & Location</th>
                         <th className="p-4">Ad Mode</th>
-                        <th className="p-4">Active Ads (IDs)</th>
                         <th className="p-4">Quotas (V/I/S)</th>
                         <th className="p-4 text-center">Full Form Details</th>
                         <th className="p-4 text-right pr-6">Controls</th>
@@ -2487,7 +2483,7 @@ export default function AdminPortal() {
                     <tbody className="divide-y divide-border/40">
                       {approvedVenuesList.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="p-12 text-center text-muted-foreground font-medium italic">
+                          <td colSpan="6" className="p-12 text-center text-muted-foreground font-medium italic">
                             No active venues found.
                           </td>
                         </tr>
@@ -2499,15 +2495,6 @@ export default function AdminPortal() {
                           const iMax = app.customMaxImageSlots ?? (isClosed ? 8 : 3);
                           const iDaily = app.customDailyImageQuota ?? (isClosed ? 15 : 10);
                           const sMax = app.customMaxScreenSlots ?? (isClosed ? 8 : 3);
-
-                          const venueActiveAds = (campaigns || []).filter(c => {
-                            const cOutletId = typeof c.outletId === 'object' ? c.outletId?._id : c.outletId;
-                            if (String(cOutletId) !== String(app._id)) return false;
-                            if (c.paymentStatus !== 'completed' || c.approvalStatus !== 'approved') return false;
-                            const expiryDate = new Date(c.createdAt);
-                            expiryDate.setDate(expiryDate.getDate() + (c.adDurationDays || 7));
-                            return expiryDate >= new Date();
-                          });
 
                           return (
                             <tr
@@ -2540,35 +2527,6 @@ export default function AdminPortal() {
                                   {!isClosed ? <Unlock className="w-3 h-3 text-blue-500 shrink-0" /> : <Lock className="w-3 h-3 text-purple-500 shrink-0" />}
                                   <span>{!isClosed ? 'OPEN ADS' : 'PRIVATE'}</span>
                                 </span>
-                              </td>
-                              <td className="p-4">
-                                {venueActiveAds.length === 0 ? (
-                                  <span className="text-[10px] text-muted-foreground font-semibold italic">0 Active Ads</span>
-                                ) : (
-                                  <div className="flex flex-col space-y-1">
-                                    <span className="text-[10px] font-black text-emerald-500 flex items-center gap-1">
-                                      <Megaphone className="w-3 h-3 text-emerald-500 shrink-0" />
-                                      <span>{venueActiveAds.length} Active {venueActiveAds.length === 1 ? 'Ad' : 'Ads'}</span>
-                                    </span>
-                                    <div className="flex flex-wrap gap-1 max-w-[160px]">
-                                      {venueActiveAds.map(ad => (
-                                        <span
-                                          key={ad.bookingId}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCampaignSearchTerm(ad.bookingId);
-                                            setActiveTab('requests');
-                                            setRequestsSubTab('campaigns');
-                                          }}
-                                          className="font-mono text-[9px] font-black px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 hover:border-primary transition-all cursor-pointer shadow-2xs"
-                                          title={`Click to track Ad ${ad.bookingId} in Campaigns Section`}
-                                        >
-                                          {ad.bookingId}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
                               </td>
                               <td className="p-4 font-mono text-[11px] font-bold">
                                 <div className="text-foreground">Vid: {vMax}/{vDaily}d</div>
@@ -3056,11 +3014,10 @@ export default function AdminPortal() {
                           <button
                             type="button"
                             onClick={() => setRateForm({ ...rateForm, pricingType: 'per_device' })}
-                            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                              (rateForm.pricingType || 'per_device') === 'per_device'
+                            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${(rateForm.pricingType || 'per_device') === 'per_device'
                                 ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                                 : 'bg-background text-muted-foreground border-input hover:text-foreground'
-                            }`}
+                              }`}
                           >
                             <Tablet className="w-3.5 h-3.5" />
                             <span>Per Device</span>
@@ -3068,11 +3025,10 @@ export default function AdminPortal() {
                           <button
                             type="button"
                             onClick={() => setRateForm({ ...rateForm, pricingType: 'whole_venue' })}
-                            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                              rateForm.pricingType === 'whole_venue'
+                            className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${rateForm.pricingType === 'whole_venue'
                                 ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                                 : 'bg-background text-muted-foreground border-input hover:text-foreground'
-                            }`}
+                              }`}
                           >
                             <Building className="w-3.5 h-3.5" />
                             <span>Whole Venue Flat</span>
@@ -3663,75 +3619,6 @@ export default function AdminPortal() {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* Active Commercial Ads Tracking Section */}
-              <div className="p-4 bg-background/50 rounded-2xl border border-border/50 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1.5">
-                    <Megaphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>Active Commercial Ads ({
-                      (campaigns || []).filter(c => {
-                        const cOutletId = typeof c.outletId === 'object' ? c.outletId?._id : c.outletId;
-                        if (String(cOutletId) !== String(selectedHostApp._id)) return false;
-                        if (c.paymentStatus !== 'completed' || c.approvalStatus !== 'approved') return false;
-                        const expiryDate = new Date(c.createdAt);
-                        expiryDate.setDate(expiryDate.getDate() + (c.adDurationDays || 7));
-                        return expiryDate >= new Date();
-                      }).length
-                    })</span>
-                  </span>
-                </div>
-
-                {(() => {
-                  const venueActiveAds = (campaigns || []).filter(c => {
-                    const cOutletId = typeof c.outletId === 'object' ? c.outletId?._id : c.outletId;
-                    if (String(cOutletId) !== String(selectedHostApp._id)) return false;
-                    if (c.paymentStatus !== 'completed' || c.approvalStatus !== 'approved') return false;
-                    const expiryDate = new Date(c.createdAt);
-                    expiryDate.setDate(expiryDate.getDate() + (c.adDurationDays || 7));
-                    return expiryDate >= new Date();
-                  });
-
-                  if (venueActiveAds.length === 0) {
-                    return (
-                      <p className="text-xs text-muted-foreground italic font-medium">No commercial advertiser ads currently active on this venue.</p>
-                    );
-                  }
-
-                  return (
-                    <div className="grid sm:grid-cols-2 gap-2.5">
-                      {venueActiveAds.map(ad => (
-                        <div key={ad.bookingId} className="p-3 bg-card/70 rounded-xl border border-border/40 flex items-center justify-between shadow-2xs">
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-mono font-black text-xs text-primary">{ad.bookingId}</span>
-                              <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                                {ad.deviceType}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold">
-                              Cat: {ad.adCategory || 'Other'} • Freq: {ad.frequency}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setShowVenueModal(false);
-                              setSelectedHostApp(null);
-                              setCampaignSearchTerm(ad.bookingId);
-                              setActiveTab('requests');
-                              setRequestsSubTab('campaigns');
-                            }}
-                            className="px-2.5 py-1 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg transition-colors cursor-pointer shrink-0"
-                            title={`Go to Campaigns section and track Ad ${ad.bookingId}`}
-                          >
-                            Track Ad
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
               </div>
             </div>
 
@@ -4721,11 +4608,10 @@ export default function AdminPortal() {
                 <button
                   type="button"
                   onClick={() => setActiveQuotaTab('tablet')}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeQuotaTab === 'tablet'
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeQuotaTab === 'tablet'
                       ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                  }`}
+                    }`}
                 >
                   <Tablet className="w-3.5 h-3.5" />
                   <span>Tabletop Tablets</span>
@@ -4733,11 +4619,10 @@ export default function AdminPortal() {
                 <button
                   type="button"
                   onClick={() => setActiveQuotaTab('screen')}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    activeQuotaTab === 'screen'
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeQuotaTab === 'screen'
                       ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                  }`}
+                    }`}
                 >
                   <Tv className="w-3.5 h-3.5" />
                   <span>Wall Display Screens</span>
@@ -4910,3 +4795,4 @@ export default function AdminPortal() {
     </div>
   );
 }
+

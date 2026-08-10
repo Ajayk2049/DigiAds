@@ -50,9 +50,11 @@ user.md
 issues.md
 architecture.md
 Specs.md
+OTA.md
 .commandcode/
 issues_OP.md
 security_cl.md
+opencode.json
 
 # Flutter / Dart caches and generated files
 .dart_tool/

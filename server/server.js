@@ -165,9 +165,16 @@ async function startFastify() {
 
         // Update MongoDB Device status to online & broadcast to merchant
         try {
+          const existingDoc = await Device.findOne({ deviceId });
+          const isFreshBoot = !existingDoc || existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat).getTime()) > 35000;
+          const updateFields = { status: 'online', lastHeartbeat: new Date() };
+          if (isFreshBoot) {
+            updateFields.sessionStart = new Date();
+          }
+
           const updatedDevice = await Device.findOneAndUpdate(
             { deviceId },
-            { $set: { status: 'online', lastHeartbeat: new Date() } },
+            { $set: updateFields },
             { new: true }
           );
           if (updatedDevice && updatedDevice.hostApplicationId) {
@@ -205,9 +212,9 @@ async function startFastify() {
             if (data.event === 'ping' || data.type === 'ping') {
               socket.send(JSON.stringify({ event: 'pong', timestamp: Date.now() }));
               await Device.updateOne(
-                { deviceId }, 
+                { deviceId },
                 { $set: { status: 'online', lastHeartbeat: new Date() } }
-              ).catch(() => {});
+              ).catch(() => { });
             } else if (data.event === 'call_waiter') {
               const rawWaiterOption = String(data.waiterOption || data.waiterCallOption || 'Others').trim();
               const rawTableNumber = String(data.tableNumber || 'T1').trim();
@@ -396,7 +403,7 @@ async function startFastify() {
       const fs = require('fs');
       const path = require('path');
       const rawSubpath = req.params['*'] || '';
-      
+
       // Alias 'creative/' or 'media/' to 'ads/' so ad-blocker extensions don't block preview requests containing '/ads/'
       let subpath = rawSubpath;
       if (rawSubpath.startsWith('creative/')) {
@@ -566,6 +573,15 @@ function verifyGrpcToken(call) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
+    if (decoded && decoded.deviceId) {
+      // Touch lastHeartbeat & online status in MongoDB on valid gRPC calls
+      Device.updateOne(
+        { deviceId: decoded.deviceId },
+        { $set: { status: 'online', lastHeartbeat: new Date() } }
+      ).catch(err => {
+        console.error(`[gRPC Touch] Failed to update heartbeat for ${decoded.deviceId}:`, err.message);
+      });
+    }
     return decoded; // { deviceId, deviceType, hostApplicationId }
   } catch (err) {
     throw { code: grpc.status.UNAUTHENTICATED, message: 'Invalid or expired device token' };
@@ -1042,7 +1058,7 @@ const orderServiceHandlers = {
         order.totalAmount += serverCalculatedTotal;
         // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
         order.orderStatus = 'placed';
-        
+
         await order.save();
       } else {
         // Create a new order if no active session exists
@@ -1138,7 +1154,7 @@ function startHeartbeatMonitor() {
   setInterval(async () => {
     try {
       const offlineThreshold = new Date(Date.now() - 35000); // 35s — mark offline
-      const detachThreshold   = new Date(Date.now() - 120000); // 2 min — auto-detach
+      const detachThreshold = new Date(Date.now() - 120000); // 2 min — auto-detach
 
       // 1) Mark stale online devices as offline
       const staleDevices = await Device.find({
@@ -1160,6 +1176,14 @@ function startHeartbeatMonitor() {
       });
 
       for (const device of detachedDevices) {
+        // Shield device if an active WebSocket connection is currently present
+        if (global.deviceSockets && global.deviceSockets.has(device.deviceId)) {
+          device.status = 'online';
+          device.lastHeartbeat = new Date();
+          await device.save();
+          continue;
+        }
+
         const previousHardware = device.hardwareId;
         device.isActivated = false;
         device.hardwareId = null;

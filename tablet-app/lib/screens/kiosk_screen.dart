@@ -131,11 +131,35 @@ class _KioskScreenState extends State<KioskScreen> {
   // ────────────────── Deferred bootstrap ──────────────────
 
   Future<void> _deferredBootstrap() async {
-    _initGrpc();
-    await _registerAndStartHeartbeat();
-    await _fetchMenu();
-    await _bootAds();
-    _initWebSocket();
+    // Every stage is individually guarded. On a cold boot the network stack, DNS and
+    // storage are often not ready yet; before this, a single throw here left
+    // _kioskReady false forever and the tablet sat on the splash screen until a
+    // manual power cycle.
+    try {
+      _initGrpc();
+    } catch (e) {
+      debugPrint('[BOOT] gRPC init failed: $e');
+    }
+    try {
+      await _registerAndStartHeartbeat();
+    } catch (e) {
+      debugPrint('[BOOT] Device registration failed: $e');
+    }
+    try {
+      await _fetchMenu();
+    } catch (e) {
+      debugPrint('[BOOT] Menu fetch failed: $e');
+    }
+    try {
+      await _bootAds();
+    } catch (e) {
+      debugPrint('[BOOT] Ad boot failed: $e');
+    }
+    try {
+      _initWebSocket();
+    } catch (e) {
+      debugPrint('[BOOT] WebSocket init failed: $e');
+    }
 
     // Local timer to check for ad unlocks periodically when the playlist is empty
     Timer.periodic(const Duration(seconds: 30), (timer) {
@@ -536,16 +560,31 @@ class _KioskScreenState extends State<KioskScreen> {
     debugPrint('[BOOT] Starting sync sequence...');
 
     if (Platform.isAndroid) {
-      final isGranted = await Permission.manageExternalStorage.isGranted;
-      if (!isGranted) {
-        final status = await Permission.manageExternalStorage.request();
-        if (!status.isGranted) {
+      // MANAGE_EXTERNAL_STORAGE only exists on API 30+. Requesting it on Android 8.1
+      // (API 27) returns permanentlyDenied and, on some Rockchip builds, throws from
+      // the platform channel — which aborts _deferredBootstrap() before the ad player
+      // ever starts. Try the scoped permission first and treat any failure as
+      // non-fatal so boot always continues.
+      try {
+        if (!await Permission.storage.isGranted) {
           await Permission.storage.request();
         }
+        if (!await Permission.storage.isGranted) {
+          await Permission.manageExternalStorage.request();
+        }
+      } catch (e) {
+        debugPrint('[BOOT] Storage permission request skipped: $e');
       }
     }
 
-    final cachedPlaylist = await _adSync.boot();
+    List<String> cachedPlaylist = const [];
+    try {
+      cachedPlaylist = await _adSync.boot();
+    } catch (e) {
+      // A failed ad sync must never prevent the kiosk from reaching _kioskReady,
+      // otherwise the device sits on the splash screen forever after a reboot.
+      debugPrint('[BOOT] Ad sync failed, continuing with no playlist: $e');
+    }
     _masterAdPlaylist = List.from(cachedPlaylist);
     await _loadFrequenciesAndTimestamps();
     
