@@ -25,7 +25,8 @@ async function notifyDeviceSessionUpdate(order) {
         itemsBreakdown.push({
           name: item.name,
           quantity: item.quantity,
-          price: item.price
+          price: item.price,
+          isPacked: Boolean(item.isPacked)
         });
       }
     }
@@ -945,39 +946,48 @@ class HostController {
           return res.status(400).send({ success: false, message: 'No UPI ID configured. Set up payment config first.' });
         }
 
-        // Recalculate final totalAmount containing taxes from billConfig before table closure
-        const billConfig = app.billConfig || {};
-        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
-
         let subtotalPaise = 0;
         for (const item of order.items || []) {
           subtotalPaise += (item.price || 0) * (item.quantity || 1);
         }
 
-        const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-        const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
-
-        // Round Off calculation: Always in favor of the venue (Ceiling to next whole rupee)
-        let finalAmountPaise = rawTotalPaise;
-        let roundOffPaise = 0;
-        if (enableAutoRoundOff) {
-          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-          roundOffPaise = finalAmountPaise - rawTotalPaise;
-        }
-
         // Freeze immutable order billing snapshot fields
         order.subtotalAmount = subtotalPaise;
-        order.cgstAmount = cgstPaise;
-        order.sgstAmount = sgstPaise;
-        order.roundOffAmount = roundOffPaise;
-        order.cgstPercent = cgstPct;
-        order.sgstPercent = sgstPct;
-        order.enableAutoRoundOff = enableAutoRoundOff;
-        order.billConfigSnapshot = billConfig;
-        order.totalAmount = finalAmountPaise;
+
+        if (order.isGstExempt) {
+          order.cgstAmount = 0;
+          order.sgstAmount = 0;
+          order.roundOffAmount = 0;
+          order.cgstPercent = 0;
+          order.sgstPercent = 0;
+          order.totalAmount = subtotalPaise;
+        } else {
+          const billConfig = app.billConfig || {};
+          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+
+          let finalAmountPaise = rawTotalPaise;
+          let roundOffPaise = 0;
+          if (enableAutoRoundOff) {
+            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+            roundOffPaise = finalAmountPaise - rawTotalPaise;
+          }
+
+          order.cgstAmount = cgstPaise;
+          order.sgstAmount = sgstPaise;
+          order.roundOffAmount = roundOffPaise;
+          order.cgstPercent = cgstPct;
+          order.sgstPercent = sgstPct;
+          order.enableAutoRoundOff = enableAutoRoundOff;
+          order.billConfigSnapshot = billConfig;
+          order.totalAmount = finalAmountPaise;
+        }
+
         order.tableStatus = 'close_table';
 
       }
@@ -1041,7 +1051,24 @@ class HostController {
       const { v4: uuidv4 } = require('uuid');
       const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
 
-      const totalPaise = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
+      const subtotalPaise = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
+
+      // Fetch venue billConfig to apply venue-specific CGST, SGST, and Auto Round-off
+      const billConfig = app.billConfig || {};
+      const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+      const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+      const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+      const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+      const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+      const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+
+      let finalAmountPaise = rawTotalPaise;
+      let roundOffPaise = 0;
+      if (enableAutoRoundOff) {
+        finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+        roundOffPaise = finalAmountPaise - rawTotalPaise;
+      }
 
       const order = new Order({
         orderId,
@@ -1053,9 +1080,18 @@ class HostController {
           itemId: String(item.itemId || item._id || uuidv4().slice(0, 8)),
           name: item.name,
           quantity: Number(item.quantity || 1),
-          price: Number(item.price || 0)
+          price: Number(item.price || 0),
+          isPacked: Boolean(item.isPacked || true) // Default takeout items to true if created via over-the-counter pickup
         })),
-        totalAmount: totalPaise,
+        subtotalAmount: subtotalPaise,
+        cgstAmount: cgstPaise,
+        sgstAmount: sgstPaise,
+        roundOffAmount: roundOffPaise,
+        cgstPercent: cgstPct,
+        sgstPercent: sgstPct,
+        enableAutoRoundOff,
+        billConfigSnapshot: billConfig,
+        totalAmount: finalAmountPaise,
         orderType: 'TAKEOUT',
         paymentType: 'PENDING',
         paymentStatus: 'pending',
@@ -1074,6 +1110,77 @@ class HostController {
     } catch (error) {
       console.error('createTakeoutOrder Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to create pickup order: ' + error.message });
+    }
+  }
+
+  /**
+   * Admin toggles GST exemption on an active order (Remove/Restore GST)
+   */
+  async toggleGstExemption(req, res) {
+    const { orderId, removeGst } = req.body || {};
+    if (!orderId) {
+      return res.status(400).send({ success: false, message: 'orderId is required' });
+    }
+
+    try {
+      const order = await Order.findOne({ orderId });
+      if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
+
+      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
+      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+
+      const isExempt = Boolean(removeGst);
+      order.isGstExempt = isExempt;
+
+      let subtotalPaise = 0;
+      for (const item of order.items || []) {
+        subtotalPaise += (item.price || 0) * (item.quantity || 1);
+      }
+      order.subtotalAmount = subtotalPaise;
+
+      if (isExempt) {
+        order.cgstAmount = 0;
+        order.sgstAmount = 0;
+        order.cgstPercent = 0;
+        order.sgstPercent = 0;
+        order.roundOffAmount = 0;
+        order.totalAmount = subtotalPaise;
+      } else {
+        const billConfig = order.billConfigSnapshot || app.billConfig || {};
+        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+        const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+        const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+
+        let finalAmountPaise = rawTotalPaise;
+        let roundOffPaise = 0;
+        if (enableAutoRoundOff) {
+          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+          roundOffPaise = finalAmountPaise - rawTotalPaise;
+        }
+
+        order.cgstAmount = cgstPaise;
+        order.sgstAmount = sgstPaise;
+        order.roundOffAmount = roundOffPaise;
+        order.cgstPercent = cgstPct;
+        order.sgstPercent = sgstPct;
+        order.totalAmount = finalAmountPaise;
+      }
+
+      await order.save();
+      notifyDeviceSessionUpdate(order);
+
+      return res.status(200).send({
+        success: true,
+        message: isExempt ? 'GST removed from order' : 'GST restored on order',
+        data: order
+      });
+    } catch (error) {
+      console.error('toggleGstExemption Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to update order GST: ' + error.message });
     }
   }
 

@@ -902,9 +902,7 @@ export default function AdvertiserDashboard() {
       {/* Top Header Navbar - Universal styled shadcn preset */}
       <header className="border-b border-border/40 bg-card px-5 sm:px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-30">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-900 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 overflow-hidden p-1">
-            <img src="/brandicon.png" alt="DigiAds Logo" className="w-full h-full object-contain rounded-lg" />
-          </div>
+          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-8 h-8 object-contain shrink-0" />
           <span className="font-outfit text-md font-bold text-foreground brandLogo">Advertiser Portal</span>
         </div>
 

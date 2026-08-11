@@ -17,6 +17,10 @@ const OrderItemSchema = new mongoose.Schema({
   price: {
     type: Number,
     required: true // in paise
+  },
+  isPacked: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -80,6 +84,10 @@ const OrderSchema = new mongoose.Schema({
   billConfigSnapshot: {
     type: Object,
     default: null
+  },
+  isGstExempt: {
+    type: Boolean,
+    default: false
   },
   totalAmount: {
 

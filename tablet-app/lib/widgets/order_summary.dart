@@ -43,33 +43,94 @@ class OrderSummaryPanel extends StatelessWidget {
         }
 
         final total = cart.totalPrice(menuItems);
+        final isAllPacked = cart.isAllPacked;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Top Bar: Global "Pack Entire Order" Toggle
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isAllPacked ? Colors.amber.shade100 : kCardBg,
+                borderRadius: kCardBorderRadius,
+                border: Border.all(
+                  color: isAllPacked ? Colors.amber.shade600 : Colors.grey.shade300,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.takeout_dining_outlined,
+                        color: isAllPacked ? Colors.amber.shade900 : kTextDark,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        "Pack Entire Order (Takeaway / Parcel)",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isAllPacked ? Colors.amber.shade900 : kTextDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: () => cartNotifier.togglePackAll(),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isAllPacked ? Colors.amber.shade700 : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isAllPacked ? "PACKED ALL" : "PACK ALL",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isAllPacked ? Colors.white : kTextDark,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             Expanded(
               child: ListView.separated(
-                itemCount: cart.items.length,
+                itemCount: cart.uniqueItemIds.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 16),
                 itemBuilder: (context, index) {
-                  final itemId = cart.items.keys.elementAt(index);
-                  final quantity = cart.items[itemId]!;
+                  final rawId = cart.uniqueItemIds[index];
+                  final dineInQty = cart.dineInQtyOf(rawId);
+                  final packedQty = cart.packedQtyOf(rawId);
+                  final totalQty = cart.totalQtyOf(rawId);
+
                   final item = menuItems.firstWhere(
-                    (i) => i.itemId == itemId,
+                    (i) => i.itemId == rawId,
                     orElse: () => MenuItem()
-                      ..itemId = itemId
+                      ..itemId = rawId
                       ..name = 'Unknown Item'
                       ..price = Int64(0),
                   );
 
                   final unitPrice = item.price.toDouble() / 100.0;
-                  final lineTotal = unitPrice * quantity;
+                  final lineTotal = unitPrice * totalQty;
 
                   return Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: kCardBg,
                       borderRadius: kCardBorderRadius,
-                      boxShadow: [
+                      border: packedQty > 0 ? Border.all(color: Colors.amber.shade500, width: 1.5) : null,
+                      boxShadow: const [
                         BoxShadow(
                           color: Colors.black12,
                           blurRadius: 6,
@@ -115,37 +176,116 @@ class OrderSummaryPanel extends StatelessWidget {
                                 "Unit price: ₹${unitPrice.toStringAsFixed(2)}",
                                 style: kCardDescriptionStyle.copyWith(fontSize: 13),
                               ),
-                              const SizedBox(height: 12),
-                              // Pill Qty Stepper
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: kScaffoldBg,
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      constraints: const BoxConstraints(),
-                                      padding: const EdgeInsets.all(8),
-                                      icon: const Icon(Icons.remove, color: kAccentBlue, size: 18),
-                                      onPressed: () => cartNotifier.removeItem(itemId),
-                                    ),
-                                    const SizedBox(width: 8),
+                              const SizedBox(height: 6),
+                              // Breakdown summary indicators
+                              Row(
+                                children: [
+                                  if (dineInQty > 0)
                                     Text(
-                                      '$quantity',
-                                      style: kQuantityTextStyle.copyWith(color: kTextDark),
+                                      "🍽️ $dineInQty Dine-In",
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kTextDark),
                                     ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      constraints: const BoxConstraints(),
-                                      padding: const EdgeInsets.all(8),
-                                      icon: const Icon(Icons.add, color: kAccentBlue, size: 18),
-                                      onPressed: () => cartNotifier.addItem(itemId),
+                                  if (dineInQty > 0 && packedQty > 0)
+                                    const Text("  •  ", style: TextStyle(fontSize: 12, color: kTextGrey)),
+                                  if (packedQty > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.shade800,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        "📦 $packedQty PACK",
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
                                     ),
-                                  ],
-                                ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // Stepper & Pack Button Row
+                              Row(
+                                children: [
+                                  // Pill Qty Stepper
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: kScaffoldBg,
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(8),
+                                          icon: const Icon(Icons.remove, color: kAccentBlue, size: 18),
+                                          onPressed: () => cartNotifier.removeItem(rawId),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '$totalQty',
+                                          style: kQuantityTextStyle.copyWith(color: kTextDark),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          constraints: const BoxConstraints(),
+                                          padding: const EdgeInsets.all(8),
+                                          icon: const Icon(Icons.add, color: kAccentBlue, size: 18),
+                                          onPressed: () => cartNotifier.addItem(rawId),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Pack Action Button
+                                  InkWell(
+                                    onTap: () {
+                                      if (totalQty == 1) {
+                                        cartNotifier.togglePacked(rawId);
+                                      } else {
+                                        _showPackQuantityDialog(
+                                          context,
+                                          cartNotifier,
+                                          rawId,
+                                          item.name,
+                                          totalQty,
+                                          packedQty,
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: packedQty > 0 ? Colors.amber.shade100 : Colors.grey.shade100,
+                                        border: Border.all(
+                                          color: packedQty > 0 ? Colors.amber.shade700 : Colors.grey.shade400,
+                                          width: 1.5,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 16,
+                                            color: packedQty > 0 ? Colors.amber.shade900 : Colors.grey.shade800,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            packedQty > 0 ? "Pack ($packedQty)" : "Pack",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: packedQty > 0 ? Colors.amber.shade900 : Colors.grey.shade800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -167,12 +307,7 @@ class OrderSummaryPanel extends StatelessWidget {
                             const SizedBox(height: 12),
                             // Trash Icon inside red-bordered circle
                             GestureDetector(
-                              onTap: () {
-                                // Remove all items of this type
-                                for (int i = 0; i < quantity; i++) {
-                                  cartNotifier.removeItem(itemId);
-                                }
-                              },
+                              onTap: () => cartNotifier.removeAllOfItem(rawId),
                               child: Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
@@ -255,6 +390,135 @@ class OrderSummaryPanel extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showPackQuantityDialog(
+    BuildContext context,
+    CartNotifier cartNotifier,
+    String rawItemId,
+    String itemName,
+    int totalQty,
+    int currentPackedQty,
+  ) {
+    int tempPackedQty = currentPackedQty > 0 ? currentPackedQty : 1;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
+              backgroundColor: kCardBg,
+              title: Row(
+                children: [
+                  const Icon(Icons.takeout_dining_rounded, color: Colors.amber, size: 28),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Parcel Quantity",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kTextDark),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    itemName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kTextDark),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Total items in cart: $totalQty",
+                    style: const TextStyle(fontSize: 13, color: kTextGrey),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "How many plates do you want to parcel?",
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kTextDark),
+                  ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: kScaffoldBg,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.amber.shade400, width: 1.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.remove_circle_outline,
+                              color: tempPackedQty > 0 ? kAccentBlue : Colors.grey.shade400,
+                              size: 28,
+                            ),
+                            onPressed: tempPackedQty > 0
+                                ? () => setModalState(() => tempPackedQty--)
+                                : null,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              '$tempPackedQty',
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kTextDark),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.add_circle_outline,
+                              color: tempPackedQty < totalQty ? kAccentBlue : Colors.grey.shade400,
+                              size: 28,
+                            ),
+                            onPressed: tempPackedQty < totalQty
+                                ? () => setModalState(() => tempPackedQty++)
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: Text(
+                      "Result: $tempPackedQty Parcel [PACK], ${totalQty - tempPackedQty} Dine-In",
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: tempPackedQty > 0 ? Colors.amber.shade900 : kTextDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text("Cancel", style: TextStyle(color: kTextGrey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    cartNotifier.setPackedQuantity(rawItemId, tempPackedQty);
+                    Navigator.pop(dialogCtx);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.shade800,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: const Text("Confirm Parcel", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
         );
       },
     );

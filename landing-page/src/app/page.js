@@ -23,7 +23,7 @@ import imgTablet4 from '@/assets/Tablet/New Project.png';
 
 import imgScreen1 from '@/assets/Screen/HUAWEI-IdeaHub-S-HUAWEI-IdeaHub-Pro-angle.webp';
 import imgScreen2 from '@/assets/Screen/M6APro_V2-EDLA.webp';
-import imgAibotLogo from '@/assets/Aibot_Logo.png';
+
 import imgHeroBanner from '@/assets/HeroBanner.png';
 
 const tabletImages = [imgTablet1, imgTablet2, imgTablet3, imgTablet4];
@@ -114,9 +114,7 @@ export default function LandingPage() {
               transition={{ duration: 0.5 }}
               className="flex items-center space-x-2"
             >
-              <div className="w-7 h-7 rounded-lg bg-[#0069a8] flex items-center justify-center shadow-md shadow-[#0069a8]/20 shrink-0 overflow-hidden p-0.5">
-                <img src="/brandicon.png" alt="DigiAds Logo" className="w-full h-full object-contain rounded-md" />
-              </div>
+              <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 object-contain shrink-0" />
               <span className="font-outfit text-lg font-bold tracking-tight text-foreground leading-none brandLogo">
                 Digi<span className="text-[#0069a8]">Ads</span>
               </span>
@@ -510,8 +508,8 @@ export default function LandingPage() {
               <div className="relative group p-8 bg-background/50 dark:bg-card/30 backdrop-blur-md rounded-3xl border border-border/80 shadow-2xl hover:border-[#0069a8]/30 transition-all duration-500 max-w-[320px] w-full aspect-square flex items-center justify-center">
                 <div className="absolute inset-0 bg-[#0069a8]/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <img
-                  src={imgAibotLogo.src}
-                  alt="Aibot Ink Logo"
+                  src="/digiads-logo.svg"
+                  alt="DigiAds Logo"
                   className="w-full h-full object-contain max-h-[160px] filter drop-shadow-[0_8px_24px_rgba(0,105,168,0.15)] group-hover:scale-105 transition-transform duration-500 select-none"
                 />
               </div>
@@ -553,9 +551,7 @@ export default function LandingPage() {
       <footer className="bg-card py-12 px-6">
         <div className="w-full max-w-[1700px] mx-auto px-8 md:px-12 flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-muted-foreground">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-[#0069a8] flex items-center justify-center shadow-md shadow-[#0069a8]/20 overflow-hidden p-0.5">
-              <img src="/brandicon.png" alt="DigiAds Logo" className="w-full h-full object-contain rounded-md" />
-            </div>
+            <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 object-contain shrink-0" />
             <span className="font-outfit font-bold text-foreground brandLogo">DigiAds</span>
           </div>
 

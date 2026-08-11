@@ -74,6 +74,7 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/orders/close-table', hostController.closeTable.bind(hostController));
     merchantRoutes.post('/host/orders/payment-received', hostController.markPaymentReceived.bind(hostController));
     merchantRoutes.post('/host/orders/takeout', hostController.createTakeoutOrder.bind(hostController));
+    merchantRoutes.post('/host/orders/toggle-gst', hostController.toggleGstExemption.bind(hostController));
     merchantRoutes.post('/host/orders/service-waiter', hostController.serviceWaiter.bind(hostController));
     merchantRoutes.post('/host/request-more-devices', hostController.requestMoreDevices.bind(hostController));
     merchantRoutes.post('/host/verify-password', hostController.verifyPassword.bind(hostController));

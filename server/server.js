@@ -1027,7 +1027,8 @@ const orderServiceHandlers = {
           itemId: item.itemId,
           name: serverName,
           quantity: qty,
-          price: serverPrice
+          price: serverPrice,
+          isPacked: Boolean(item.isPacked)
         };
       });
 
@@ -1040,9 +1041,9 @@ const orderServiceHandlers = {
       });
 
       if (order) {
-        // Merge items into existing active order
+        // Merge items into existing active order (matching itemId and isPacked)
         validatedItems.forEach(newItem => {
-          const existingItem = order.items.find(i => i.itemId === newItem.itemId);
+          const existingItem = order.items.find(i => i.itemId === newItem.itemId && Boolean(i.isPacked) === Boolean(newItem.isPacked));
           if (existingItem) {
             existingItem.quantity += newItem.quantity;
           } else {
@@ -1050,7 +1051,8 @@ const orderServiceHandlers = {
               itemId: newItem.itemId,
               name: newItem.name,
               quantity: newItem.quantity,
-              price: newItem.price
+              price: newItem.price,
+              isPacked: newItem.isPacked
             });
           }
         });
@@ -1064,6 +1066,24 @@ const orderServiceHandlers = {
         // Create a new order if no active session exists
         const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
 
+        const app = device.hostApplicationId || {};
+        const billConfig = app.billConfig || {};
+        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+        const subtotalPaise = serverCalculatedTotal;
+        const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+        const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+
+        let finalAmountPaise = rawTotalPaise;
+        let roundOffPaise = 0;
+        if (enableAutoRoundOff) {
+          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+          roundOffPaise = finalAmountPaise - rawTotalPaise;
+        }
+
         order = new Order({
           orderId,
           merchantId,
@@ -1071,7 +1091,15 @@ const orderServiceHandlers = {
           deviceId,
           tableNumber,
           items: validatedItems,
-          totalAmount: serverCalculatedTotal,
+          subtotalAmount: subtotalPaise,
+          cgstAmount: cgstPaise,
+          sgstAmount: sgstPaise,
+          roundOffAmount: roundOffPaise,
+          cgstPercent: cgstPct,
+          sgstPercent: sgstPct,
+          enableAutoRoundOff,
+          billConfigSnapshot: billConfig,
+          totalAmount: finalAmountPaise,
           paymentStatus: 'pending',
           orderStatus: 'placed',
           tableStatus: 'active'

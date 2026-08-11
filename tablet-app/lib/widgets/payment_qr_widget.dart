@@ -2,7 +2,9 @@
 /// Displays a scannable QR code for UPI payment.
 library;
 
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class PaymentQrWidget extends StatelessWidget {
@@ -292,14 +294,74 @@ class PaymentQrWidget extends StatelessWidget {
             Positioned(
               top: 40,
               right: 20,
-              child: IconButton(
-                icon: const Icon(Icons.admin_panel_settings_outlined,
-                    color: Colors.white24),
-                onPressed: onUnlock,
-                tooltip: 'Exit Kiosk',
-              ),
+              child: _PaymentQrBrandIcon(onUnlock: onUnlock!),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _PaymentQrBrandIcon extends StatefulWidget {
+  final VoidCallback onUnlock;
+  const _PaymentQrBrandIcon({required this.onUnlock});
+
+  @override
+  State<_PaymentQrBrandIcon> createState() => _PaymentQrBrandIconState();
+}
+
+class _PaymentQrBrandIconState extends State<_PaymentQrBrandIcon> {
+  int _tapCount = 0;
+  Timer? _resetTimer;
+
+  void _handleTap() {
+    _tapCount++;
+    _resetTimer?.cancel();
+
+    if (_tapCount >= 5) {
+      _tapCount = 0;
+      widget.onUnlock();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Powered by DigiAds.Space',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+        duration: Duration(seconds: 2),
+        backgroundColor: Color(0xFF0764BF),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      _tapCount = 0;
+    });
+  }
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _handleTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 48,
+        height: 48,
+        padding: const EdgeInsets.all(4),
+        child: SvgPicture.asset(
+          'assets/digiads-icon.svg',
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }

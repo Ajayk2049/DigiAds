@@ -58,12 +58,23 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
   void _createOrder() async {
     try {
       final orderItems = widget.cart.entries.map((entry) {
-        final item = widget.menuItems.firstWhere((i) => i.itemId == entry.key);
+        final rawId = entry.key.split(':pack').first;
+        final isPacked = entry.key.endsWith(':pack');
+
+        final item = widget.menuItems.firstWhere(
+          (i) => i.itemId == rawId,
+          orElse: () => MenuItem()
+            ..itemId = rawId
+            ..name = 'Unknown Item'
+            ..price = Int64(0),
+        );
+
         return OrderItem()
           ..itemId = item.itemId
-          ..name = item.name
+          ..name = isPacked ? '${item.name} (PACK)' : item.name
           ..quantity = entry.value
-          ..price = item.price;
+          ..price = item.price
+          ..isPacked = isPacked;
       }).toList();
 
       final req = CreateOrderRequest()
@@ -110,8 +121,15 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
   @override
   Widget build(BuildContext context) {
     final itemNames = widget.cart.entries.map((entry) {
-      final item = widget.menuItems.firstWhere((i) => i.itemId == entry.key);
-      return "${item.name} x${entry.value}";
+      final rawId = entry.key.split(':pack').first;
+      final isPacked = entry.key.endsWith(':pack');
+
+      final item = widget.menuItems.firstWhere(
+        (i) => i.itemId == rawId,
+        orElse: () => MenuItem()..name = 'Unknown Item',
+      );
+      final label = isPacked ? "${item.name} (PACK)" : item.name;
+      return "$label x${entry.value}";
     }).join(', ');
 
     return AlertDialog(

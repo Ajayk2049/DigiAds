@@ -12,6 +12,7 @@ message OrderItem {
   string name = 2;
   int32 quantity = 3;
   int64 price = 4; // in paise
+  bool isPacked = 5;
 }
 
 message CreateOrderRequest {

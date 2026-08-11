@@ -406,7 +406,7 @@ export default function MerchantDashboard() {
           day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
-        const itemsText = (ord.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ');
+        const itemsText = (ord.items || []).map(i => `${i.name}${i.isPacked ? ' (PACK)' : ''} (x${i.quantity})`).join(', ');
 
         // Use frozen order snapshot values if available; otherwise calculate dynamically
         let subtotal = 0;
@@ -1420,6 +1420,17 @@ export default function MerchantDashboard() {
       await axios.post(`${API_BASE}/host/orders/service-waiter`, { orderId }, { headers: { Authorization: `Bearer ${token}` } });
       fetchLiveOrders(token);
     } catch (err) { console.error('serviceWaiter error:', err); }
+  };
+
+  const toggleGstExemption = async (orderId, removeGst) => {
+    try {
+      await axios.post(`${API_BASE}/host/orders/toggle-gst`, { orderId, removeGst }, { headers: { Authorization: `Bearer ${token}` } });
+      fetchLiveOrders(token);
+      showToast(removeGst ? 'GST removed from order' : 'GST restored on order', 'success');
+    } catch (err) {
+      console.error('toggleGstExemption error:', err);
+      showToast('Failed to update order GST', 'error');
+    }
   };
 
   const handleVerifyPasswordSubmit = async (e) => {
@@ -2570,9 +2581,7 @@ export default function MerchantDashboard() {
       {/* Top Header Navbar - Universal styled shadcn preset */}
       <header className="border-b border-border/40 bg-card px-5 sm:px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-30">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-900 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 overflow-hidden p-1">
-            <img src="/brandicon.png" alt="DigiAds Logo" className="w-full h-full object-contain rounded-lg" />
-          </div>
+          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-8 h-8 object-contain shrink-0" />
           <span className="font-outfit text-md font-bold text-foreground brandLogo">Merchant Portal</span>
         </div>
 
@@ -3799,6 +3808,7 @@ export default function MerchantDashboard() {
                             <th className="pb-3 pr-2">Table / Type</th>
                             <th className="pb-3 pr-2">Order ID</th>
                             <th className="pb-3 pr-2">Items</th>
+                            <th className="pb-3 pr-2">Amount</th>
                             <th className="pb-3 pr-2">Status</th>
                             <th className="pb-3 pr-2">Requests</th>
                             <th className="pb-3 pr-2">Actions</th>
@@ -3833,15 +3843,43 @@ export default function MerchantDashboard() {
                                   <div className="max-h-28 overflow-y-auto pr-1 space-y-1 scrollbar-thin">
                                     {ord.items.map((item, idx) => (
                                       <div key={idx} className="text-xs flex items-center justify-between space-x-2">
-                                        <span className="truncate max-w-[150px]" title={item.name}>{item.name}</span>
+                                        <span className="truncate max-w-[150px]" title={item.name}>{item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''}</span>
                                         <span className="text-muted-foreground shrink-0 font-mono text-[11px]">x {item.quantity}</span>
                                       </div>
                                     ))}
                                   </div>
-                                  <div className="w-12 border-t-2 border-border/50 my-1.5"></div>
-                                  <div className="text-xs font-bold text-foreground">
-                                    Total: ₹{(ord.totalAmount / 100).toFixed(2)}
+                                </div>
+                              </td>
+
+                              <td className="py-4 pr-2">
+                                <div className="flex flex-col space-y-1.5 min-w-[120px]">
+                                  <div className="text-sm font-black font-mono text-foreground">
+                                    ₹{(ord.totalAmount / 100).toFixed(2)}
                                   </div>
+                                  {ord.isGstExempt ? (
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                                        No GST
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleGstExemption(ord.orderId, false)}
+                                        className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline cursor-pointer"
+                                        title="Restore GST calculation"
+                                      >
+                                        Restore
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleGstExemption(ord.orderId, true)}
+                                      className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
+                                      title="Remove GST for items with GST-adjusted prices (Chai, Samosa, etc.)"
+                                    >
+                                      <span>Remove GST</span>
+                                    </button>
+                                  )}
                                 </div>
                               </td>
 
@@ -4617,7 +4655,7 @@ export default function MerchantDashboard() {
                             <div className="space-y-1 font-semibold text-foreground">
                               {ord.items && ord.items.map((item, itemIdx) => (
                                 <div key={itemIdx} className="text-xs">
-                                  {item.name} &nbsp;&nbsp; <span className="text-muted-foreground">x &nbsp;{item.quantity}</span>
+                                  {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''} &nbsp;&nbsp; <span className="text-muted-foreground">x &nbsp;{item.quantity}</span>
                                 </div>
                               ))}
                               <div className="w-16 border-t-2 border-border/50 my-1.5"></div>
@@ -5643,14 +5681,23 @@ export default function MerchantDashboard() {
           if (order && typeof order.subtotalAmount === 'number' && order.subtotalAmount > 0) {
             // Priority 1: Frozen order billing snapshot fields from actual transaction time
             subtotal = order.subtotalAmount / 100;
-            cgstAmt = (order.cgstAmount || 0) / 100;
-            sgstAmt = (order.sgstAmount || 0) / 100;
-            roundOffDiff = (order.roundOffAmount || 0) / 100;
             roundedTotal = (order.totalAmount || 0) / 100;
 
-            if (subtotal > 0) {
-              cgstRate = typeof order.cgstPercent === 'number' ? order.cgstPercent : Number(((cgstAmt / subtotal) * 100).toFixed(2));
-              sgstRate = typeof order.sgstPercent === 'number' ? order.sgstPercent : Number(((sgstAmt / subtotal) * 100).toFixed(2));
+            if (order.isGstExempt) {
+              cgstAmt = 0;
+              sgstAmt = 0;
+              cgstRate = 0;
+              sgstRate = 0;
+              roundOffDiff = 0;
+            } else {
+              cgstAmt = (order.cgstAmount || 0) / 100;
+              sgstAmt = (order.sgstAmount || 0) / 100;
+              roundOffDiff = (order.roundOffAmount || 0) / 100;
+
+              if (subtotal > 0) {
+                cgstRate = typeof order.cgstPercent === 'number' ? order.cgstPercent : Number(((cgstAmt / subtotal) * 100).toFixed(2));
+                sgstRate = typeof order.sgstPercent === 'number' ? order.sgstPercent : Number(((sgstAmt / subtotal) * 100).toFixed(2));
+              }
             }
           } else if (order && order.totalAmount) {
             // Priority 2: Historic DB order created prior to subtotalAmount snapshot field
@@ -5801,7 +5848,9 @@ export default function MerchantDashboard() {
                 {items.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-start leading-tight">
                     <span className={is58mm ? "w-4 shrink-0 font-semibold" : "w-5 shrink-0 font-semibold"}>{idx + 1}.</span>
-                    <span className="flex-1 px-1 font-bold text-gray-900 break-words pr-0.5">{item.name}</span>
+                    <span className="flex-1 px-1 font-bold text-gray-900 break-words pr-0.5">
+                      {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' (PACK)' : ''}
+                    </span>
                     <span className={is58mm ? "w-5 text-center shrink-0" : "w-7 text-center shrink-0"}>{item.quantity}</span>
                     <span className={is58mm ? "w-10 text-right shrink-0" : "w-12 text-right shrink-0"}>{((item.price * item.quantity) / 100).toFixed(2)}</span>
                   </div>
@@ -5816,21 +5865,25 @@ export default function MerchantDashboard() {
                   <span>SUB TOTAL:</span>
                   <span>{subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-gray-800">
-                  <span>GST ({(cgstRate + sgstRate).toFixed(1)}%):</span>
-                  <span>{totalGstAmt.toFixed(2)}</span>
-                </div>
-                {cgstRate > 0 && (
-                  <div className={`flex justify-between text-gray-700 pl-2 ${is58mm ? 'text-[7px]' : 'text-[8.5px]'}`}>
-                    <span>CGST @ {cgstRate}%:</span>
-                    <span>{cgstAmt.toFixed(2)}</span>
-                  </div>
-                )}
-                {sgstRate > 0 && (
-                  <div className={`flex justify-between text-gray-700 pl-2 ${is58mm ? 'text-[7px]' : 'text-[8.5px]'}`}>
-                    <span>SGST @ {sgstRate}%:</span>
-                    <span>{sgstAmt.toFixed(2)}</span>
-                  </div>
+                {totalGstAmt > 0 && (
+                  <>
+                    <div className="flex justify-between text-gray-800">
+                      <span>GST ({(cgstRate + sgstRate).toFixed(1)}%):</span>
+                      <span>{totalGstAmt.toFixed(2)}</span>
+                    </div>
+                    {cgstRate > 0 && (
+                      <div className={`flex justify-between text-gray-700 pl-2 ${is58mm ? 'text-[7px]' : 'text-[8.5px]'}`}>
+                        <span>CGST @ {cgstRate}%:</span>
+                        <span>{cgstAmt.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {sgstRate > 0 && (
+                      <div className={`flex justify-between text-gray-700 pl-2 ${is58mm ? 'text-[7px]' : 'text-[8.5px]'}`}>
+                        <span>SGST @ {sgstRate}%:</span>
+                        <span>{sgstAmt.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {config?.enableAutoRoundOff !== false && absRoundOff >= 0.001 && (
                   <div className="flex justify-between text-gray-800">
@@ -6707,17 +6760,34 @@ export default function MerchantDashboard() {
                 {takeoutCart.length > 0 && (
                   <div className="space-y-3 pt-3 border-t border-border/40">
                     {(() => {
-                      const totalPaise = takeoutCart.reduce((sum, c) => sum + (c.item.price * c.quantity), 0);
-                      const totalRs = (totalPaise / 100).toFixed(2);
+                      const targetAppId = activeOrderVenueTab || selectedOutletId || (approvedOutlets[0] ? approvedOutlets[0]._id : null);
+                      const currentApp = applications.find(a => a._id === targetAppId) || approvedOutlets[0] || {};
+                      const activeVenueBillConfig = currentApp.billConfig || {};
+
+                      const subtotalPaise = takeoutCart.reduce((sum, c) => sum + (c.item.price * c.quantity), 0);
+                      const subtotalRs = subtotalPaise / 100;
+                      const cgstPct = typeof activeVenueBillConfig.cgstPercent === 'number' ? activeVenueBillConfig.cgstPercent : 2.5;
+                      const sgstPct = typeof activeVenueBillConfig.sgstPercent === 'number' ? activeVenueBillConfig.sgstPercent : 2.5;
+                      const gstRate = cgstPct + sgstPct;
+                      const gstRs = subtotalRs * (gstRate / 100);
+                      const rawTotal = subtotalRs + gstRs;
+                      const finalTotalRs = activeVenueBillConfig.enableAutoRoundOff !== false ? Math.ceil(rawTotal) : rawTotal;
+
                       return (
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between font-semibold text-muted-foreground">
-                            <span>Total Items:</span>
-                            <span>{takeoutCart.reduce((s, c) => s + c.quantity, 0)}</span>
+                            <span>Subtotal:</span>
+                            <span className="font-mono">₹{subtotalRs.toFixed(2)}</span>
                           </div>
+                          {gstRate > 0 && (
+                            <div className="flex justify-between font-semibold text-muted-foreground">
+                              <span>GST ({gstRate.toFixed(1)}%):</span>
+                              <span className="font-mono">₹{gstRs.toFixed(2)}</span>
+                            </div>
+                          )}
                           <div className="flex justify-between font-black text-sm text-foreground pt-1 border-t border-border/40">
                             <span>Total Order Value:</span>
-                            <span className="font-mono text-primary">₹{totalRs}</span>
+                            <span className="font-mono text-primary">₹{finalTotalRs.toFixed(2)}</span>
                           </div>
                         </div>
                       );

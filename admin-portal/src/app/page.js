@@ -1469,11 +1469,11 @@ export default function AdminPortal() {
           <div className={`flex items-center mb-8 ${sidebarCollapsed ? 'justify-center' : 'px-4 space-x-2.5'}`}>
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="relative group w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-900 to-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20 cursor-pointer overflow-hidden transition-all duration-300"
+              className="relative group w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all duration-300 hover:bg-muted/50"
               aria-label="Toggle Sidebar"
             >
-              <div className="transition-all duration-300 transform group-hover:scale-0 group-hover:opacity-0 flex items-center justify-center p-1">
-                <img src="/brandicon.png" alt="DigiAds Logo" className="w-full h-full object-contain rounded-lg" />
+              <div className="transition-all duration-300 transform group-hover:scale-0 group-hover:opacity-0 flex items-center justify-center">
+                <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 object-contain" />
               </div>
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100">
                 {sidebarCollapsed ? (

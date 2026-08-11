@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grpc/grpc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,7 +56,7 @@ class KioskScreen extends StatefulWidget {
 
 class _KioskScreenState extends State<KioskScreen> {
   // ── Broad state ──
-  bool _isIdle = true;
+  bool _isIdle = false;
   bool _showCart = false;
   bool _kioskReady = false;
   bool _isOnline = true;
@@ -100,8 +101,41 @@ class _KioskScreenState extends State<KioskScreen> {
   Map<String, int> _adFrequencies = {};
   Map<String, int> _lastPlayedTimes = {};
 
-  // ── Controllers ──
+  // ── Controllers & Brand Tap Counter ──
   final _passwordController = TextEditingController();
+  int _brandTapCount = 0;
+  Timer? _brandTapResetTimer;
+
+  void _onBrandIconTapped() {
+    _brandTapCount++;
+    _brandTapResetTimer?.cancel();
+
+    if (_brandTapCount >= 5) {
+      _brandTapCount = 0;
+      _promptUnlock();
+      return;
+    }
+
+    // Single tap or rapid taps < 5 shows marketing toast
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Powered by DigiAds.Space',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+        duration: Duration(seconds: 2),
+        backgroundColor: Color(0xFF0764BF),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Reset tap counter if next tap is not within 1.5s
+    _brandTapResetTimer = Timer(const Duration(milliseconds: 1500), () {
+      _brandTapCount = 0;
+    });
+  }
 
   static const MethodChannel _perfChannel = MethodChannel('com.digiads.tabletop/performance');
 
@@ -180,6 +214,7 @@ class _KioskScreenState extends State<KioskScreen> {
       setState(() {
         _kioskReady = true;
       });
+      _resetIdleTimer();
     }
   }
 
@@ -845,12 +880,16 @@ class _KioskScreenState extends State<KioskScreen> {
               return AlertDialog(
                 shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
                 backgroundColor: kCardBg,
-                content: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                content: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.favorite_rounded, color: Colors.pink, size: 64),
+                      SvgPicture.asset(
+                        'assets/digiads-logo.svg',
+                        width: 260,
+                        fit: BoxFit.contain,
+                      ),
                       SizedBox(height: 20),
                       Text(
                         'Thank You!',
@@ -1117,16 +1156,6 @@ class _KioskScreenState extends State<KioskScreen> {
                 playerState: _adPlayer.state,
                 deviceId: widget.deviceId,
                 adCampaigns: _adSync.adCampaigns,
-              ),
-              Positioned(
-                top: 40,
-                right: 20,
-                child: IconButton(
-                  icon: const Icon(Icons.admin_panel_settings_outlined,
-                      color: Colors.white24),
-                  onPressed: _promptUnlock,
-                  tooltip: "Exit Kiosk",
-                ),
               ),
               // Show download progress during background sync
               DownloadProgressIndicator(progress: _adSync.progress),
@@ -1432,10 +1461,17 @@ class _KioskScreenState extends State<KioskScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          IconButton(
-            icon: const Icon(Icons.admin_panel_settings_outlined, color: kTextGrey),
-            onPressed: _promptUnlock,
-            tooltip: "Exit Kiosk Mode",
+          GestureDetector(
+            onTap: _onBrandIconTapped,
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox(
+              height: 52,
+              width: 52,
+              child: SvgPicture.asset(
+                'assets/digiads-icon.svg',
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
         ],
       ),
