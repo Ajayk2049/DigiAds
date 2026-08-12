@@ -255,6 +255,17 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
 
+                    "installApk" -> {
+                        val apkPath = call.argument<String>("apkPath")
+                        if (apkPath == null) {
+                            result.error("INVALID_ARGUMENT", "apkPath is required", null)
+                        } else {
+                            val updater = KioskUpdater(this)
+                            val success = updater.installApk(apkPath)
+                            result.success(success)
+                        }
+                    }
+
                     "startKioskMode" -> {
                         try {
                             if (isCircuitBreakerTripped) {

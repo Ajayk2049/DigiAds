@@ -3,6 +3,7 @@ const deviceAuthController = require('../controllers/deviceAuthController');
 const hostController = require('../controllers/hostController');
 const adController = require('../controllers/adController');
 const adminController = require('../controllers/adminController');
+const releaseController = require('../controllers/releaseController');
 const { authenticate, authorize } = require('../utils/authMiddleware');
 
 function registerRoutes(fastify, options, done) {
@@ -147,8 +148,17 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.post('/admin/device-requests/review', adminController.reviewDeviceRequest.bind(adminController));
     adminRoutes.get('/admin/mode-change-requests', adminController.getModeChangeRequests.bind(adminController));
     adminRoutes.put('/admin/mode-change-requests/:requestId/review', adminController.reviewModeChangeRequest.bind(adminController));
+
+    // Admin Release Management
+    adminRoutes.get('/admin/releases', releaseController.listReleases.bind(releaseController));
+    adminRoutes.post('/admin/releases/upload', { bodyLimit: 104857600 }, releaseController.uploadRelease.bind(releaseController));
+    adminRoutes.put('/admin/releases/:releaseId/status', releaseController.toggleReleaseStatus.bind(releaseController));
     next();
   });
+
+  // Public/Device OTA Release Endpoints
+  fastify.get('/releases/latest', releaseController.getLatestRelease.bind(releaseController));
+  fastify.get('/releases/download/:releaseId', releaseController.downloadRelease.bind(releaseController));
 
   done();
 }

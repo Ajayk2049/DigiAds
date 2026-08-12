@@ -45,6 +45,19 @@ const DeviceSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  lastKnownAppVersion: {
+    type: String,
+    default: '1.0.0'
+  },
+  lastKnownVersionCode: {
+    type: Number,
+    default: 1
+  },
+  updateStatus: {
+    type: String,
+    enum: ['none', 'downloading', 'pending_11pm', 'installed', 'failed'],
+    default: 'none'
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -13,7 +13,9 @@ import '../generated/device.pbgrpc.dart';
 import '../generated/menu.pbgrpc.dart';
 import '../generated/order.pbgrpc.dart';
 
+import 'package:package_info_plus/package_info_plus.dart';
 import '../constants.dart';
+import '../services/update_service.dart';
 import '../menu_state.dart';
 import '../ad_player_service.dart';
 import '../ad_sync_service.dart';
@@ -250,12 +252,31 @@ class _KioskScreenState extends State<KioskScreen> {
       debugPrint('[WS] Connected successfully');
       _markOnline();
 
-      // Periodic ping timer every 15s to keep lastHeartbeat fresh on server
+      // Periodic ping timer every 15s to keep lastHeartbeat fresh on server and check OTA updates
       _wsPingTimer?.cancel();
-      _wsPingTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _wsPingTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
         if (_socket != null && _isWsConnected) {
           try {
-            _socket!.add(jsonEncode({'event': 'ping', 'deviceId': widget.deviceId}));
+            String appVer = '1.0.0';
+            int verCode = 1;
+            try {
+              final info = await PackageInfo.fromPlatform();
+              appVer = info.version;
+              verCode = int.tryParse(info.buildNumber) ?? 1;
+            } catch (_) {}
+
+            _socket!.add(jsonEncode({
+              'event': 'ping',
+              'deviceId': widget.deviceId,
+              'appVersion': appVer,
+              'versionCode': verCode,
+            }));
+
+            // Periodically evaluate OTA update readiness
+            UpdateService.checkForUpdate(
+              serverHost: widget.serverHost,
+              isIdle: _isIdle && _cart.value.isEmpty,
+            );
           } catch (e) {
             debugPrint('[WS] Ping send failed: $e');
           }
@@ -273,6 +294,15 @@ class _KioskScreenState extends State<KioskScreen> {
             } else if (event == 'reload_menu') {
               debugPrint('[WS] Menu update reload request received');
               _fetchMenu();
+            } else if (event == 'app_update') {
+              debugPrint('[WS] App update event received from server');
+              UpdateService.checkForUpdate(
+                serverHost: widget.serverHost,
+                isIdle: _isIdle && _cart.value.isEmpty,
+              );
+            } else if (event == 'release_cancelled') {
+              debugPrint('[WS] Release revoked/cancelled by admin. Purging pending APK...');
+              UpdateService.purgePendingUpdate();
             } else if (event == 'pong') {
               // Heartbeat ack from server
             }
@@ -752,7 +782,12 @@ class _KioskScreenState extends State<KioskScreen> {
             _isIdle = true;
             _showCart = false;
           });
-          _adPlayer.resume();
+          final eligible = _getEligiblePlaylist(_masterAdPlaylist);
+          if (eligible.isNotEmpty) {
+            _adPlayer.startLoop(eligible);
+          } else {
+            _adPlayer.resume();
+          }
         }
       });
     }

@@ -64,7 +64,7 @@ async function startFastify() {
   await fastify.register(cors, {
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-requested-with', 'Accept', 'Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
     credentials: true
   });
 
@@ -211,9 +211,12 @@ async function startFastify() {
 
             if (data.event === 'ping' || data.type === 'ping') {
               socket.send(JSON.stringify({ event: 'pong', timestamp: Date.now() }));
+              const updateDoc = { status: 'online', lastHeartbeat: new Date() };
+              if (data.appVersion) updateDoc.lastKnownAppVersion = String(data.appVersion);
+              if (data.versionCode) updateDoc.lastKnownVersionCode = parseInt(data.versionCode, 10);
               await Device.updateOne(
                 { deviceId },
-                { $set: { status: 'online', lastHeartbeat: new Date() } }
+                { $set: updateDoc }
               ).catch(() => { });
             } else if (data.event === 'call_waiter') {
               const rawWaiterOption = String(data.waiterOption || data.waiterCallOption || 'Others').trim();

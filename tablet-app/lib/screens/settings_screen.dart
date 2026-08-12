@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import 'device_setup_screen.dart';
@@ -42,11 +43,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       MethodChannel('com.digiads.tabletop/performance');
 
   bool _bootGuardTripped = false;
+  String _appVersion = 'Loading...';
 
   @override
   void initState() {
     super.initState();
     _readBootGuard();
+    _loadVersionInfo();
+  }
+
+  Future<void> _loadVersionInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${info.version} (Build ${info.buildNumber})';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v1.0.0+1';
+        });
+      }
+    }
   }
 
   Future<void> _readBootGuard() async {
@@ -360,6 +380,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kTextGrey, letterSpacing: 1.2),
           ),
           const SizedBox(height: 6),
+          _kv('App Version', _appVersion),
           _kv('Device ID', widget.deviceId),
           _kv('Server', widget.serverHost),
           _kv('Table', widget.tableNumber),

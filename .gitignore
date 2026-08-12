@@ -11,6 +11,7 @@ build/
 dist/
 .next/
 out/
+uploads/
 
 # Environment configurations & local secrets
 .env

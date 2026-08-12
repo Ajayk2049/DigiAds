@@ -40,6 +40,7 @@ import {
   Mail,
   Phone,
   KeyRound,
+  Shield,
   ShieldAlert,
   Edit,
   Trash2,
@@ -147,6 +148,20 @@ export default function AdminPortal() {
     hostApplicationId: ''
   });
   const [showDeployForm, setShowDeployForm] = useState(false);
+
+  // Releases OTA Modal & Sub-Tab State
+  const [otaSubTab, setOtaSubTab] = useState('telemetry'); // 'telemetry' | 'history'
+  const [releases, setReleases] = useState([]);
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [releaseForm, setReleaseForm] = useState({
+    appType: 'TABLET_APP',
+    versionName: '1.0.1',
+    versionCode: '2',
+    releaseNotes: '',
+    isMandatory: false,
+    file: null,
+  });
+  const [uploadingRelease, setUploadingRelease] = useState(false);
 
   // Rates Form
   const [rateForm, setRateForm] = useState({
@@ -274,6 +289,68 @@ export default function AdminPortal() {
     } catch (err) {
       console.error(err);
       showNotification(err.response?.data?.message || 'Failed to update quotas.', 'error');
+    }
+  };
+
+  const handleUploadRelease = async (e) => {
+    e.preventDefault();
+    if (!releaseForm.file) {
+      showNotification('Please select an APK file to upload.', 'error');
+      return;
+    }
+    setUploadingRelease(true);
+    try {
+      const res = await axios.post(`${API_BASE}/admin/releases/upload`, releaseForm.file, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/octet-stream',
+          'X-App-Type': releaseForm.appType,
+          'X-Version-Name': releaseForm.versionName,
+          'X-Version-Code': releaseForm.versionCode,
+          'X-Release-Notes': encodeURIComponent(releaseForm.releaseNotes || ''),
+          'X-Is-Mandatory': releaseForm.isMandatory ? 'true' : 'false',
+        },
+      });
+
+      if (res.data.success) {
+        showNotification(`Release v${releaseForm.versionName} uploaded & published!`, 'success');
+        setShowReleaseModal(false);
+        setReleaseForm({
+          appType: 'TABLET_APP',
+          versionName: '1.0.1',
+          versionCode: '2',
+          releaseNotes: '',
+          isMandatory: false,
+          file: null,
+        });
+        loadDashboardData(token);
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification(err.response?.data?.error || 'Failed to upload release APK.', 'error');
+    } finally {
+      setUploadingRelease(false);
+    }
+  };
+
+  const handleToggleReleaseStatus = async (releaseId, currentStatus) => {
+    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    const confirmMsg = nextStatus === 'inactive'
+      ? 'Revoking this release will broadcast a cancellation signal to all devices and purge pending updates. Proceed?'
+      : 'Activate this release?';
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await axios.put(`${API_BASE}/admin/releases/${releaseId}/status`, { status: nextStatus }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        showNotification(`Release status updated to ${nextStatus}!`, 'success');
+        loadDashboardData(token);
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification(err.response?.data?.error || 'Failed to update release status.', 'error');
     }
   };
 
@@ -805,7 +882,7 @@ export default function AdminPortal() {
   const loadDashboardData = async (authToken) => {
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
-      const [statsRes, hostsRes, campaignsRes, ratesRes, devicesRes, usersRes, deviceReqsRes, modeReqsRes] = await Promise.all([
+      const [statsRes, hostsRes, campaignsRes, ratesRes, devicesRes, usersRes, deviceReqsRes, modeReqsRes, releasesRes] = await Promise.all([
         axios.get(`${API_BASE}/admin/stats`, { headers }).catch(() => ({ data: { data: null } })),
         axios.get(`${API_BASE}/admin/hosts`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/bookings`, { headers }).catch(() => ({ data: { data: [] } })),
@@ -813,7 +890,8 @@ export default function AdminPortal() {
         axios.get(`${API_BASE}/admin/devices`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/users`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/device-requests`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/admin/releases`, { headers }).catch(() => ({ data: { releases: [] } }))
       ]);
 
       setStats(statsRes.data.data);
@@ -824,6 +902,7 @@ export default function AdminPortal() {
       setUsers(usersRes.data.data || []);
       setDeviceRequests(deviceReqsRes.data.data || []);
       setModeChangeRequests(modeReqsRes.data.data || []);
+      setReleases(releasesRes.data.releases || []);
     } catch (err) {
       console.error(err);
       if (err.response?.status === 401) {
@@ -1296,6 +1375,7 @@ export default function AdminPortal() {
     { id: 'venues', label: 'Venues', icon: <Building className="w-4 h-4" /> },
     { id: 'advertisers', label: 'Advertisers', icon: <Tv className="w-4 h-4" /> },
     { id: 'devices', label: 'Devices', icon: <Smartphone className="w-4 h-4" /> },
+    { id: 'ota', label: 'OTA Updates', icon: <RefreshCw className="w-4 h-4" /> },
     { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
     { id: 'rates', label: 'Ad Rates', icon: <Percent className="w-4 h-4" /> }
   ];
@@ -1414,12 +1494,12 @@ export default function AdminPortal() {
               exit={{ opacity: 0, x: 100, scale: 0.9 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
               className={`pointer-events-auto p-4 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-start justify-between space-x-3 transition-all duration-300 ${toast.type === 'error' || toast.type === 'destructive'
-                  ? '!bg-red-600 !border-red-500 !text-white shadow-[0_0_25px_rgba(239,68,68,0.4)]'
-                  : toast.type === 'warning'
-                    ? '!bg-amber-600 !border-amber-500 !text-white shadow-[0_0_25px_rgba(245,158,11,0.4)]'
-                    : toast.type === 'info'
-                      ? '!bg-blue-600 !border-blue-500 !text-white shadow-[0_0_25px_rgba(59,130,246,0.4)]'
-                      : '!bg-emerald-600 !border-emerald-500 !text-white shadow-[0_0_25px_rgba(16,185,129,0.4)]'
+                ? '!bg-red-600 !border-red-500 !text-white shadow-[0_0_25px_rgba(239,68,68,0.4)]'
+                : toast.type === 'warning'
+                  ? '!bg-amber-600 !border-amber-500 !text-white shadow-[0_0_25px_rgba(245,158,11,0.4)]'
+                  : toast.type === 'info'
+                    ? '!bg-blue-600 !border-blue-500 !text-white shadow-[0_0_25px_rgba(59,130,246,0.4)]'
+                    : '!bg-emerald-600 !border-emerald-500 !text-white shadow-[0_0_25px_rgba(16,185,129,0.4)]'
                 }`}
             >
               <div className="flex items-start space-x-3 min-w-0">
@@ -2357,8 +2437,8 @@ export default function AdminPortal() {
                                   </span>
                                   <span className="text-muted-foreground font-black">→</span>
                                   <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${req.requestedMode === 'closed'
-                                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                     }`}>
                                     {req.requestedMode} MODE
                                   </span>
@@ -2366,10 +2446,10 @@ export default function AdminPortal() {
                               </td>
                               <td className="p-4 text-center">
                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${req.status === 'approved'
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                    : req.status === 'rejected'
-                                      ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : req.status === 'rejected'
+                                    ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                   }`}>
                                   {req.status}
                                 </span>
@@ -2781,6 +2861,7 @@ export default function AdminPortal() {
                       <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider bg-card/10">
                         <th className="p-4 pl-6">Device Serial ID</th>
                         <th className="p-4">Deployed Venue</th>
+                        <th className="p-4">App Version</th>
                         <th className="p-4">Status</th>
                         <th className="p-4">Last Sync Heartbeat</th>
                       </tr>
@@ -2788,7 +2869,7 @@ export default function AdminPortal() {
                     <tbody className="divide-y divide-border/40">
                       {filteredDevices.length === 0 ? (
                         <tr>
-                          <td colSpan="4" className="p-12 text-center text-muted-foreground font-medium italic">
+                          <td colSpan="5" className="p-12 text-center text-muted-foreground font-medium italic">
                             No deployed hardware terminals found for {deviceSubTab}.
                           </td>
                         </tr>
@@ -2800,13 +2881,18 @@ export default function AdminPortal() {
                               {d.hostApplicationId?.outletName || 'Standalone'}
                               <div className="text-[10px] text-muted-foreground font-medium">{d.hostApplicationId?.city}, {d.hostApplicationId?.state}</div>
                             </td>
+                            <td className="p-4 font-semibold text-foreground">
+                              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono text-[11px] font-bold">
+                                {d.lastKnownAppVersion || 'v1.0.0'}
+                              </span>
+                            </td>
                             <td className="p-4">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${d.status === 'online' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-muted text-muted-foreground'}`}>
                                 {d.status}
                               </span>
                             </td>
                             <td className="p-4 text-muted-foreground font-medium">
-                              {d.lastSync ? new Date(d.lastSync).toLocaleString() : 'Never'}
+                              {d.lastHeartbeat || d.lastSync ? new Date(d.lastHeartbeat || d.lastSync).toLocaleString() : 'Never'}
                             </td>
                           </tr>
                         ))
@@ -2817,7 +2903,192 @@ export default function AdminPortal() {
               </motion.div>
             )}
 
-            {/* 6. USERS & ROLES TAB */}
+            {/* 6. OTA UPDATES MANAGEMENT TAB */}
+            {activeTab === 'ota' && (
+              <motion.div
+                key="ota-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center border-b border-border/50 pb-6 flex-wrap gap-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-muted p-1 rounded-xl flex space-x-1 border border-border">
+                      <button
+                        onClick={() => setOtaSubTab('telemetry')}
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${otaSubTab === 'telemetry' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Recent Devices
+                      </button>
+                      <button
+                        onClick={() => setOtaSubTab('history')}
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${otaSubTab === 'history' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                      >
+                        Release History & Revokes ({releases.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowReleaseModal(true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors duration-200 shadow-md flex items-center space-x-1.5 cursor-pointer min-h-[44px]"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>Upload New Release APK</span>
+                  </button>
+                </div>
+
+                {/* Sub-Tab 1: Fleet Devices Telemetry */}
+                {otaSubTab === 'telemetry' && (
+                  <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm animate-fade-in">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-500" /> Device Release Updates Tracker
+                      </h4>
+                      <span className="text-xs font-bold text-muted-foreground">
+                        Updated Terminals: {devices.filter(d => d.lastKnownVersionCode >= 2 || (d.lastKnownAppVersion && d.lastKnownAppVersion !== '1.0.0')).length} / {devices.length}
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider bg-card/10">
+                            <th className="p-3 pl-4">Terminal Serial</th>
+                            <th className="p-3">Venue / Location</th>
+                            <th className="p-3">Device Type</th>
+                            <th className="p-3">Reported Version</th>
+                            <th className="p-3">Heartbeat Status</th>
+                            <th className="p-3">Last Heartbeat Sync</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40 font-semibold">
+                          {(() => {
+                            const updatedDevices = devices.filter(d => d.lastKnownVersionCode >= 2 || (d.lastKnownAppVersion && d.lastKnownAppVersion !== '1.0.0'));
+                            if (updatedDevices.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan="6" className="p-8 text-center text-muted-foreground italic font-normal">
+                                    No recently updated devices recorded yet. Terminals will appear here automatically once their OTA update is applied and reported.
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            return updatedDevices.map((d) => (
+                              <tr key={d._id} className="hover:bg-card/20 transition-colors">
+                                <td className="p-3 pl-4 font-mono font-bold text-primary">{d.deviceId}</td>
+                                <td className="p-3 text-foreground font-bold">
+                                  {d.hostApplicationId?.outletName || 'Standalone'}
+                                  <div className="text-[10px] text-muted-foreground font-normal">{d.hostApplicationId?.city || 'N/A'}</div>
+                                </td>
+                                <td className="p-3 capitalize text-muted-foreground">{d.deviceType || 'tablet'}</td>
+                                <td className="p-3 font-mono font-bold">
+                                  <span className="px-2.5 py-1 rounded text-[11px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    {d.lastKnownAppVersion ? `v${d.lastKnownAppVersion}` : 'v1.0.1'} {d.lastKnownVersionCode ? `(Build ${d.lastKnownVersionCode})` : '(Build 2)'}
+                                  </span>
+                                </td>
+                                <td className="p-3">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center w-fit gap-1">
+                                    <CheckCircle className="w-3 h-3" /> Updated
+                                  </span>
+                                </td>
+                                <td className="p-3 text-muted-foreground font-normal">
+                                  {d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : 'Never'}
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Tab 2: Release History & Revokes */}
+                {otaSubTab === 'history' && (
+                  <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm animate-fade-in">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <RefreshCw className="w-4 h-4 text-primary" /> Published Release History & Rollback Controls
+                      </h4>
+                      <span className="text-xs font-bold text-muted-foreground">
+                        Total Releases: {releases.length}
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider bg-card/10">
+                            <th className="p-3 pl-4">Release Version</th>
+                            <th className="p-3">Target App</th>
+                            <th className="p-3">Published Date & Time</th>
+                            <th className="p-3">SHA-256 Digest</th>
+                            <th className="p-3">Flags</th>
+                            <th className="p-3">Status</th>
+                            <th className="p-3 text-right pr-4">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40 font-semibold">
+                          {releases.length === 0 ? (
+                            <tr>
+                              <td colSpan="7" className="p-8 text-center text-muted-foreground italic">No published APK releases recorded yet.</td>
+                            </tr>
+                          ) : (
+                            releases.map((rel) => {
+                              const isActive = rel.status === 'active';
+                              return (
+                                <tr key={rel._id} className="hover:bg-card/20 transition-colors">
+                                  <td className="p-3 pl-4 font-mono font-bold text-foreground">
+                                    v{rel.versionName} <span className="text-[10px] text-muted-foreground">(Build #{rel.versionCode})</span>
+                                  </td>
+                                  <td className="p-3 font-bold text-muted-foreground">
+                                    {rel.appType === 'TABLET_APP' ? 'Tabletop Tablet (3:4)' : 'Wall Screen (16:9)'}
+                                  </td>
+                                  <td className="p-3 text-muted-foreground font-normal">
+                                    {new Date(rel.createdAt).toLocaleString()}
+                                  </td>
+                                  <td className="p-3 font-mono text-[10px] text-muted-foreground" title={rel.sha256}>
+                                    {rel.sha256 ? `${rel.sha256.substring(0, 12)}...` : 'N/A'}
+                                  </td>
+                                  <td className="p-3">
+                                    {rel.isMandatory ? (
+                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20">
+                                        Mandatory
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                                        Standard (11 PM)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${isActive ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+                                      {rel.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-right pr-4">
+                                    <button
+                                      onClick={() => handleToggleReleaseStatus(rel._id, rel.status)}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${isActive ? 'bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-500/20' : 'bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 border border-emerald-500/20'}`}
+                                    >
+                                      {isActive ? 'Revoke Release' : 'Activate Release'}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* 7. USERS & ROLES TAB */}
             {activeTab === 'users' && (
               <motion.div
                 key="users-tab"
@@ -3015,8 +3286,8 @@ export default function AdminPortal() {
                             type="button"
                             onClick={() => setRateForm({ ...rateForm, pricingType: 'per_device' })}
                             className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${(rateForm.pricingType || 'per_device') === 'per_device'
-                                ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                : 'bg-background text-muted-foreground border-input hover:text-foreground'
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                              : 'bg-background text-muted-foreground border-input hover:text-foreground'
                               }`}
                           >
                             <Tablet className="w-3.5 h-3.5" />
@@ -3026,8 +3297,8 @@ export default function AdminPortal() {
                             type="button"
                             onClick={() => setRateForm({ ...rateForm, pricingType: 'whole_venue' })}
                             className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${rateForm.pricingType === 'whole_venue'
-                                ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                : 'bg-background text-muted-foreground border-input hover:text-foreground'
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                              : 'bg-background text-muted-foreground border-input hover:text-foreground'
                               }`}
                           >
                             <Building className="w-3.5 h-3.5" />
@@ -4609,8 +4880,8 @@ export default function AdminPortal() {
                   type="button"
                   onClick={() => setActiveQuotaTab('tablet')}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeQuotaTab === 'tablet'
-                      ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                    ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                     }`}
                 >
                   <Tablet className="w-3.5 h-3.5" />
@@ -4620,8 +4891,8 @@ export default function AdminPortal() {
                   type="button"
                   onClick={() => setActiveQuotaTab('screen')}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeQuotaTab === 'screen'
-                      ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                    ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                     }`}
                 >
                   <Tv className="w-3.5 h-3.5" />
@@ -4792,7 +5063,121 @@ export default function AdminPortal() {
         </div>
       )}
 
+      {/* Upload Release APK Modal */}
+      {showReleaseModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card border border-border p-6 rounded-3xl max-w-md w-full shadow-2xl space-y-5"
+          >
+            <div className="flex justify-between items-center border-b border-border/50 pb-3">
+              <div className="flex items-center space-x-2">
+                <Upload className="w-5 h-5 text-emerald-500" />
+                <h3 className="font-outfit text-base font-bold text-foreground">Publish OTA App Release</h3>
+              </div>
+              <button
+                onClick={() => setShowReleaseModal(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadRelease} className="space-y-4 text-xs font-semibold">
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1">Target Application</label>
+                <select
+                  value={releaseForm.appType}
+                  onChange={(e) => setReleaseForm({ ...releaseForm, appType: e.target.value })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none"
+                >
+                  <option value="TABLET_APP">Tabletop Tablet App (3:4)</option>
+                  <option value="SCREEN_APP">Wall Display Screen App (16:9)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase text-muted-foreground mb-1">Version Name (Semver)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="1.0.1"
+                    value={releaseForm.versionName}
+                    onChange={(e) => setReleaseForm({ ...releaseForm, versionName: e.target.value })}
+                    className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase text-muted-foreground mb-1">Version Code (Build #)</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="2"
+                    value={releaseForm.versionCode}
+                    onChange={(e) => setReleaseForm({ ...releaseForm, versionCode: e.target.value })}
+                    className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1">Release APK File</label>
+                <input
+                  type="file"
+                  required
+                  accept=".apk"
+                  onChange={(e) => setReleaseForm({ ...releaseForm, file: e.target.files[0] })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1">Release Notes</label>
+                <textarea
+                  rows="3"
+                  placeholder="Bug fixes, performance improvements, thermal printer receipt fixes..."
+                  value={releaseForm.releaseNotes}
+                  onChange={(e) => setReleaseForm({ ...releaseForm, releaseNotes: e.target.value })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isMandatory"
+                  checked={releaseForm.isMandatory}
+                  onChange={(e) => setReleaseForm({ ...releaseForm, isMandatory: e.target.checked })}
+                  className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                />
+                <label htmlFor="isMandatory" className="text-xs text-foreground cursor-pointer font-bold">
+                  Mandatory Update (Forces installation on next idle standby)
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowReleaseModal(false)}
+                  className="px-4 py-2 bg-muted text-foreground font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingRelease}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {uploadingRelease ? 'Publishing APK...' : 'Upload & Publish Release'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
-
