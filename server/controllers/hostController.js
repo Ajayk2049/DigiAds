@@ -419,6 +419,20 @@ class HostController {
         return res.status(403).send({ success: false, message: 'Access denied: Host application does not belong to you' });
       }
 
+      // Unlink orphaned menu item images from disk if removed or replaced
+      const existingMenu = await Menu.findOne({ hostApplicationId });
+      if (existingMenu && Array.isArray(existingMenu.items)) {
+        const oldImageUrls = new Set(existingMenu.items.map(i => i.imageUrl).filter(url => url && url.startsWith('/uploads/')));
+        const newImageUrls = new Set(items.map(i => i.imageUrl).filter(url => url && url.startsWith('/uploads/')));
+
+        for (const oldUrl of oldImageUrls) {
+          if (!newImageUrls.has(oldUrl)) {
+            this.unlinkMediaFile(oldUrl);
+            console.log('[Menu Disk Cleanup] Unlinked removed/replaced food menu image:', oldUrl);
+          }
+        }
+      }
+
       const menu = await Menu.findOneAndUpdate(
         { hostApplicationId },
         { 
@@ -2043,6 +2057,8 @@ class HostController {
    * Update modular bill config for venue
    */
   async updateBillConfig(req, res) {
+    const fs = require('fs');
+    const path = require('path');
     const { applicationId } = req.params;
     const billConfigData = req.body || {};
 
@@ -2052,11 +2068,44 @@ class HostController {
         return res.status(404).send({ success: false, message: 'Host application not found' });
       }
 
+      const prevConfig = hostApp.billConfig ? hostApp.billConfig.toObject() : {};
+
+      // Immediately unlink old logoUrl from server disk if deleted or replaced
+      if (prevConfig.logoUrl && billConfigData.logoUrl !== undefined && billConfigData.logoUrl !== prevConfig.logoUrl) {
+        if (prevConfig.logoUrl.startsWith('/uploads/')) {
+          const oldPath = path.join(__dirname, '..', prevConfig.logoUrl);
+          if (fs.existsSync(oldPath)) {
+            try {
+              fs.unlinkSync(oldPath);
+              console.log('[BillConfig] Unlinked deleted header logo from disk:', oldPath);
+            } catch (e) {
+              console.error('[BillConfig] Failed to unlink header logo:', e.message);
+            }
+          }
+        }
+      }
+
+      // Immediately unlink old qrImageUrl from server disk if deleted or replaced
+      if (prevConfig.qrImageUrl && billConfigData.qrImageUrl !== undefined && billConfigData.qrImageUrl !== prevConfig.qrImageUrl) {
+        if (prevConfig.qrImageUrl.startsWith('/uploads/')) {
+          const oldPath = path.join(__dirname, '..', prevConfig.qrImageUrl);
+          if (fs.existsSync(oldPath)) {
+            try {
+              fs.unlinkSync(oldPath);
+              console.log('[BillConfig] Unlinked deleted footer QR image from disk:', oldPath);
+            } catch (e) {
+              console.error('[BillConfig] Failed to unlink footer QR image:', e.message);
+            }
+          }
+        }
+      }
+
       hostApp.billConfig = {
-        ...(hostApp.billConfig ? hostApp.billConfig.toObject() : {}),
+        ...prevConfig,
         ...billConfigData
       };
 
+      hostApp.markModified('billConfig');
       await hostApp.save();
 
       return res.status(200).send({
@@ -2067,6 +2116,59 @@ class HostController {
     } catch (error) {
       console.error('updateBillConfig Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to update bill config' });
+    }
+  }
+
+  /**
+   * Delete bill image (logoUrl or qrImageUrl) immediately from disk & update DB
+   */
+  async deleteBillImage(req, res) {
+    const fs = require('fs');
+    const path = require('path');
+    const { imageType, hostApplicationId } = req.body || {};
+
+    if (!imageType || !['logoUrl', 'qrImageUrl'].includes(imageType)) {
+      return res.status(400).send({ success: false, message: 'Invalid imageType. Must be logoUrl or qrImageUrl.' });
+    }
+
+    try {
+      const query = { _id: hostApplicationId };
+      if (req.user && req.user.role !== 'admin') {
+        query.userId = req.user.uid;
+      }
+
+      const hostApp = await HostApplication.findOne(query);
+      if (!hostApp) {
+        return res.status(404).send({ success: false, message: 'Host application not found or access denied' });
+      }
+
+      const prevUrl = hostApp.billConfig ? hostApp.billConfig[imageType] : '';
+      if (prevUrl && prevUrl.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, '..', prevUrl);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log(`[BillConfig] Deleted ${imageType} image from disk:`, filePath);
+          } catch (e) {
+            console.error(`[BillConfig] Failed to delete file ${filePath}:`, e.message);
+          }
+        }
+      }
+
+      if (hostApp.billConfig) {
+        hostApp.billConfig[imageType] = '';
+        hostApp.markModified('billConfig');
+        await hostApp.save();
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: `${imageType === 'logoUrl' ? 'Header logo' : 'Footer QR image'} deleted successfully from disk`,
+        data: hostApp.billConfig
+      });
+    } catch (error) {
+      console.error('deleteBillImage Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to delete bill image: ' + error.message });
     }
   }
 

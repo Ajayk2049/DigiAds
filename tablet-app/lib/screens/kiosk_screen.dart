@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:grpc/grpc.dart';
@@ -27,6 +28,7 @@ import '../widgets/payment_qr_widget.dart';
 import '../widgets/download_progress_indicator.dart';
 import '../menu_image_cache.dart';
 import 'settings_screen.dart';
+import 'device_setup_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  KIOSK SCREEN — Main kiosk orchestrator (ANR-safe startup)
@@ -238,24 +240,42 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Timer? _wsPingTimer;
+  Timer? _otaCheckTimer;
+  Timer? _wsReconnectTimer;
+  bool _isConnectingWs = false;
 
   void _initWebSocket() async {
-    _socket?.close();
+    if (_isConnectingWs) return;
+    _isConnectingWs = true;
+
+    _wsReconnectTimer?.cancel();
     _wsPingTimer?.cancel();
+    _otaCheckTimer?.cancel();
+
+    // Store reference and null out _socket so closing it doesn't trigger onDone handlers
+    final oldSocket = _socket;
+    _socket = null;
+    if (oldSocket != null) {
+      try {
+        await oldSocket.close();
+      } catch (_) {}
+    }
+
     try {
       final host = widget.serverHost;
       final wsUrl = 'ws://$host:4200/ws/device?token=${widget.token}';
       debugPrint('[WS] Connecting to $wsUrl');
       
-      _socket = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 10));
+      final newSocket = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 10));
+      _socket = newSocket;
       _isWsConnected = true;
       debugPrint('[WS] Connected successfully');
       _markOnline();
 
-      // Periodic ping timer every 15s to keep lastHeartbeat fresh on server and check OTA updates
+      // Periodic ping timer every 15s to keep lastHeartbeat fresh on server
       _wsPingTimer?.cancel();
       _wsPingTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
-        if (_socket != null && _isWsConnected) {
+        if (_socket != null && _socket == newSocket && _isWsConnected) {
           try {
             String appVer = '1.0.0';
             int verCode = 1;
@@ -265,29 +285,60 @@ class _KioskScreenState extends State<KioskScreen> {
               verCode = int.tryParse(info.buildNumber) ?? 1;
             } catch (_) {}
 
-            _socket!.add(jsonEncode({
+            newSocket.add(jsonEncode({
               'event': 'ping',
               'deviceId': widget.deviceId,
               'appVersion': appVer,
               'versionCode': verCode,
             }));
-
-            // Periodically evaluate OTA update readiness
-            UpdateService.checkForUpdate(
-              serverHost: widget.serverHost,
-              isIdle: _isIdle && _cart.value.isEmpty,
-            );
           } catch (e) {
             debugPrint('[WS] Ping send failed: $e');
           }
         }
       });
 
-      _socket!.listen(
+      // Initial post-boot/connect OTA check
+      UpdateService.checkForUpdate(
+        serverHost: widget.serverHost,
+        isIdle: _isIdle && _cart.value.isEmpty,
+      );
+
+      // Periodic background OTA update check every 6 hours
+      _otaCheckTimer?.cancel();
+      _otaCheckTimer = Timer.periodic(const Duration(hours: 6), (_) {
+        UpdateService.checkForUpdate(
+          serverHost: widget.serverHost,
+          isIdle: _isIdle && _cart.value.isEmpty,
+        );
+      });
+
+      newSocket.listen(
         (data) {
           try {
             final payload = jsonDecode(data as String) as Map<String, dynamic>;
             final event = payload['event'] as String? ?? '';
+            final errType = payload['error'] as String? ?? '';
+            if (errType == 'UNAUTHORIZED' || (payload['message'] as String? ?? '').contains('revoked')) {
+              debugPrint('[WS] Device registration revoked by server. Wiping local credentials...');
+              _socket?.close();
+              _isWsConnected = false;
+              _wsPingTimer?.cancel();
+              SharedPreferences.getInstance().then((prefs) async {
+                await prefs.remove('token');
+                await prefs.remove('serverHost');
+                await prefs.remove('deviceId');
+                await prefs.remove('hostApplicationId');
+                await prefs.remove('bypassPassword');
+                await prefs.remove('tableNumber');
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => DeviceSetupScreen(onActivate: (_, __, ___, ____, _____, ______) {})),
+                    (route) => false,
+                  );
+                }
+              });
+              return;
+            }
             if (event == 'table_session') {
               debugPrint('[WS] Table session payload: $payload');
               _processTableSession(jsonEncode(payload));
@@ -303,6 +354,20 @@ class _KioskScreenState extends State<KioskScreen> {
             } else if (event == 'release_cancelled') {
               debugPrint('[WS] Release revoked/cancelled by admin. Purging pending APK...');
               UpdateService.purgePendingUpdate();
+            } else if (event == 'connected') {
+              // Server connection established/restored.
+              Timer(const Duration(seconds: 2), () {
+                if (mounted && _socket == newSocket) {
+                  final status = _tableSession?['status'] as String? ?? '';
+                  final orderStatus = (_tableSession?['orderStatus'] as String? ?? '').toLowerCase();
+                  if (orderStatus == 'cancelled' || status == 'completed') {
+                    setState(() {
+                      _tableSession = null;
+                      _showOrderDetailsModal = false;
+                    });
+                  }
+                }
+              });
             } else if (event == 'pong') {
               // Heartbeat ack from server
             }
@@ -312,29 +377,38 @@ class _KioskScreenState extends State<KioskScreen> {
         },
         onError: (err) {
           debugPrint('[WS] Socket error: $err');
-          _wsPingTimer?.cancel();
-          _markOffline();
-          _reconnectWebSocket();
+          if (_socket == newSocket) {
+            _wsPingTimer?.cancel();
+            _markOffline();
+            _reconnectWebSocket();
+          }
         },
         onDone: () {
           debugPrint('[WS] Socket closed by host');
-          _wsPingTimer?.cancel();
-          _markOffline();
-          _reconnectWebSocket();
+          if (_socket == newSocket) {
+            _wsPingTimer?.cancel();
+            _markOffline();
+            _reconnectWebSocket();
+          }
         },
         cancelOnError: true,
       );
     } catch (e) {
       debugPrint('[WS] Socket connection failed: $e');
-      _wsPingTimer?.cancel();
-      _markOffline();
-      _reconnectWebSocket();
+      if (_socket == null || _socket == oldSocket) {
+        _wsPingTimer?.cancel();
+        _markOffline();
+        _reconnectWebSocket();
+      }
+    } finally {
+      _isConnectingWs = false;
     }
   }
 
   void _reconnectWebSocket() {
     _isWsConnected = false;
-    Future.delayed(const Duration(seconds: 5), () {
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
         _initWebSocket();
       }
@@ -525,6 +599,13 @@ class _KioskScreenState extends State<KioskScreen> {
         _lastPlayedTimes = decoded.map((k, v) => MapEntry(k, v as int));
         debugPrint('Loaded ${_lastPlayedTimes.length} last played times from cache');
       }
+
+      // Purge corrupted/bloated legacy offline impression queue if > 100 entries
+      final queue = prefs.getStringList('offline_ad_impressions') ?? [];
+      if (queue.length > 100) {
+        await prefs.remove('offline_ad_impressions');
+        debugPrint('[CLEANUP] Purged bloated legacy offline impression queue (${queue.length} items)');
+      }
     } catch (e) {
       debugPrint('Error loading ad schedules from cache: $e');
     }
@@ -616,11 +697,6 @@ class _KioskScreenState extends State<KioskScreen> {
     return eligible;
   }
 
-  void _rebuildAndApplyPlaylist() {
-    final eligible = _getEligiblePlaylist(_masterAdPlaylist);
-    _adPlayer.updatePlaylist(eligible);
-  }
-
   Future<void> _bootAds() async {
     debugPrint('[BOOT] Starting sync sequence...');
 
@@ -687,11 +763,10 @@ class _KioskScreenState extends State<KioskScreen> {
       }
     }
     
-    // Update dynamic playback tracker
+    // Update dynamic playback tracker (DO NOT call _rebuildAndApplyPlaylist here to prevent reentrancy loops)
     if (bookingId != 'unknown' && bookingId.isNotEmpty) {
       _lastPlayedTimes[bookingId] = DateTime.now().millisecondsSinceEpoch;
       _saveLastPlayedTimes();
-      _rebuildAndApplyPlaylist();
     }
     
     try {
@@ -701,7 +776,7 @@ class _KioskScreenState extends State<KioskScreen> {
         ..durationSeconds = durationSeconds
         ..interactiveClicks = 0;
       await _deviceClient!.trackAdImpression(req, options: _callOptions);
-      // Attempt background flush of any queued offline impressions upon successful connection
+      // Attempt background flush of queued offline impressions
       _flushOfflineImpressions();
     } catch (e) {
       debugPrint('gRPC Track ad impression telemetry failed, saving offline: $e');
@@ -714,6 +789,10 @@ class _KioskScreenState extends State<KioskScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final List<String> queue = prefs.getStringList('offline_ad_impressions') ?? [];
+      // Hard cap queue to max 50 items to prevent RAM/SharedPreferences thrashing
+      if (queue.length >= 50) {
+        queue.removeAt(0);
+      }
       final itemJson = '{"b":"$bookingId","d":$durationSeconds,"t":${DateTime.now().millisecondsSinceEpoch}}';
       queue.add(itemJson);
       await prefs.setStringList('offline_ad_impressions', queue);
@@ -723,16 +802,26 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
+  bool _isFlushingOffline = false;
+
   void _flushOfflineImpressions() async {
-    if (_deviceClient == null) return;
+    if (_deviceClient == null || _isFlushingOffline) return;
+    _isFlushingOffline = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final List<String> queue = prefs.getStringList('offline_ad_impressions') ?? [];
-      if (queue.isEmpty) return;
+      if (queue.isEmpty) {
+        _isFlushingOffline = false;
+        return;
+      }
 
-      debugPrint('Flushing ${queue.length} offline ad impressions to server...');
-      final List<String> remainingQueue = [];
-      for (final raw in queue) {
+      // Process in small batches of max 20 entries
+      final batchSize = math.min(queue.length, 20);
+      final batch = queue.sublist(0, batchSize);
+      final remainingQueue = List<String>.from(queue.sublist(batchSize));
+
+      debugPrint('Flushing ${batch.length} offline ad impressions to server (Remaining: ${remainingQueue.length})...');
+      for (final raw in batch) {
         try {
           final parts = raw.replaceAll('{', '').replaceAll('}', '').split(',');
           String b = '';
@@ -767,6 +856,8 @@ class _KioskScreenState extends State<KioskScreen> {
       }
     } catch (e) {
       debugPrint('Flush offline impressions attempt deferred: $e');
+    } finally {
+      _isFlushingOffline = false;
     }
   }
 
@@ -925,8 +1016,8 @@ class _KioskScreenState extends State<KioskScreen> {
                         width: 260,
                         fit: BoxFit.contain,
                       ),
-                      SizedBox(height: 20),
-                      Text(
+                      const SizedBox(height: 20),
+                      const Text(
                         'Thank You!',
                         style: TextStyle(
                           fontSize: 28,
@@ -934,8 +1025,8 @@ class _KioskScreenState extends State<KioskScreen> {
                           color: kTextDark,
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
+                      const SizedBox(height: 8),
+                      const Text(
                         'Do visit again.',
                         style: TextStyle(
                           fontSize: 16,
@@ -1093,6 +1184,8 @@ class _KioskScreenState extends State<KioskScreen> {
   void dispose() {
     _socket?.close();
     _wsPingTimer?.cancel();
+    _otaCheckTimer?.cancel();
+    _wsReconnectTimer?.cancel();
     _heartbeatTimer?.cancel();
     _inactivityTimer?.cancel();
     _backOnlineTimer?.cancel();
@@ -1843,7 +1936,7 @@ class _KioskScreenState extends State<KioskScreen> {
     return ValueListenableBuilder<CartSnapshot>(
       valueListenable: _cart,
       builder: (context, cart, _) {
-        if (!cart.isEmpty) {
+        if (cart.isNotEmpty) {
           return const SizedBox.shrink();
         }
 

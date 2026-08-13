@@ -88,24 +88,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _prefillFromPrefs();
-  }
-
-  Future<void> _prefillFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final host = prefs.getString('serverHost');
-    final devId = prefs.getString('deviceId');
-    final pwd = prefs.getString('bypassPassword');
-    final tbl = prefs.getString('tableNumber');
-    if (mounted) {
-      setState(() {
-        if (host != null && host.isNotEmpty) _serverHostController.text = host;
-        else _serverHostController.text = '10.0.2.2';
-        if (devId != null && devId.isNotEmpty) _deviceIdController.text = devId;
-        if (pwd != null && pwd.isNotEmpty) _passwordController.text = pwd;
-        if (tbl != null && tbl.isNotEmpty) _tableNumberController.text = tbl;
-      });
-    }
+    // Setup fields start completely blank without pre-filled data
   }
 
   @override
@@ -324,7 +307,8 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                     controller: _serverHostController,
                     decoration: InputDecoration(
                       labelText: "Server Host / IP",
-                      helperText: "e.g. 10.0.2.2 (Emulator) or 192.168.1.X (Local Wifi)",
+                      hintText: "e.g. 192.168.1.100 or 10.0.2.2",
+                      helperText: "Enter local server IP address",
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       prefixIcon: const Icon(Icons.lan_outlined),
                     ),
@@ -359,7 +343,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                   TextField(
                     controller: _deviceIdController,
                     decoration: InputDecoration(
-                      labelText: "Device ID (e.g. DEV_TAB_XXXX)",
+                      labelText: "Device ID (e.g. DEV_XXXX)",
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       prefixIcon: const Icon(Icons.tablet_android_outlined),
                     ),

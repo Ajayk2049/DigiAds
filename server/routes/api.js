@@ -87,6 +87,7 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.get('/host/bill-config/:applicationId', hostController.getBillConfig.bind(hostController));
     merchantRoutes.put('/host/bill-config/:applicationId', hostController.updateBillConfig.bind(hostController));
     merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: 10485760 }, hostController.uploadBillImage.bind(hostController));
+    merchantRoutes.post('/host/bill-config/delete-image', hostController.deleteBillImage.bind(hostController));
     merchantRoutes.post('/host/applications/request-mode-change', hostController.requestModeChange.bind(hostController));
     merchantRoutes.get('/host/applications/mode-change-status', hostController.getModeChangeStatus.bind(hostController));
     next();

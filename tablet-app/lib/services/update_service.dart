@@ -7,6 +7,14 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+/// Top-level function for background isolate SHA-256 calculation
+String _calculateFileSha256(String filePath) {
+  final file = File(filePath);
+  if (!file.existsSync()) return '';
+  final digest = sha256.convert(file.readAsBytesSync());
+  return digest.toString().toLowerCase();
+}
+
 class UpdateService {
   static const MethodChannel _perfChannel =
       MethodChannel('com.digiads.tabletop/performance');
@@ -38,7 +46,10 @@ class UpdateService {
       }
 
       final data = jsonDecode(res.body);
-      if (data['success'] != true || data['release'] == null) return;
+      if (data['success'] != true || data['release'] == null) {
+        await purgePendingUpdate();
+        return;
+      }
 
       final release = data['release'];
       final targetVersionCode = (release['versionCode'] as num).toInt();
@@ -50,6 +61,7 @@ class UpdateService {
 
       if (targetVersionCode <= currentVersionCode) {
         debugPrint('[OTA] Current version is up-to-date.');
+        await purgePendingUpdate();
         return;
       }
 
@@ -59,7 +71,7 @@ class UpdateService {
 
       bool isDownloadedAndVerified = false;
       if (await pendingApk.exists()) {
-        final localSha = await _streamCalculateSha256(pendingApk);
+        final localSha = await compute(_calculateFileSha256, pendingApk.path);
         if (localSha == expectedSha256) {
           isDownloadedAndVerified = true;
           debugPrint('[OTA] Verified pending update APK already cached locally.');
@@ -70,22 +82,30 @@ class UpdateService {
 
       if (!isDownloadedAndVerified) {
         _isDownloading = true;
-        debugPrint('[OTA] Downloading update from $downloadPath...');
+        debugPrint('[OTA] Streaming update download from $downloadPath...');
         final downloadUrl = Uri.parse('http://$serverHost:4200$downloadPath');
-        final response = await http.get(downloadUrl);
+        
+        final client = http.Client();
+        final request = http.Request('GET', downloadUrl);
+        final streamedResponse = await client.send(request);
 
-        if (response.statusCode == 200) {
-          await pendingApk.writeAsBytes(response.bodyBytes);
-          final downloadedSha = await _streamCalculateSha256(pendingApk);
+        if (streamedResponse.statusCode == 200) {
+          final sink = pendingApk.openWrite();
+          await streamedResponse.stream.pipe(sink);
+          await sink.close();
+          client.close();
+
+          final downloadedSha = await compute(_calculateFileSha256, pendingApk.path);
           if (downloadedSha != expectedSha256) {
             debugPrint('[OTA] SHA-256 mismatch! Expected $expectedSha256, got $downloadedSha');
-            await pendingApk.delete();
+            if (await pendingApk.exists()) await pendingApk.delete();
             _isDownloading = false;
             return;
           }
           debugPrint('[OTA] APK downloaded and verified successfully.');
         } else {
-          debugPrint('[OTA] Failed to download APK: ${response.statusCode}');
+          client.close();
+          debugPrint('[OTA] Failed to download APK: ${streamedResponse.statusCode}');
           _isDownloading = false;
           return;
         }
@@ -147,12 +167,5 @@ class UpdateService {
     } catch (e) {
       debugPrint('[OTA] Error purging pending update APK: $e');
     }
-  }
-
-  /// Streaming SHA256 computation to avoid loading entire file into memory and blocking UI thread
-  static Future<String> _streamCalculateSha256(File file) async {
-    final stream = file.openRead();
-    final digest = await sha256.bind(stream).first;
-    return digest.toString().toLowerCase();
   }
 }

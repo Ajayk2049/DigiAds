@@ -191,6 +191,7 @@ const HostApplicationSchema = new mongoose.Schema({
     sgstPercent: { type: Number, default: 2.5 },
     enableAutoRoundOff: { type: Boolean, default: true },
     thankYouMessage: { type: String, default: 'Thank You & Visit Again !' },
+    showThankYouMessage: { type: Boolean, default: true },
     crmContactName: { type: String, default: '' },
     crmContactPhone: { type: String, default: '' },
     deliveryPhone: { type: String, default: '' },

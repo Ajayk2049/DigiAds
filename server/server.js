@@ -160,13 +160,21 @@ async function startFastify() {
           return;
         }
 
+        // Check if device exists in MongoDB
+        const existingDoc = await Device.findOne({ deviceId });
+        if (!existingDoc) {
+          console.log(`[WS] Device connection rejected: ${deviceId} (Device not found in database / revoked)`);
+          socket.send(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Device registration revoked or not found' }));
+          socket.close(4001, 'Device Revoked');
+          return;
+        }
+
         global.deviceSockets.set(deviceId, socket);
         console.log(`[WS] Device connected: ${deviceId}`);
 
         // Update MongoDB Device status to online & broadcast to merchant
         try {
-          const existingDoc = await Device.findOne({ deviceId });
-          const isFreshBoot = !existingDoc || existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat).getTime()) > 35000;
+          const isFreshBoot = existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat).getTime()) > 35000;
           const updateFields = { status: 'online', lastHeartbeat: new Date() };
           if (isFreshBoot) {
             updateFields.sessionStart = new Date();
@@ -203,6 +211,21 @@ async function startFastify() {
             heartbeatIntervalSeconds: 30
           }
         }));
+
+        // Push active table session snapshot on connect (handles offline status sync)
+        try {
+          const activeOrder = await Order.findOne({
+            deviceId,
+            tableStatus: { $in: ['active', 'close_table'] }
+          }).sort({ createdAt: -1 });
+
+          if (activeOrder) {
+            const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
+            notifyDeviceSessionUpdate(activeOrder);
+          }
+        } catch (sessionSyncErr) {
+          console.error(`[WS] Failed to push active session on connect for ${deviceId}:`, sessionSyncErr.message);
+        }
 
         socket.on('message', async (msg) => {
           try {
@@ -1059,8 +1082,44 @@ const orderServiceHandlers = {
             });
           }
         });
-        // Add new items amount to totalAmount
-        order.totalAmount += serverCalculatedTotal;
+
+        // Recalculate subtotal, taxes, and total across all combined items in order
+        const app = device.hostApplicationId || {};
+        const billConfig = order.billConfigSnapshot || app.billConfig || {};
+        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+        const subtotalPaise = order.items.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 1)), 0);
+
+        if (order.isGstExempt) {
+          order.subtotalAmount = subtotalPaise;
+          order.cgstAmount = 0;
+          order.sgstAmount = 0;
+          order.roundOffAmount = 0;
+          order.totalAmount = subtotalPaise;
+        } else {
+          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+
+          let finalAmountPaise = rawTotalPaise;
+          let roundOffPaise = 0;
+          if (enableAutoRoundOff) {
+            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+            roundOffPaise = finalAmountPaise - rawTotalPaise;
+          }
+
+          order.subtotalAmount = subtotalPaise;
+          order.cgstAmount = cgstPaise;
+          order.sgstAmount = sgstPaise;
+          order.roundOffAmount = roundOffPaise;
+          order.cgstPercent = cgstPct;
+          order.sgstPercent = sgstPct;
+          order.enableAutoRoundOff = enableAutoRoundOff;
+          order.totalAmount = finalAmountPaise;
+        }
+
         // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
         order.orderStatus = 'placed';
 
@@ -1229,12 +1288,23 @@ function startHeartbeatMonitor() {
   }, 15000); // Check every 15 seconds
 }
 
+// Start background OTA revoked releases disk cleanup task (runs on boot & every 24 hours)
+function startOtaDiskCleanupTask() {
+  const releaseController = require('./controllers/releaseController');
+  console.log('[OTA Disk Cleanup] Initializing background revoked releases cleanup task (24h)...');
+  releaseController.cleanupOldRevokedReleases().catch(() => {});
+  setInterval(() => {
+    releaseController.cleanupOldRevokedReleases().catch(() => {});
+  }, 24 * 60 * 60 * 1000);
+}
+
 // Start both servers
 async function main() {
   try {
     await startFastify();
     startGrpc();
     startHeartbeatMonitor();
+    startOtaDiskCleanupTask();
   } catch (err) {
     logger.error(`Server Startup Failed: ${err.message}`);
     process.exit(1);

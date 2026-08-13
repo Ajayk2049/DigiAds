@@ -41,6 +41,48 @@ class ReleaseController {
     }
   }
 
+  /**
+   * Auto-clean physical APK binary files from server disk for revoked/inactive releases older than 15 days.
+   * Keeps all MongoDB history (versionName, versionCode, sha256, releaseNotes, metrics) intact.
+   */
+  async cleanupOldRevokedReleases() {
+    try {
+      const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
+      const staleRevokedReleases = await AppRelease.find({
+        status: { $in: ['revoked', 'inactive'] },
+        isDiskCleaned: { $ne: true },
+        createdAt: { $lte: fifteenDaysAgo },
+      });
+
+      const uploadsDir = path.join(__dirname, '../../uploads/releases');
+      let cleanedCount = 0;
+
+      for (const rel of staleRevokedReleases) {
+        if (rel.fileName) {
+          const filePath = path.join(uploadsDir, rel.fileName);
+          if (fs.existsSync(filePath)) {
+            try {
+              fs.unlinkSync(filePath);
+              console.log(`[OTA Disk Cleanup] Unlinked 15d+ old revoked release binary: ${rel.fileName}`);
+            } catch (unlinkErr) {
+              console.error(`[OTA Disk Cleanup] Failed to unlink ${rel.fileName}:`, unlinkErr.message);
+            }
+          }
+        }
+        rel.isDiskCleaned = true;
+        rel.cleanedAt = new Date();
+        await rel.save();
+        cleanedCount++;
+      }
+
+      if (cleanedCount > 0) {
+        console.log(`[OTA Disk Cleanup] Auto-cleaned ${cleanedCount} revoked/inactive APK binary file(s) older than 15 days.`);
+      }
+    } catch (err) {
+      console.error('[OTA Disk Cleanup] Sweep error:', err.message);
+    }
+  }
+
   // GET /api/v1/releases/download/:releaseId
   async downloadRelease(req, reply) {
     try {
@@ -48,6 +90,10 @@ class ReleaseController {
       const release = await AppRelease.findById(releaseId);
       if (!release) {
         return reply.code(404).send({ success: false, error: 'Release not found' });
+      }
+
+      if (release.isDiskCleaned) {
+        return reply.code(404).send({ success: false, error: 'APK binary file has been auto-cleaned from disk after 15+ days. Release metadata and history preserved.' });
       }
 
       const uploadsDir = path.join(__dirname, '../../uploads/releases');
@@ -73,7 +119,21 @@ class ReleaseController {
     try {
       const releases = await AppRelease.find().sort({ createdAt: -1 });
       const devices = await Device.find({}, 'deviceId deviceType lastKnownAppVersion lastKnownVersionCode status lastHeartbeat');
-      return reply.send({ success: true, releases, devices });
+      
+      const releaseCounts = {};
+      devices.forEach(d => {
+        if (d.lastKnownVersionCode) {
+          releaseCounts[d.lastKnownVersionCode] = (releaseCounts[d.lastKnownVersionCode] || 0) + 1;
+        }
+      });
+
+      const enrichedReleases = releases.map(rel => {
+        const doc = rel.toObject();
+        doc.deviceCount = releaseCounts[rel.versionCode] || 0;
+        return doc;
+      });
+
+      return reply.send({ success: true, releases: enrichedReleases, devices });
     } catch (err) {
       req.log.error(err);
       return reply.code(500).send({ success: false, error: err.message });
@@ -161,6 +221,8 @@ class ReleaseController {
             } catch (_) {}
           }
         }
+        // Trigger 15d+ auto-cleanup evaluation
+        this.cleanupOldRevokedReleases().catch(() => {});
       }
 
       return reply.send({ success: true, release });

@@ -261,8 +261,12 @@ class MainActivity : FlutterActivity() {
                             result.error("INVALID_ARGUMENT", "apkPath is required", null)
                         } else {
                             val updater = KioskUpdater(this)
-                            val success = updater.installApk(apkPath)
-                            result.success(success)
+                            Thread {
+                                val success = updater.installApk(apkPath)
+                                runOnUiThread {
+                                    result.success(success)
+                                }
+                            }.start()
                         }
                     }
 

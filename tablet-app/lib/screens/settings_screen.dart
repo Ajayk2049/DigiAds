@@ -177,14 +177,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirm != true) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('serverHost');
-    await prefs.remove('deviceId');
-    await prefs.remove('hostApplicationId');
-    await prefs.remove('bypassPassword');
-    await prefs.remove('tableNumber');
-    await prefs.remove('cachedMenu');
-    await prefs.remove('local_playlist');
+    await prefs.clear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => DeviceSetupScreen(onActivate: _activate)),

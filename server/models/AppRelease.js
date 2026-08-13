@@ -33,8 +33,15 @@ const AppReleaseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'inactive'],
+    enum: ['active', 'inactive', 'revoked'],
     default: 'active',
+  },
+  isDiskCleaned: {
+    type: Boolean,
+    default: false,
+  },
+  cleanedAt: {
+    type: Date,
   },
   releaseNotes: {
     type: String,

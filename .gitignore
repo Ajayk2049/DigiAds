@@ -35,6 +35,14 @@ logs/
 **/logs/
 .db/
 dump.rdb
+*.rdb
+*.db
+*.sqlite
+server/scratch_db.js
+server/clear_releases.js
+server/clearDb.js
+server/*_db*.js
+server/scratch*
 
 # Local personal development files
 progress.md

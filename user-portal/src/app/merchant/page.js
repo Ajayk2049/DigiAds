@@ -236,6 +236,7 @@ export default function MerchantDashboard() {
   const [billConfigSaving, setBillConfigSaving] = useState(false);
   const [billConfigError, setBillConfigError] = useState('');
   const [billUploadingImage, setBillUploadingImage] = useState(false);
+  const [billDeletingImage, setBillDeletingImage] = useState(false);
   const [billForm, setBillForm] = useState({
     logoUrl: '',
     restaurantName: '',
@@ -253,6 +254,7 @@ export default function MerchantDashboard() {
     sgstPercent: 2.5,
     enableAutoRoundOff: true,
     thankYouMessage: 'Thank You & Visit Again !',
+    showThankYouMessage: true,
     crmContactName: '',
     crmContactPhone: '',
     deliveryPhone: '',
@@ -932,6 +934,7 @@ export default function MerchantDashboard() {
           sgstPercent: configData.sgstPercent !== undefined ? configData.sgstPercent : 2.5,
           enableAutoRoundOff: configData.enableAutoRoundOff !== undefined ? configData.enableAutoRoundOff : true,
           thankYouMessage: configData.thankYouMessage || 'Thank You & Visit Again !',
+          showThankYouMessage: configData.showThankYouMessage !== undefined ? configData.showThankYouMessage : true,
           crmContactName: configData.crmContactName || '',
           crmContactPhone: configData.crmContactPhone || '',
           deliveryPhone: configData.deliveryPhone || '',
@@ -1011,6 +1014,41 @@ export default function MerchantDashboard() {
       setBillConfigError(err.response?.data?.message || 'Failed to upload image');
     } finally {
       setBillUploadingImage(false);
+    }
+  };
+
+  const handleDeleteBillImage = async (fieldName) => {
+    const currentToken = token || localStorage.getItem('token');
+    if (!fieldName || !selectedOutletId || !currentToken) return;
+
+    const label = fieldName === 'logoUrl' ? 'Header Logo' : 'Footer QR Image';
+    if (!confirm(`Are you sure you want to delete the ${label}? This will immediately delete the image file from the server.`)) return;
+
+    setBillDeletingImage(true);
+    setBillConfigError('');
+    try {
+      const res = await axios.post(`${API_BASE}/host/bill-config/delete-image`, {
+        imageType: fieldName,
+        hostApplicationId: selectedOutletId
+      }, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+
+      if (res.data && res.data.success) {
+        setBillForm(prev => ({
+          ...prev,
+          [fieldName]: ''
+        }));
+        if (res.data.data) {
+          setActiveBillConfig(res.data.data);
+        }
+        showToast(`${label} deleted from server!`, 'success');
+      }
+    } catch (err) {
+      console.error('handleDeleteBillImage error:', err);
+      setBillConfigError(err.response?.data?.message || `Failed to delete ${label}`);
+    } finally {
+      setBillDeletingImage(false);
     }
   };
 
@@ -5906,7 +5944,9 @@ export default function MerchantDashboard() {
               {/* Ultra-Compact Footer */}
               <div className="pt-2 mt-1 border-t border-dashed border-gray-400 flex items-center justify-between">
                 <div className="flex-1 text-left pr-1.5 space-y-0.5">
-                  <p className={`font-extrabold text-gray-900 leading-tight uppercase ${is58mm ? 'text-[9px]' : 'text-[10.5px]'}`}>{config?.thankYouMessage || 'THANK YOU & VISIT AGAIN !'}</p>
+                  {config?.showThankYouMessage !== false && (
+                    <p className={`font-extrabold text-gray-900 leading-tight uppercase ${is58mm ? 'text-[9px]' : 'text-[10.5px]'}`}>{config?.thankYouMessage || 'THANK YOU & VISIT AGAIN !'}</p>
+                  )}
 
                   {config?.showPoweredBy !== false && (config?.customWatermark !== undefined ? config.customWatermark : 'POWERED BY - DIGIADS') !== '' && (
                     <p className={`text-gray-500 font-light uppercase ${is58mm ? 'text-[5.5px]' : 'text-[6.5px]'}`}>{config.customWatermark || 'POWERED BY - DIGIADS'}</p>
@@ -5973,9 +6013,9 @@ export default function MerchantDashboard() {
                     <label className="text-[10px] text-muted-foreground font-bold uppercase">Header Logo Image</label>
                     <div className="flex items-center space-x-3">
                       {billForm.logoUrl ? (
-                        <img src={resolveMediaUrl(billForm.logoUrl)} alt="Logo" className="w-12 h-12 object-contain rounded-lg border bg-black/20 p-1" />
+                        <img src={resolveMediaUrl(billForm.logoUrl)} alt="Logo" className="w-12 h-12 object-contain rounded-lg border bg-black/20 p-1 shrink-0" />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground bg-muted/20 text-[9px] font-bold">
+                        <div className="w-12 h-12 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground bg-muted/20 text-[9px] font-bold shrink-0">
                           No Logo
                         </div>
                       )}
@@ -5989,6 +6029,18 @@ export default function MerchantDashboard() {
                         }}
                         className="text-xs font-semibold text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
                       />
+                      {billForm.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBillImage('logoUrl')}
+                          disabled={billDeletingImage}
+                          className="px-3 py-1.5 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold border border-destructive/20 transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+                          title="Delete header logo permanently from server"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Logo</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -6222,14 +6274,26 @@ export default function MerchantDashboard() {
                     4. Custom Footer & QR Code Upload
                   </h4>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground font-bold uppercase">Greeting Line</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-muted-foreground font-bold uppercase">Greeting Line</label>
+                      <label className="flex items-center space-x-1.5 cursor-pointer text-[11px] font-bold text-primary">
+                        <input
+                          type="checkbox"
+                          checked={billForm.showThankYouMessage !== false}
+                          onChange={(e) => setBillForm({ ...billForm, showThankYouMessage: e.target.checked })}
+                          className="w-4 h-4 accent-primary rounded cursor-pointer"
+                        />
+                        <span>Print Thank You Section</span>
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={billForm.thankYouMessage}
                       onChange={(e) => setBillForm({ ...billForm, thankYouMessage: e.target.value })}
+                      disabled={billForm.showThankYouMessage === false}
                       placeholder="Thank You & Visit Again !"
-                      className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none"
+                      className={`w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none ${billForm.showThankYouMessage === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                     />
                   </div>
 
@@ -6270,9 +6334,9 @@ export default function MerchantDashboard() {
                     <label className="text-[10px] text-muted-foreground font-bold uppercase">Custom QR Code Image (UPI / Feedback)</label>
                     <div className="flex items-center space-x-3">
                       {billForm.qrImageUrl ? (
-                        <img src={resolveMediaUrl(billForm.qrImageUrl)} alt="QR" className="w-16 h-16 object-contain rounded-lg border bg-white p-1" />
+                        <img src={resolveMediaUrl(billForm.qrImageUrl)} alt="QR" className="w-16 h-16 object-contain rounded-lg border bg-white p-1 shrink-0" />
                       ) : (
-                        <div className="w-16 h-16 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground bg-muted/20 text-[9px] font-bold text-center">
+                        <div className="w-16 h-16 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground bg-muted/20 text-[9px] font-bold text-center shrink-0">
                           No QR Image
                         </div>
                       )}
@@ -6286,6 +6350,18 @@ export default function MerchantDashboard() {
                         }}
                         className="text-xs font-semibold text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
                       />
+                      {billForm.qrImageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBillImage('qrImageUrl')}
+                          disabled={billDeletingImage}
+                          className="px-3 py-1.5 rounded-xl bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold border border-destructive/20 transition-all cursor-pointer flex items-center space-x-1 shrink-0"
+                          title="Delete QR image permanently from server"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Image</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 

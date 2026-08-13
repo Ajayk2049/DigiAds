@@ -70,7 +70,7 @@ class AdPlayerService {
       _currentIndex = oldIndex;
     } else {
       _currentIndex = 0;
-      if (!_isPaused) _playCurrent();
+      if (!_isPaused && oldSource != _currentSource) _playCurrent();
     }
     _emitState();
   }

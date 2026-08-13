@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.io.File
 import java.io.FileInputStream
@@ -43,7 +45,7 @@ class KioskUpdater(private val context: Context) {
                 action = ACTION_INSTALL_COMPLETE
             }
             
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             } else {
                 PendingIntent.FLAG_UPDATE_CURRENT
@@ -73,26 +75,26 @@ class KioskUpdater(private val context: Context) {
             Log.i(TAG, "Installation broadcast status: $status, message: $message")
 
             if (status == PackageInstaller.STATUS_SUCCESS && context != null) {
-                Log.i(TAG, "OTA Update succeeded! Automatically relaunching MainActivity...")
-                try {
-                    // Small delay to allow Android PackageInstaller and SurfaceFlinger to finish killing old process
-                    android.os.SystemClock.sleep(1200)
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    }
-                    if (launchIntent != null) {
-                        context.startActivity(launchIntent)
-                    } else {
-                        val mainIntent = Intent(context, MainActivity::class.java).apply {
-                            action = Intent.ACTION_MAIN
-                            addCategory(Intent.CATEGORY_LAUNCHER)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                Log.i(TAG, "OTA Update succeeded! Scheduling MainActivity launch...")
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         }
-                        context.startActivity(mainIntent)
+                        if (launchIntent != null) {
+                            context.startActivity(launchIntent)
+                        } else {
+                            val mainIntent = Intent(context, MainActivity::class.java).apply {
+                                action = Intent.ACTION_MAIN
+                                addCategory(Intent.CATEGORY_LAUNCHER)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            }
+                            context.startActivity(mainIntent)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to relaunch MainActivity post-update: ${e.message}", e)
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to relaunch MainActivity post-update: ${e.message}", e)
-                }
+                }, 800)
             } else {
                 Log.e(TAG, "PackageInstaller failed with status $status: $message")
             }

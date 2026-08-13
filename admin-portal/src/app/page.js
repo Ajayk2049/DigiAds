@@ -334,8 +334,8 @@ export default function AdminPortal() {
   };
 
   const handleToggleReleaseStatus = async (releaseId, currentStatus) => {
-    const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    const confirmMsg = nextStatus === 'inactive'
+    const nextStatus = currentStatus === 'active' ? 'revoked' : 'active';
+    const confirmMsg = nextStatus === 'revoked'
       ? 'Revoking this release will broadcast a cancellation signal to all devices and purge pending updates. Proceed?'
       : 'Activate this release?';
     if (!confirm(confirmMsg)) return;
@@ -3023,9 +3023,10 @@ export default function AdminPortal() {
                           <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider bg-card/10">
                             <th className="p-3 pl-4">Release Version</th>
                             <th className="p-3">Target App</th>
-                            <th className="p-3">Published Date & Time</th>
+                            <th className="p-3">Published Date</th>
+                            <th className="p-3">Adopted Devices</th>
                             <th className="p-3">SHA-256 Digest</th>
-                            <th className="p-3">Flags</th>
+                            <th className="p-3">Disk Storage</th>
                             <th className="p-3">Status</th>
                             <th className="p-3 text-right pr-4">Actions</th>
                           </tr>
@@ -3033,7 +3034,7 @@ export default function AdminPortal() {
                         <tbody className="divide-y divide-border/40 font-semibold">
                           {releases.length === 0 ? (
                             <tr>
-                              <td colSpan="7" className="p-8 text-center text-muted-foreground italic">No published APK releases recorded yet.</td>
+                              <td colSpan="8" className="p-8 text-center text-muted-foreground italic">No published APK releases recorded yet.</td>
                             </tr>
                           ) : (
                             releases.map((rel) => {
@@ -3049,17 +3050,23 @@ export default function AdminPortal() {
                                   <td className="p-3 text-muted-foreground font-normal">
                                     {new Date(rel.createdAt).toLocaleString()}
                                   </td>
+                                  <td className="p-3 font-bold text-foreground">
+                                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-card/60 border border-border/40 text-[11px]">
+                                      <span>📱</span>
+                                      <span>{rel.deviceCount || 0} devices</span>
+                                    </span>
+                                  </td>
                                   <td className="p-3 font-mono text-[10px] text-muted-foreground" title={rel.sha256}>
                                     {rel.sha256 ? `${rel.sha256.substring(0, 12)}...` : 'N/A'}
                                   </td>
                                   <td className="p-3">
-                                    {rel.isMandatory ? (
-                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20">
-                                        Mandatory
+                                    {rel.isDiskCleaned ? (
+                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title={`File cleaned from disk on ${rel.cleanedAt ? new Date(rel.cleanedAt).toLocaleDateString() : '15d+ sweep'}`}>
+                                        🗑️ Cleaned (15d+)
                                       </span>
                                     ) : (
-                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                                        Standard (11 PM)
+                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        💾 File Available
                                       </span>
                                     )}
                                   </td>
