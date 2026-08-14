@@ -11,7 +11,7 @@ const API_BASE = config.apiUrl;
 export default function LoginPage() {
   const router = useRouter();
 
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const [identifier, setIdentifier] = useState(''); // Email or Mobile Number
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,7 +21,7 @@ export default function LoginPage() {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [tempLoginPayload, setTempLoginPayload] = useState(null);
 
-  // Forgot Password Flow States
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetPhone, setResetPhone] = useState('');
   const [resetOtp, setResetOtp] = useState('');
@@ -36,7 +36,7 @@ export default function LoginPage() {
 
   // Handle Theme
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
+    const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -50,13 +50,15 @@ export default function LoginPage() {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
     
-    if (token && role) {
-      if (role === 'merchant' || role === 'host' || role === 'admin') {
-        router.replace('/merchant');
-      } else if (role === 'advertiser') {
+    if (token) {
+      if (role === 'advertiser') {
         router.replace('/advertiser');
+      } else {
+        router.replace('/merchant');
       }
+      return;
     }
+    setIsCheckingAuth(false);
   }, [router]);
 
   // Handle Forgot Password OTP cooldown timer
@@ -274,6 +276,14 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans transition-colors duration-300">

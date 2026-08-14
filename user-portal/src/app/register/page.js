@@ -30,7 +30,7 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const roleParam = searchParams.get('role'); // 'merchant' or 'advertiser'
 
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const countryCode = '+91';
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -47,9 +47,26 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [sessionId, setSessionId] = useState('');
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [passwordInvalid, setPasswordInvalid] = useState(false);
+
+  // Check for active session and auto-redirect authenticated users
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    
+    if (token) {
+      if (role === 'advertiser') {
+        router.replace('/advertiser');
+      } else {
+        router.replace('/merchant');
+      }
+      return;
+    }
+    setIsCheckingAuth(false);
+  }, [router]);
 
   // Lock role from URL parameter
   useEffect(() => {
@@ -68,7 +85,7 @@ function RegisterForm() {
 
   // Handle Theme
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
+    const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -223,6 +240,14 @@ function RegisterForm() {
 
   const isMerchant = role === 'merchant';
   const displayRoleTitle = isMerchant ? 'Host Merchant' : 'Advertiser';
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans transition-colors duration-300">

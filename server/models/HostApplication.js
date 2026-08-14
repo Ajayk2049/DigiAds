@@ -20,6 +20,19 @@ const HostApplicationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  category: {
+    type: String,
+    enum: ['Restaurant', 'Cafe', 'Pub & Lounge', 'Food Court', 'Fine Dining', 'Quick Service', 'Bakery', 'Sports Bar', 'Other'],
+    default: 'Restaurant'
+  },
+  latitude: {
+    type: Number,
+    default: null
+  },
+  longitude: {
+    type: Number,
+    default: null
+  },
   doorNo: {
     type: String,
     required: true

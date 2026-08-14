@@ -174,7 +174,7 @@ const normalizeAndMatchState = (apiState) => {
 export default function MerchantDashboard() {
   const router = useRouter();
 
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const [token, setToken] = useState('');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -840,7 +840,7 @@ export default function MerchantDashboard() {
 
   // Handle Theme
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'dark';
+    const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');

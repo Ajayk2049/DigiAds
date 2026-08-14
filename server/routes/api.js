@@ -4,6 +4,7 @@ const hostController = require('../controllers/hostController');
 const adController = require('../controllers/adController');
 const adminController = require('../controllers/adminController');
 const releaseController = require('../controllers/releaseController');
+const publicController = require('../controllers/publicController');
 const { authenticate, authorize } = require('../utils/authMiddleware');
 
 function registerRoutes(fastify, options, done) {
@@ -53,6 +54,9 @@ function registerRoutes(fastify, options, done) {
   // PhonePe Webhook callback (public)
   fastify.post('/payments/callback', adController.paymentCallback);
   fastify.get('/payments/callback', async (request, reply) => ({ status: 'ok', message: 'Callback endpoint is online' }));
+
+  // Public Venue Directory & Map Discovery
+  fastify.get('/public/venues', publicController.getPublicVenues.bind(publicController));
 
   // Merchant Host Routes
   fastify.register((merchantRoutes, opts, next) => {
