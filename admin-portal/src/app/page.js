@@ -1134,7 +1134,7 @@ export default function AdminPortal() {
       }
 
       setEditingRateId(null);
-      setRateForm({ rateId: '', deviceType: 'tablet', mediaType: 'video', durationDays: '7', frequency: 'hourly', amount: '', pricingType: 'per_device' });
+      setRateForm({ rateId: '', deviceType: 'tablet', mediaType: 'video', maxVideoLengthSeconds: 30, durationDays: '7', frequency: 'hourly', amount: '', pricingType: 'per_device' });
       const ratesRes = await axios.get(`${API_BASE}/admin/rates`, { headers: { Authorization: `Bearer ${token}` } });
       setRates(ratesRes.data.data || []);
     } catch (err) {
@@ -1144,8 +1144,8 @@ export default function AdminPortal() {
 
   const handleEditRate = (rate) => {
     setEditingRateId(rate._id);
-    const isCustom = rate.frequency.startsWith('every_');
-    setFrequencyOption(isCustom ? 'custom' : rate.frequency);
+    const isCustom = rate.frequency && rate.frequency.startsWith('every_');
+    setFrequencyOption(isCustom ? 'custom' : (rate.frequency || 'hourly'));
     if (isCustom) {
       const mins = rate.frequency.replace('every_', '').replace('_mins', '');
       setCustomMinutes(mins);
@@ -1154,8 +1154,9 @@ export default function AdminPortal() {
       rateId: rate.rateId || '',
       deviceType: rate.deviceType,
       mediaType: rate.mediaType || 'video',
-      durationDays: rate.durationDays.toString(),
-      frequency: rate.frequency,
+      maxVideoLengthSeconds: rate.maxVideoLengthSeconds || 30,
+      durationDays: (rate.durationDays || 7).toString(),
+      frequency: rate.frequency || 'hourly',
       amount: (rate.amount / 100).toString(),
       pricingType: rate.pricingType || 'per_device'
     });

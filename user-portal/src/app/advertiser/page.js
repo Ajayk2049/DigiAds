@@ -219,26 +219,54 @@ export default function AdvertiserDashboard() {
   };
 
   const getAvailableFrequencies = () => {
-    const deviceRates = rates.filter((r) => r.deviceType === selectedDeviceType && (r.mediaType ? r.mediaType === selectedMediaType : true));
+    const deviceRates = rates.filter((r) => 
+      r.deviceType === selectedDeviceType && 
+      (r.mediaType ? r.mediaType === selectedMediaType : true) &&
+      (selectedMediaType === 'video' ? (r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true) : true)
+    );
     const uniqFrequencies = Array.from(new Set(deviceRates.map((r) => r.frequency)));
     if (uniqFrequencies.length === 0) {
-      return ['continuous', 'hourly'];
+      const fallbackFrequencies = Array.from(new Set(rates.filter(r => r.deviceType === selectedDeviceType).map(r => r.frequency)));
+      return fallbackFrequencies.length > 0 ? fallbackFrequencies : ['continuous', 'hourly'];
     }
     return uniqFrequencies;
   };
 
-  useEffect(() => {
-    const avail = getAvailableFrequencies();
-    if (avail.length > 0 && !avail.includes(frequency)) {
-      setFrequency(avail[0]);
+  const getAvailableDurations = () => {
+    const deviceRates = rates.filter((r) => 
+      r.deviceType === selectedDeviceType && 
+      (r.mediaType ? r.mediaType === selectedMediaType : true) &&
+      (selectedMediaType === 'video' ? (r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true) : true)
+    );
+    const uniqDurations = Array.from(new Set(deviceRates.map((r) => r.durationDays))).sort((a, b) => a - b);
+    if (uniqDurations.length === 0) {
+      const fallbackDurations = Array.from(new Set(rates.filter(r => r.deviceType === selectedDeviceType).map(r => r.durationDays))).sort((a, b) => a - b);
+      return fallbackDurations.length > 0 ? fallbackDurations : [7, 30];
     }
-  }, [selectedDeviceType, selectedMediaType, rates]);
+    return uniqDurations;
+  };
+
+  useEffect(() => {
+    const availFrequencies = getAvailableFrequencies();
+    if (availFrequencies.length > 0 && !availFrequencies.includes(frequency)) {
+      setFrequency(availFrequencies[0]);
+    }
+  }, [selectedDeviceType, selectedMediaType, maxVideoLengthSeconds, rates]);
+
+  useEffect(() => {
+    const availDurations = getAvailableDurations();
+    if (availDurations.length > 0 && !availDurations.includes(adDurationDays)) {
+      setAdDurationDays(availDurations[0]);
+    }
+  }, [selectedDeviceType, selectedMediaType, maxVideoLengthSeconds, rates]);
   const [computedAmount, setComputedAmount] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [rateTab, setRateTab] = useState('tablet');
   const [mediaTypeTab, setMediaTypeTab] = useState('videos'); // 'videos' or 'images'
   const [uploadedImages, setUploadedImages] = useState([]); // array of up to 2 image URLs
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [cancellingBookingId, setCancellingBookingId] = useState(null);
+  const [retryingBookingId, setRetryingBookingId] = useState(null);
 
   // Bookings list
   const [bookings, setBookings] = useState([]);
@@ -896,6 +924,47 @@ export default function AdvertiserDashboard() {
     }
   };
 
+  const handleRetryPayment = async (bookingId) => {
+    setRetryingBookingId(bookingId);
+    try {
+      const redirectUrl = `${config.userPortalUrl}/advertiser`;
+      const res = await axios.post(`${API_BASE}/ads/retry-payment/${bookingId}`, { redirectUrl }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success && res.data.data?.paymentUrl) {
+        showToast('info', 'Redirecting to payment gateway...');
+        window.location.href = res.data.data.paymentUrl;
+      } else {
+        showToast('error', 'Failed to retrieve payment link.');
+        setRetryingBookingId(null);
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Failed to initiate payment retry.');
+      setRetryingBookingId(null);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId) => {
+    if (!confirm('Are you sure you want to cancel and remove this pending booking?')) return;
+    setCancellingBookingId(bookingId);
+    try {
+      const res = await axios.post(`${API_BASE}/ads/cancel-booking/${bookingId}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        showToast('success', 'Pending campaign cancelled.');
+        fetchBookings(token);
+        if (activeUploadBooking?.bookingId === bookingId) {
+          setActiveUploadBooking(null);
+        }
+      }
+    } catch (err) {
+      showToast('error', err.response?.data?.message || 'Failed to cancel booking.');
+    } finally {
+      setCancellingBookingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col transition-all duration-300">
 
@@ -1164,16 +1233,36 @@ export default function AdvertiserDashboard() {
                               </div>
                             </td>
                             <td className="py-4 text-right">
-                              <div className="flex items-center justify-end space-x-2">
+                              <div className="flex items-center justify-end space-x-1.5 sm:space-x-2 flex-wrap gap-y-1">
                                 {booking.paymentStatus === 'pending' && (
-                                  <button
-                                    onClick={() => handleVerifyPayment(booking.bookingId)}
-                                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-blue-300 font-bold rounded-xl transition-all text-[10px] cursor-pointer shadow-sm"
-                                    title="Verify Payment Status"
-                                  >
-                                    <RefreshCw className="w-3 h-3" />
-                                    <span className="hidden md:inline">Verify</span>
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => handleRetryPayment(booking.bookingId)}
+                                      disabled={retryingBookingId === booking.bookingId}
+                                      className="flex items-center space-x-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all text-[10px] cursor-pointer shadow-sm disabled:opacity-50"
+                                      title="Pay Now"
+                                    >
+                                      <CreditCard className="w-3 h-3" />
+                                      <span>{retryingBookingId === booking.bookingId ? 'Opening...' : 'Pay Now'}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleVerifyPayment(booking.bookingId)}
+                                      className="flex items-center space-x-1 px-2 py-1.5 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-blue-300 font-bold rounded-xl transition-all text-[10px] cursor-pointer shadow-sm"
+                                      title="Verify Payment Status"
+                                    >
+                                      <RefreshCw className="w-3 h-3" />
+                                      <span className="hidden md:inline">Verify</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleCancelBooking(booking.bookingId)}
+                                      disabled={cancellingBookingId === booking.bookingId}
+                                      className="flex items-center space-x-1 px-2 py-1.5 bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 text-destructive font-bold rounded-xl transition-all text-[10px] cursor-pointer shadow-sm disabled:opacity-50"
+                                      title="Cancel Pending Booking"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span className="hidden md:inline">{cancellingBookingId === booking.bookingId ? 'Cancelling...' : 'Cancel'}</span>
+                                    </button>
+                                  </>
                                 )}
                                 {booking.paymentStatus === 'completed' && booking.approvalStatus === 'pending' && (!booking.mediaUrl || booking.mediaUrl.trim() === '') && (
                                   <button
@@ -1321,6 +1410,8 @@ export default function AdvertiserDashboard() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-border/40 text-muted-foreground font-bold uppercase tracking-wider">
+                        <th className="pb-3 pr-2">Format</th>
+                        <th className="pb-3 pr-2">Pricing Scope</th>
                         <th className="pb-3 pr-2">Duration</th>
                         <th className="pb-3 pr-2">Frequency</th>
                         <th className="pb-3 text-right">Rate</th>
@@ -1328,18 +1419,29 @@ export default function AdvertiserDashboard() {
                     </thead>
                     <tbody className="divide-y divide-border/40">
                       {filteredRates.map((rate, index) => (
-                        <tr key={index} className="hover:bg-muted/10">
+                        <tr key={rate._id || index} className="hover:bg-muted/10">
+                          <td className="py-3 pr-2 font-bold text-foreground">
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${rate.mediaType === 'image' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
+                              {rate.mediaType === 'image' ? '🖼️ Image' : `🎬 Video (${rate.maxVideoLengthSeconds || 30}s)`}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-2 font-semibold text-foreground">
+                            <span className={`inline-flex items-center text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${rate.pricingType === 'whole_venue' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-muted text-muted-foreground border border-border/50'}`}>
+                              {rate.pricingType === 'whole_venue' ? 'Whole Venue (Flat)' : 'Per Device'}
+                            </span>
+                          </td>
                           <td className="py-3 pr-2">
                             <div className="flex items-center space-x-1.5 font-semibold text-foreground">
                               <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <span>{rate.durationDays} Days</span>
+                              <span>{rate.durationDays} {rate.durationDays === 1 ? 'Day' : 'Days'}</span>
                             </div>
                           </td>
                           <td className="py-3 pr-2 font-semibold capitalize text-foreground">
                             {getFrequencyLabel(rate.frequency)}
                           </td>
                           <td className="py-3 font-extrabold text-foreground text-right">
-                            ₹{rate.amount / 100}
+                            <span className="text-emerald-500 font-black">₹{rate.amount / 100}</span>
+                            <span className="text-[10px] text-muted-foreground ml-1 font-normal">{rate.pricingType === 'whole_venue' ? '/ venue' : '/ device'}</span>
                           </td>
                         </tr>
                       ))}
@@ -1864,8 +1966,9 @@ export default function AdvertiserDashboard() {
                               onChange={(e) => setAdDurationDays(parseInt(e.target.value, 10))}
                               className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                             >
-                              <option value={7}>7 Days Plan</option>
-                              <option value={30}>30 Days Plan</option>
+                              {getAvailableDurations().map((dur) => (
+                                <option key={dur} value={dur}>{dur} {dur === 1 ? 'Day Plan' : 'Days Plan'}</option>
+                              ))}
                             </select>
                           </div>
 

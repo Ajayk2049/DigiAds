@@ -3,7 +3,7 @@
 
 param (
     [Parameter(Mandatory=$false)]
-    [Alias("M", "m")]
+    [Alias("m")]
     [ValidateSet("development", "dev", "production", "prod")]
     [string]$Mode = "development"
 )

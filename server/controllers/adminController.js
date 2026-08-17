@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 const HostApplication = require('../models/HostApplication');
@@ -421,26 +422,49 @@ class AdminController {
     try {
       const AdsRates = require('../models/AdsRates');
       const { generateCustomId } = require('../utils/idGenerator');
-      let finalRateId = targetRateId;
-      if (!finalRateId) {
+      
+      let query;
+      let finalRateId;
+
+      if (targetRateId) {
+        if (mongoose.isValidObjectId(targetRateId)) {
+          query = { $or: [{ _id: targetRateId }, { rateId: targetRateId }] };
+        } else {
+          query = { rateId: targetRateId };
+        }
+      } else {
         finalRateId = generateCustomId('RATE');
+        query = { rateId: finalRateId };
+      }
+
+      const updateData = {
+        deviceType, 
+        mediaType: resolvedMediaType,
+        maxVideoLengthSeconds: resolvedMaxVideoLength,
+        durationDays: parseInt(durationDays, 10), 
+        frequency, 
+        amount: parseInt(amount, 10), 
+        pricingType: resolvedPricingType,
+        updatedAt: Date.now() 
+      };
+
+      const setOnInsert = {};
+      if (finalRateId) {
+        setOnInsert.rateId = finalRateId;
       }
 
       const rate = await AdsRates.findOneAndUpdate(
-        { rateId: finalRateId },
+        query,
         { 
-          rateId: finalRateId,
-          deviceType, 
-          mediaType: resolvedMediaType,
-          maxVideoLengthSeconds: resolvedMaxVideoLength,
-          durationDays: parseInt(durationDays, 10), 
-          frequency, 
-          amount: parseInt(amount, 10), 
-          pricingType: resolvedPricingType,
-          updatedAt: Date.now() 
+          $set: updateData,
+          ...(Object.keys(setOnInsert).length > 0 ? { $setOnInsert: setOnInsert } : {})
         },
-        { upsert: true, new: true }
+        { upsert: !targetRateId, new: true }
       );
+
+      if (!rate && targetRateId) {
+        return res.status(404).send({ success: false, message: 'Pricing rate plan not found' });
+      }
 
       return res.status(200).send({
         success: true,
@@ -464,7 +488,12 @@ class AdminController {
     }
 
     try {
-      const rate = await AdsRates.findOneAndDelete({ rateId });
+      const AdsRates = require('../models/AdsRates');
+      const query = mongoose.isValidObjectId(rateId)
+        ? { $or: [{ _id: rateId }, { rateId }] }
+        : { rateId };
+
+      const rate = await AdsRates.findOneAndDelete(query);
 
       if (!rate) {
         return res.status(404).send({ success: false, message: 'Pricing plan not found' });

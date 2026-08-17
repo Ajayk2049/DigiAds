@@ -109,6 +109,8 @@ function registerRoutes(fastify, options, done) {
     advertiserRoutes.post('/ads/book', adController.bookAd.bind(adController)); // supports post fallback
     advertiserRoutes.get('/ads/bookings', adController.getMyBookings.bind(adController));
     advertiserRoutes.post('/ads/verify-payment/:bookingId', adController.verifyPayment.bind(adController));
+    advertiserRoutes.post('/ads/retry-payment/:bookingId', adController.retryPayment.bind(adController));
+    advertiserRoutes.post('/ads/cancel-booking/:bookingId', adController.cancelBooking.bind(adController));
     advertiserRoutes.post('/ads/upload', { bodyLimit: 104857600 }, adController.uploadVideo.bind(adController));
     advertiserRoutes.post('/ads/upload-image', { bodyLimit: 10485760 }, adController.uploadImage.bind(adController));
     next();

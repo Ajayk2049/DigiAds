@@ -26,10 +26,10 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { config } from '@/config';
 
 // Import local assets
-import imgTablet1 from '@/assets/Tablet/IMG_20260615_145746.png';
-import imgTablet2 from '@/assets/Tablet/IMG_20260615_145806.png';
-import imgTablet3 from '@/assets/Tablet/IMG_20260615_145827.png';
-import imgTablet4 from '@/assets/Tablet/New Project.png';
+import imgTablet1 from '@/assets/Tablet/TT_1.png';
+import imgTablet2 from '@/assets/Tablet/TT_2.png';
+import imgTablet3 from '@/assets/Tablet/TT_3.png';
+import imgTablet4 from '@/assets/Tablet/TT_4.png';
 
 import imgScreen1 from '@/assets/Screen/HUAWEI-IdeaHub-S-HUAWEI-IdeaHub-Pro-angle.webp';
 import imgScreen2 from '@/assets/Screen/M6APro_V2-EDLA.webp';
@@ -580,30 +580,21 @@ export default function LandingPage() {
               </AnimatePresence>
             </div>
 
-            {/* Right Column: High-Visibility Carousel Frame & Controls */}
+            {/* Right Column: Clean Large Borderless Carousel & Pill Progress Indicators */}
             <div className="lg:col-span-7 flex flex-col justify-center items-center relative">
               <AnimatePresence mode="wait">
                 {activeTab === 'tablet' ? (
-                  // Tablet Device Frame
+                  // Tablet Clean Large Borderless Preview
                   <motion.div
                     key="carousel-tablet"
-                    initial={{ opacity: 0, scale: 0.96 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
                     transition={{ duration: 0.35 }}
-                    className="relative w-full max-w-[420px] aspect-[3/4] bg-slate-950 rounded-2xl p-3 device-frame-glow border-2 border-slate-800 shadow-2xl flex flex-col justify-between"
+                    className="relative w-full max-w-[560px] xl:max-w-[620px] flex flex-col items-center justify-center"
                   >
-                    {/* Top Speaker & Sensor Bezel */}
-                    <div className="w-full flex justify-between items-center px-3 py-1.5 text-[10px] font-bold text-slate-400">
-                      <span className="flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>LIVE 1080P ADS</span>
-                      </span>
-                      <span className="text-slate-500">DIGIADS TABLETOP</span>
-                    </div>
-
-                    {/* Image Viewport */}
-                    <div className="relative w-full flex-1 bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                    {/* Large Image Viewport */}
+                    <div className="relative w-full aspect-[3/4] overflow-hidden flex items-center justify-center rounded-2xl">
                       <AnimatePresence mode="wait">
                         <motion.img
                           key={tabletIndex}
@@ -616,58 +607,38 @@ export default function LandingPage() {
                           transition={{ duration: 0.3 }}
                         />
                       </AnimatePresence>
-
-                      {/* Prominent Carousel Controls */}
-                      <button
-                        onClick={prevTabletSlide}
-                        className="absolute left-3 w-10 h-10 rounded-md bg-black/65 hover:bg-[#0069a8] text-white flex items-center justify-center cursor-pointer transition-all border border-white/20 shadow-lg active:scale-95"
-                        aria-label="Previous Slide"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={nextTabletSlide}
-                        className="absolute right-3 w-10 h-10 rounded-md bg-black/65 hover:bg-[#0069a8] text-white flex items-center justify-center cursor-pointer transition-all border border-white/20 shadow-lg active:scale-95"
-                        aria-label="Next Slide"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
                     </div>
 
-                    {/* Pill Dot Indicators */}
-                    <div className="w-full py-2.5 flex justify-center space-x-2 z-10">
-                      {tabletImages.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setTabletIndex(i)}
-                          className={`h-2 rounded-sm transition-all duration-300 cursor-pointer ${tabletIndex === i ? 'w-6 bg-[#0069a8]' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                    {/* Pill-Shaped Progress Indicator Capsule */}
+                    <div className="w-full pt-6 flex justify-center items-center">
+                      <div className="bg-muted/70 backdrop-blur-md px-4 py-2 rounded-full border border-border/60 shadow-sm inline-flex items-center space-x-2.5">
+                        {tabletImages.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setTabletIndex(i)}
+                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
+                              tabletIndex === i
+                                ? 'w-9 bg-[#0069a8] shadow-sm shadow-[#0069a8]/40'
+                                : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
                             }`}
-                          aria-label={`Go to slide ${i + 1}`}
-                        />
-                      ))}
+                            aria-label={`Go to slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </motion.div>
                 ) : (
-                  // Wall Display Screen Device Frame
+                  // Wall Display Screen Clean Large Borderless Preview
                   <motion.div
                     key="carousel-screen"
-                    initial={{ opacity: 0, scale: 0.96 }}
+                    initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
                     transition={{ duration: 0.35 }}
-                    className="relative w-full max-w-[660px] aspect-[16/10] bg-slate-950 rounded-2xl p-3 device-frame-glow border-2 border-slate-800 shadow-2xl flex flex-col justify-between"
+                    className="relative w-full max-w-[820px] xl:max-w-[900px] flex flex-col items-center justify-center"
                   >
-                    {/* Screen Status Header */}
-                    <div className="w-full flex justify-between items-center px-3 py-1 text-[10px] font-bold text-slate-400">
-                      <span className="flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                        <span>24/7 DIGITAL DISPLAY LOOP</span>
-                      </span>
-                      <span className="text-slate-500">DIGIADS SCREEN</span>
-                    </div>
-
-                    {/* Image Viewport */}
-                    <div className="relative w-full flex-1 bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                    {/* Large Image Viewport */}
+                    <div className="relative w-full aspect-[16/10] overflow-hidden flex items-center justify-center rounded-2xl">
                       <AnimatePresence mode="wait">
                         <motion.img
                           key={screenIndex}
@@ -680,35 +651,24 @@ export default function LandingPage() {
                           transition={{ duration: 0.3 }}
                         />
                       </AnimatePresence>
-
-                      {/* Prominent Carousel Controls */}
-                      <button
-                        onClick={prevScreenSlide}
-                        className="absolute left-3 w-10 h-10 rounded-md bg-black/65 hover:bg-indigo-600 text-white flex items-center justify-center cursor-pointer transition-all border border-white/20 shadow-lg active:scale-95"
-                        aria-label="Previous Slide"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={nextScreenSlide}
-                        className="absolute right-3 w-10 h-10 rounded-md bg-black/65 hover:bg-indigo-600 text-white flex items-center justify-center cursor-pointer transition-all border border-white/20 shadow-lg active:scale-95"
-                        aria-label="Next Slide"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
                     </div>
 
-                    {/* Pill Dot Indicators */}
-                    <div className="w-full py-2.5 flex justify-center space-x-2 z-10">
-                      {screenImages.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setScreenIndex(i)}
-                          className={`h-2 rounded-sm transition-all duration-300 cursor-pointer ${screenIndex === i ? 'w-6 bg-indigo-500' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                    {/* Pill-Shaped Progress Indicator Capsule */}
+                    <div className="w-full pt-6 flex justify-center items-center">
+                      <div className="bg-muted/70 backdrop-blur-md px-4 py-2 rounded-full border border-border/60 shadow-sm inline-flex items-center space-x-2.5">
+                        {screenImages.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setScreenIndex(i)}
+                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
+                              screenIndex === i
+                                ? 'w-9 bg-indigo-600 shadow-sm shadow-indigo-600/40'
+                                : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
                             }`}
-                          aria-label={`Go to slide ${i + 1}`}
-                        />
-                      ))}
+                            aria-label={`Go to slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </motion.div>
                 )}

@@ -1026,6 +1026,119 @@ class AdController {
   }
 
   /**
+   * Cancel an unpaid pending ad booking
+   */
+  async cancelBooking(req, res) {
+    const { bookingId } = req.params;
+    if (!bookingId) {
+      return res.status(400).send({ success: false, message: 'Booking ID is required' });
+    }
+
+    try {
+      const isMongoId = bookingId.match(/^[0-9a-fA-F]{24}$/);
+      const query = isMongoId ? { _id: bookingId } : { bookingId };
+      query.advertiserId = req.user.uid;
+
+      const booking = await AdBooking.findOne(query);
+      if (!booking) {
+        return res.status(404).send({ success: false, message: 'Booking not found or unauthorized' });
+      }
+
+      if (booking.paymentStatus === 'completed') {
+        return res.status(400).send({ success: false, message: 'Cannot cancel a paid booking. Please contact support.' });
+      }
+
+      // Delete pending booking
+      await AdBooking.deleteOne({ _id: booking._id });
+      // Delete associated pending transaction if exists
+      if (booking.transactionId) {
+        await PhonePeTransaction.deleteOne({ transactionId: booking.transactionId });
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: 'Pending booking cancelled successfully'
+      });
+    } catch (error) {
+      console.error('cancelBooking Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to cancel booking' });
+    }
+  }
+
+  /**
+   * Retry or re-initiate payment checkout for an unpaid pending ad booking
+   */
+  async retryPayment(req, res) {
+    const { bookingId } = req.params;
+    const { redirectUrl } = req.body || {};
+    if (!bookingId) {
+      return res.status(400).send({ success: false, message: 'Booking ID is required' });
+    }
+
+    try {
+      const isMongoId = bookingId.match(/^[0-9a-fA-F]{24}$/);
+      const query = isMongoId ? { _id: bookingId } : { bookingId };
+      query.advertiserId = req.user.uid;
+
+      const booking = await AdBooking.findOne(query);
+      if (!booking) {
+        return res.status(404).send({ success: false, message: 'Booking not found or unauthorized' });
+      }
+
+      if (booking.paymentStatus === 'completed') {
+        return res.status(400).send({ success: false, message: 'This booking has already been paid.' });
+      }
+
+      // Generate new transaction ID and ensure orderId
+      const newTransactionId = await generateUniqueCustomId(PhonePeTransaction, 'transactionId', 'AD_PAY_');
+      const resolvedOrderId = booking.orderId || `ORD_AD_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
+      booking.transactionId = newTransactionId;
+      booking.orderId = resolvedOrderId;
+      await booking.save();
+
+      const userRedirectUrl = redirectUrl || `${config.merchantRedirectUrl.replace('/merchant/orders', '/advertiser')}`;
+      const finalRedirectUrl = userRedirectUrl.includes('?')
+        ? `${userRedirectUrl}&verifyBookingId=${booking.bookingId}`
+        : `${userRedirectUrl}?verifyBookingId=${booking.bookingId}`;
+
+      const initiateResult = await phonePeService.initiatePayment({
+        transactionId: newTransactionId,
+        userId: req.user.uid,
+        amount: booking.amount,
+        redirectUrl: finalRedirectUrl,
+        phone: req.user.phone
+      });
+
+      const phonePeTxn = new PhonePeTransaction({
+        transactionId: newTransactionId,
+        orderId: resolvedOrderId,
+        userId: req.user.uid,
+        amount: booking.amount,
+        transactionType: 'payment',
+        status: 'pending',
+        rawCallbackPayload: { bookingId: booking.bookingId, retry: true }
+      });
+      await phonePeTxn.save();
+
+      // Poll background status
+      pollTransactionStatus(booking.bookingId, newTransactionId);
+
+      return res.status(200).send({
+        success: true,
+        message: 'Payment session re-initiated',
+        data: {
+          bookingId: booking.bookingId,
+          transactionId: newTransactionId,
+          paymentUrl: initiateResult.paymentUrl
+        }
+      });
+    } catch (error) {
+      console.error('retryPayment Error:', error.message);
+      return res.status(500).send({ success: false, message: error.message || 'Failed to retry payment' });
+    }
+  }
+
+  /**
    * Get analytics for a specific ad campaign booking
    */
   async getCampaignAnalytics(req, res) {
