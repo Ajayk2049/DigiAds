@@ -14,6 +14,7 @@ const config = require('./config/config');
 const logger = require('./utils/logger');
 const apiRoutes = require('./routes/api');
 const phonePeService = require('./services/phonePeService');
+const { ensureRedisRunning } = require('./utils/redisRunner');
 const { v4: uuidv4 } = require('uuid');
 
 // Ensure required upload and log directories exist on server boot (for fresh VPS deployments)
@@ -53,7 +54,7 @@ global.adminSockets = new Map();
 // ----------------------------------------------------
 const fastify = Fastify({
   loggerInstance: logger,
-  bodyLimit: 1048576 // 1MB default body limit
+  bodyLimit: 104857600 // 100MB body limit for media & release uploads
 });
 
 async function startFastify() {
@@ -64,7 +65,7 @@ async function startFastify() {
   await fastify.register(cors, {
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
     credentials: true
   });
 
@@ -403,9 +404,10 @@ async function startFastify() {
     }
   };
 
-  // Register raw buffer parser for videos and images
+  // Register raw buffer parser for videos and images (up to 100MB)
   fastify.addContentTypeParser(
     ['application/octet-stream', 'video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'],
+    { bodyLimit: 104857600 },
     function (req, payload, done) {
       done(null, payload); // Pass the raw payload stream through to req.body
     }
@@ -823,6 +825,24 @@ const deviceServiceHandlers = {
     try {
       const claims = verifyGrpcToken(call);
       const { deviceId } = claims;
+
+      // Skip telemetry logging and DB writes for free fallback ads, platform promos, and venue specials
+      const isNonBillable = !bookingId ||
+        bookingId === 'unknown' ||
+        bookingId.startsWith('FALLBACK') ||
+        bookingId.startsWith('PAD') ||
+        bookingId.startsWith('VENUE_AD') ||
+        bookingId === 'FALLBACK' ||
+        bookingId === 'PAD' ||
+        bookingId === 'VENUE_AD';
+
+      if (isNonBillable) {
+        return callback(null, {
+          success: true,
+          message: 'Non-billable creative impression skipped'
+        });
+      }
+
       console.log(`[gRPC telemetry] Device ${deviceId} tracked impression for Booking ${bookingId}: ${durationSeconds}s, Clicks: ${interactiveClicks}`);
 
       if (bookingId && bookingId !== 'unknown') {
@@ -913,7 +933,16 @@ const deviceServiceHandlers = {
 
         for (const item of impressions) {
           const { bookingId, durationSeconds, interactiveClicks } = item;
-          if (!bookingId || bookingId === 'unknown') continue;
+          if (
+            !bookingId ||
+            bookingId === 'unknown' ||
+            bookingId.startsWith('FALLBACK') ||
+            bookingId.startsWith('PAD') ||
+            bookingId.startsWith('VENUE_AD') ||
+            bookingId === 'FALLBACK' ||
+            bookingId === 'PAD' ||
+            bookingId === 'VENUE_AD'
+          ) continue;
 
           const booking = await AdBooking.findOne({ bookingId });
           let resolvedDuration = Number(durationSeconds) > 0 ? Number(durationSeconds) : 0;
@@ -1301,6 +1330,7 @@ function startOtaDiskCleanupTask() {
 // Start both servers
 async function main() {
   try {
+    await ensureRedisRunning(config.redisPort || 6379, config.redisHost || '127.0.0.1');
     await startFastify();
     startGrpc();
     startHeartbeatMonitor();

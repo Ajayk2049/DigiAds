@@ -9,6 +9,7 @@ const User = require('../models/User');
 const PhonePeTransaction = require('../models/PhonePeTransaction');
 const Menu = require('../models/Menu');
 const MediaLog = require('../models/MediaLog');
+const PlatformAd = require('../models/PlatformAd');
 const phonePeService = require('../services/phonePeService');
 const crypto = require('crypto');
 const validator = require('../utils/validation');
@@ -1215,6 +1216,335 @@ class AdminController {
       return res.status(500).send({ success: false, message: 'Failed to update ad category: ' + error.message });
     }
   }
+
+  /**
+   * Fetch all Platform Ads and Global Fallback Ads
+   */
+  async getPlatformAds(req, res) {
+    try {
+      const ads = await PlatformAd.find()
+        .populate('targetVenueIds', 'outletName category city state allowOpenAds adMode')
+        .sort({ createdAt: -1 });
+
+      return res.status(200).send({
+        success: true,
+        data: ads
+      });
+    } catch (error) {
+      console.error('getPlatformAds Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to fetch platform ads' });
+    }
+  }
+
+  /**
+   * Upload Platform Ad media (Image with Sharp WebP optimization or Video with FFmpeg transcode queue)
+   */
+  async uploadPlatformAdMedia(req, res) {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const sharp = require('sharp');
+    const ffmpeg = require('fluent-ffmpeg');
+    const { pipeline } = require('stream/promises');
+    const { v4: uuidv4 } = require('uuid');
+
+    // 100 MB max payload size check
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > 104857600) {
+      return res.status(400).send({ success: false, message: 'File size exceeds maximum allowed limit of 100MB' });
+    }
+
+    let rawFilename = req.query?.filename || req.headers['x-filename'] || 'file.mp4';
+    try { rawFilename = decodeURIComponent(rawFilename); } catch (e) {}
+    const ext = path.extname(rawFilename).toLowerCase() || '.mp4';
+    const adType = (req.query?.adType === 'platform' || req.headers['x-ad-type'] === 'platform') ? 'platform' : 'fallback';
+
+    const isVideo = ['.mp4', '.webm', '.mov', '.avi'].includes(ext);
+    const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
+
+    if (!isVideo && !isImage) {
+      return res.status(400).send({ success: false, message: 'Unsupported file format. Allowed: JPG, JPEG, PNG, WEBP, MP4, WEBM, MOV, AVI.' });
+    }
+
+    const uploadsDir = path.join(__dirname, '..', 'uploads', 'platform-ads', adType);
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    try {
+      if (isImage) {
+        const uniqueFilename = `pad_img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
+        const filePath = path.join(uploadsDir, uniqueFilename);
+
+        const sharpStream = sharp()
+          .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 85 });
+
+        await pipeline(req.body, sharpStream, fs.createWriteStream(filePath));
+
+        return res.status(200).send({
+          success: true,
+          data: {
+            mediaUrl: `/uploads/platform-ads/${adType}/${uniqueFilename}`,
+            mediaType: 'image',
+            durationSeconds: 10
+          }
+        });
+      } else {
+        const uniqueFilename = `pad_vid_${uuidv4().replace(/-/g, '').slice(0, 16)}.mp4`;
+        const tempPath = path.join(os.tmpdir(), `tmp-pad-${Date.now()}${ext}`);
+        const rawFilePath = path.join(uploadsDir, uniqueFilename);
+
+        // Stream raw upload to temp file
+        await pipeline(req.body, fs.createWriteStream(tempPath));
+
+        // Read video duration via ffprobe for default duration value (no duration cutoff for platform admin)
+        let durationSeconds = 30;
+        try {
+          const metadata = await new Promise((resolve, reject) => {
+            ffmpeg.ffprobe(tempPath, (err, meta) => {
+              if (err) return reject(err);
+              resolve(meta);
+            });
+          });
+          if (metadata?.format?.duration) {
+            durationSeconds = Math.round(metadata.format.duration);
+          }
+        } catch (probeErr) {
+          console.warn('[uploadPlatformAdMedia] ffprobe warning:', probeErr.message);
+        }
+
+        // Copy raw file so media is immediately available
+        fs.copyFileSync(tempPath, rawFilePath);
+
+        // Enqueue background video transcode with audio stripping & H.264 Baseline 3.1
+        const videoQueueService = require('../services/videoQueueService');
+        const initialMediaUrl = `/uploads/platform-ads/${adType}/${uniqueFilename}`;
+
+        videoQueueService.addTranscodeJob({
+          modelType: 'PlatformAd',
+          recordId: uniqueFilename,
+          tempPath,
+          filePath: rawFilePath,
+          finalFilename: uniqueFilename,
+          uniqueFilename,
+          relativeSubdir: `platform-ads/${adType}`,
+          targetSubdir: `platform-ads/${adType}`,
+          targetDir: uploadsDir
+        });
+
+        return res.status(200).send({
+          success: true,
+          message: 'Video uploaded! Background optimization queued.',
+          data: {
+            mediaUrl: initialMediaUrl,
+            mediaType: 'video',
+            durationSeconds: durationSeconds || 30
+          }
+        });
+      }
+    } catch (error) {
+      console.error('uploadPlatformAdMedia Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to upload and process media: ' + error.message });
+    }
+  }
+
+  /**
+   * Create a new Platform Ad or Global Fallback Ad
+   */
+  async createPlatformAd(req, res) {
+    const {
+      type,
+      title,
+      mediaType,
+      mediaUrl,
+      mediaUrls,
+      targetDeviceType,
+      targetVenueIds,
+      durationSeconds,
+      frequency,
+      isActive
+    } = req.body || {};
+
+    if (!title || !title.trim()) {
+      return res.status(400).send({ success: false, message: 'Ad title is required' });
+    }
+    if (!mediaUrl || !mediaUrl.trim()) {
+      return res.status(400).send({ success: false, message: 'Media URL is required' });
+    }
+    const resolvedType = type === 'platform' ? 'platform' : 'fallback';
+
+    let validatedVenueIds = [];
+    if (resolvedType === 'platform') {
+      if (!Array.isArray(targetVenueIds) || targetVenueIds.length === 0) {
+        return res.status(400).send({ success: false, message: 'Targeted Platform Ads require at least one target venue to be selected' });
+      }
+
+      // Verify that all selected venues are Open Ads venues
+      const venues = await HostApplication.find({
+        _id: { $in: targetVenueIds },
+        allowOpenAds: { $ne: false },
+        adMode: { $ne: 'closed' }
+      });
+
+      if (venues.length === 0) {
+        return res.status(400).send({ success: false, message: 'Selected venues must be in Open Ads Mode. Closed Ads venues cannot receive platform ads.' });
+      }
+
+      validatedVenueIds = venues.map(v => v._id);
+    }
+
+    try {
+      const generatedAdId = 'PAD_' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+      const newAd = new PlatformAd({
+        adId: generatedAdId,
+        type: resolvedType,
+        title: title.trim(),
+        mediaType: mediaType || (mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') ? 'video' : 'image'),
+        mediaUrl: mediaUrl.trim(),
+        mediaUrls: Array.isArray(mediaUrls) && mediaUrls.length > 0 ? mediaUrls : [mediaUrl.trim()],
+        targetDeviceType: ['tablet', 'screen', 'all'].includes(targetDeviceType) ? targetDeviceType : 'all',
+        targetVenueIds: validatedVenueIds,
+        durationSeconds: Number(durationSeconds) || (mediaType === 'image' ? 10 : 30),
+        frequency: frequency || 'continuous',
+        isActive: isActive !== false,
+        transcodeStatus: 'completed'
+      });
+
+      await newAd.save();
+
+      // Broadcast WebSocket reload signal to all connected devices
+      if (global.deviceSockets) {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_created' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      }
+
+      return res.status(201).send({
+        success: true,
+        message: `${resolvedType === 'fallback' ? 'Global Fallback Ad' : 'Targeted Platform Ad'} created successfully!`,
+        data: newAd
+      });
+    } catch (error) {
+      console.error('createPlatformAd Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to create platform ad: ' + error.message });
+    }
+  }
+
+  /**
+   * Update an existing Platform Ad (toggle status, edit title, target venues, duration)
+   */
+  async updatePlatformAd(req, res) {
+    const { id } = req.params;
+    const {
+      title,
+      targetDeviceType,
+      targetVenueIds,
+      durationSeconds,
+      frequency,
+      isActive
+    } = req.body || {};
+
+    try {
+      const ad = await PlatformAd.findById(id);
+      if (!ad) {
+        return res.status(404).send({ success: false, message: 'Platform ad not found' });
+      }
+
+      if (title !== undefined) ad.title = title.trim();
+      if (targetDeviceType !== undefined && ['tablet', 'screen', 'all'].includes(targetDeviceType)) {
+        ad.targetDeviceType = targetDeviceType;
+      }
+      if (durationSeconds !== undefined) ad.durationSeconds = Number(durationSeconds) || ad.durationSeconds;
+      if (frequency !== undefined) ad.frequency = frequency;
+      if (isActive !== undefined) ad.isActive = Boolean(isActive);
+
+      if (ad.type === 'platform' && Array.isArray(targetVenueIds)) {
+        const venues = await HostApplication.find({
+          _id: { $in: targetVenueIds },
+          allowOpenAds: { $ne: false },
+          adMode: { $ne: 'closed' }
+        });
+        ad.targetVenueIds = venues.map(v => v._id);
+      }
+
+      await ad.save();
+
+      // Broadcast WebSocket reload signal
+      if (global.deviceSockets) {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: 'Platform ad updated successfully',
+        data: ad
+      });
+    } catch (error) {
+      console.error('updatePlatformAd Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to update platform ad: ' + error.message });
+    }
+  }
+
+  /**
+   * Delete a Platform Ad and immediately wipe physical media files from disk
+   */
+  async deletePlatformAd(req, res) {
+    const { id } = req.params;
+    const fs = require('fs');
+    const path = require('path');
+
+    try {
+      const ad = await PlatformAd.findById(id);
+      if (!ad) {
+        return res.status(404).send({ success: false, message: 'Platform ad not found' });
+      }
+
+      // Immediately wipe all associated media files from server/uploads/
+      const uploadsDir = path.resolve(__dirname, '..', 'uploads');
+      const urlsToDelete = [ad.mediaUrl, ...(ad.mediaUrls || [])].filter(Boolean);
+
+      for (const mediaUrl of urlsToDelete) {
+        if (typeof mediaUrl === 'string' && mediaUrl.includes('/uploads/')) {
+          const relPath = mediaUrl.split('/uploads/')[1];
+          const fullPath = path.resolve(uploadsDir, relPath);
+
+          if (fullPath.startsWith(uploadsDir) && fs.existsSync(fullPath)) {
+            try {
+              fs.unlinkSync(fullPath);
+              console.log(`\x1b[33m[PlatformAd]\x1b[0m Immediately unlinked physical file: ${fullPath}`);
+            } catch (unlinkErr) {
+              console.warn(`[PlatformAd] Could not unlink file ${fullPath}:`, unlinkErr.message);
+            }
+          }
+        }
+      }
+
+      await PlatformAd.findByIdAndDelete(id);
+
+      // Broadcast WebSocket reload signal
+      if (global.deviceSockets) {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_deleted' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: 'Platform ad and disk media files deleted successfully'
+      });
+    } catch (error) {
+      console.error('deletePlatformAd Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to delete platform ad: ' + error.message });
+    }
+  }
 }
 
 module.exports = new AdminController();
+

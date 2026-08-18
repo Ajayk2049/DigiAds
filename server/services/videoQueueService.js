@@ -7,6 +7,7 @@ const IORedis = require('ioredis');
 const MediaLog = require('../models/MediaLog');
 const AdBooking = require('../models/AdBooking');
 const VenuePromo = require('../models/VenuePromo');
+const PlatformAd = require('../models/PlatformAd');
 const config = require('../config/config');
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -139,6 +140,11 @@ class VideoQueueService {
     const isMongoId = Boolean(recordIdStr.match(/^[0-9a-fA-F]{24}$/));
     if (modelType === 'VenuePromo') {
       await VenuePromo.findByIdAndUpdate(rawRecordId, { transcodeStatus: 'processing' });
+    } else if (modelType === 'PlatformAd') {
+      await PlatformAd.findOneAndUpdate(
+        isMongoId ? { _id: rawRecordId } : { adId: recordIdStr },
+        { transcodeStatus: 'processing' }
+      );
     } else if (modelType === 'AdBooking') {
       await AdBooking.findOneAndUpdate(
         isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
@@ -167,7 +173,7 @@ class VideoQueueService {
             .noAudio()                 // Strip audio stream for silent kiosk video playback
             .outputOptions([
               '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
-              '-vf scale=trunc(iw/2)*2:trunc(ih/2)*2', // Guarantees even dimensions for Android decoders
+              '-vf scale=trunc(iw/16)*16:trunc(ih/16)*16', // Guarantees 16-pixel macroblock alignment for Android MediaCodec decoders
               '-profile:v baseline',   // Android Baseline 3.1 compatibility
               '-level 3.1',
               '-pix_fmt yuv420p',
@@ -206,7 +212,7 @@ class VideoQueueService {
     }
 
     // 3. Update database status and URLs upon completion
-    const relativeUrl = `/uploads/${targetSubdir.startsWith('ads/') ? targetSubdir : `ads/videos/${targetSubdir}`}/${uniqueFilename}`.replace(/\/+/g, '/');
+    const relativeUrl = `/uploads/${targetSubdir.startsWith('ads/') || targetSubdir.startsWith('platform-ads/') ? targetSubdir : `ads/videos/${targetSubdir}`}/${uniqueFilename}`.replace(/\/+/g, '/');
 
     if (modelType === 'VenuePromo') {
       const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
@@ -215,6 +221,15 @@ class VideoQueueService {
         transcodedMediaUrl: finalUrl,
         transcodeStatus: 'completed'
       });
+    } else if (modelType === 'PlatformAd') {
+      const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
+      await PlatformAd.findOneAndUpdate(
+        isMongoId ? { _id: rawRecordId } : { adId: recordIdStr },
+        {
+          mediaUrl: finalUrl,
+          transcodeStatus: 'completed'
+        }
+      );
     } else if (modelType === 'AdBooking') {
       await AdBooking.findOneAndUpdate(
         isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
@@ -237,10 +252,17 @@ class VideoQueueService {
     console.log(`\x1b[32m[FFmpeg Worker]\x1b[0m Transcode completed successfully for ${modelType} (${recordIdStr}) -> ${relativeUrl}`);
 
     // Broadcast WebSocket reload signal to connected kiosk devices
-    if (global.deviceSockets && job.hostApplicationId) {
-      const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
-      for (const [deviceId, socket] of global.deviceSockets.entries()) {
-        try { socket.send(payload); } catch (e) {}
+    if (global.deviceSockets) {
+      if (modelType === 'PlatformAd') {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      } else if (job.hostApplicationId) {
+        const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
       }
     }
 

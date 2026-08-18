@@ -768,6 +768,18 @@ class _KioskScreenState extends State<KioskScreen> {
       _lastPlayedTimes[bookingId] = DateTime.now().millisecondsSinceEpoch;
       _saveLastPlayedTimes();
     }
+
+    // Skip telemetry for fallback ads, platform house ads, venue promos, and unknown sources
+    final isNonBillable = bookingId == 'unknown' ||
+        bookingId.isEmpty ||
+        bookingId.startsWith('FALLBACK') ||
+        bookingId.startsWith('PAD') ||
+        bookingId.startsWith('VENUE_AD') ||
+        bookingId == 'FALLBACK' ||
+        bookingId == 'PAD' ||
+        bookingId == 'VENUE_AD';
+
+    if (isNonBillable) return;
     
     try {
       final req = AdImpressionRequest()

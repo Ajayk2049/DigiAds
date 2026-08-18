@@ -11,6 +11,7 @@ const {
   loginSchema,
   verifyOtpSchema,
   sendOtpSchema,
+  checkAvailabilitySchema,
   resetPasswordSchema
 } = require('../utils/zodSchemas');
 
@@ -33,14 +34,54 @@ function generateToken(user, activeRole = null) {
 
 class AuthController {
   /**
-   * Request an OTP for registration
+   * Check phone and/or email availability without sending OTP
+   */
+  async checkAvailability(req, res) {
+    const parseResult = checkAvailabilitySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).send({ success: false, message: parseResult.error.errors[0]?.message || 'Invalid request' });
+    }
+    const { phone, email } = parseResult.data;
+
+    let phoneExists = false;
+    let emailExists = false;
+
+    try {
+      if (phone && phone.trim().length > 0) {
+        const validation = validator.validatePhone(phone);
+        if (validation.isValid) {
+          const user = await User.findOne({ phone: validation.formatted });
+          phoneExists = !!user;
+        }
+      }
+
+      if (email && email.trim().length > 0) {
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        emailExists = !!user;
+      }
+
+      return res.status(200).send({
+        success: true,
+        data: {
+          phoneExists,
+          emailExists
+        }
+      });
+    } catch (error) {
+      console.error('checkAvailability Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to check availability' });
+    }
+  }
+
+  /**
+   * Request an OTP for registration or password reset
    */
   async sendOtp(req, res) {
     const parseResult = sendOtpSchema.safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).send({ success: false, message: parseResult.error.errors[0]?.message || 'Invalid request' });
     }
-    const { phone } = parseResult.data;
+    const { phone, email, type } = parseResult.data;
     const ip = req.ip || 'unknown';
 
     const validation = validator.validatePhone(phone);
@@ -52,6 +93,35 @@ class AuthController {
     const isDemoAccount = config.demoMode;
 
     try {
+      // 0. Upfront credential pre-check based on intent type to prevent wasted SMS OTPs
+      if (type === 'register') {
+        const existingPhone = await User.findOne({ phone: formattedPhone });
+        if (existingPhone) {
+          return res.status(400).send({
+            success: false,
+            message: 'This mobile number is already registered. Please sign in instead.'
+          });
+        }
+
+        if (email && email.trim().length > 0) {
+          const existingEmail = await User.findOne({ email: email.trim().toLowerCase() });
+          if (existingEmail) {
+            return res.status(400).send({
+              success: false,
+              message: 'This email address is already registered. Please sign in instead.'
+            });
+          }
+        }
+      } else if (type === 'reset') {
+        const existingUser = await User.findOne({ phone: formattedPhone });
+        if (!existingUser) {
+          return res.status(404).send({
+            success: false,
+            message: 'No registered account found with this mobile number.'
+          });
+        }
+      }
+
       // 1. Throttling: must wait at least 60 seconds
       const lastLog = await SMSRequestLog.findOne({
         $or: [{ phone: formattedPhone }, { ip: ip }]

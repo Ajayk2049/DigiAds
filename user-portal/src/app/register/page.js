@@ -52,6 +52,12 @@ function RegisterForm() {
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [passwordInvalid, setPasswordInvalid] = useState(false);
 
+  // Live Availability Check Statuses
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
+
   // Check for active session and auto-redirect authenticated users
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -82,6 +88,52 @@ function RegisterForm() {
       return () => clearTimeout(timer);
     }
   }, [otpCooldown]);
+
+  // Debounced Phone Availability Check (only when valid 10 digits starting with 6-9)
+  useEffect(() => {
+    if (phone.length === 10 && /^[6-9]\d{9}$/.test(phone)) {
+      setIsCheckingPhone(true);
+      const timer = setTimeout(async () => {
+        try {
+          const fullPhone = `${countryCode}${phone}`;
+          const res = await axios.post(`${API_BASE}/auth/check-availability`, { phone: fullPhone });
+          setPhoneExists(res.data?.data?.phoneExists || false);
+        } catch (err) {
+          console.error('Phone availability check failed:', err);
+        } finally {
+          setIsCheckingPhone(false);
+        }
+      }, 400);
+
+      return () => clearTimeout(timer);
+    } else {
+      setPhoneExists(false);
+      setIsCheckingPhone(false);
+    }
+  }, [phone]);
+
+  // Debounced Email Availability Check (only when valid email syntax)
+  useEffect(() => {
+    const trimmedEmail = email.trim();
+    if (trimmedEmail.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setIsCheckingEmail(true);
+      const timer = setTimeout(async () => {
+        try {
+          const res = await axios.post(`${API_BASE}/auth/check-availability`, { email: trimmedEmail });
+          setEmailExists(res.data?.data?.emailExists || false);
+        } catch (err) {
+          console.error('Email availability check failed:', err);
+        } finally {
+          setIsCheckingEmail(false);
+        }
+      }, 400);
+
+      return () => clearTimeout(timer);
+    } else {
+      setEmailExists(false);
+      setIsCheckingEmail(false);
+    }
+  }, [email]);
 
   // Handle Theme
   useEffect(() => {
@@ -160,6 +212,18 @@ function RegisterForm() {
       showNotification('error', 'Email is required');
       return;
     }
+    if (phone.length !== 10) {
+      showNotification('error', 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+    if (phoneExists) {
+      showNotification('error', 'This mobile number is already registered. Please sign in.');
+      return;
+    }
+    if (emailExists) {
+      showNotification('error', 'This email address is already in use. Please sign in.');
+      return;
+    }
 
     setError('');
     setInfo('');
@@ -167,7 +231,11 @@ function RegisterForm() {
 
     try {
       const fullPhone = `${countryCode}${phone}`;
-      const response = await axios.post(`${API_BASE}/auth/send-otp`, { phone: fullPhone });
+      const response = await axios.post(`${API_BASE}/auth/send-otp`, {
+        phone: fullPhone,
+        email: email.trim(),
+        type: 'register'
+      });
 
       setOtpSent(true);
       setOtpCooldown(60); // Start 60s cooldown timer
@@ -414,7 +482,7 @@ function RegisterForm() {
                   <input
                     type="text"
                     required
-                    placeholder="Outlet/Company/Venture Name"
+                    placeholder="User Name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full bg-background border border-input rounded-xl pl-11 pr-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
@@ -432,9 +500,29 @@ function RegisterForm() {
                     placeholder="Email Address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-background border border-input rounded-xl pl-11 pr-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                    className={`w-full bg-background border rounded-xl pl-11 pr-10 py-3 text-xs font-semibold text-foreground focus:outline-none transition-all ${
+                      emailExists 
+                        ? 'border-amber-500/80 focus:ring-1 focus:ring-amber-500' 
+                        : 'border-input focus:ring-1 focus:ring-primary focus:border-transparent'
+                    }`}
                   />
+                  {isCheckingEmail && (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    </div>
+                  )}
                 </div>
+                {emailExists && (
+                  <div className="mt-1.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[11px] font-semibold flex items-center justify-between animate-fade-in">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                      This email is already in use.
+                    </span>
+                    <a href="/login" className="underline font-bold hover:text-amber-700 dark:hover:text-amber-300 ml-2 whitespace-nowrap">
+                      Sign in instead →
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Mobile Number & Send OTP */}
@@ -452,19 +540,39 @@ function RegisterForm() {
                       placeholder="Mobile Number"
                       value={phone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
-                      className="w-full bg-background border border-input rounded-xl pl-11 pr-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                      className={`w-full bg-background border rounded-xl pl-11 pr-10 py-3 text-xs font-semibold text-foreground focus:outline-none transition-all ${
+                        phoneExists 
+                          ? 'border-amber-500/80 focus:ring-1 focus:ring-amber-500' 
+                          : 'border-input focus:ring-1 focus:ring-primary focus:border-transparent'
+                      }`}
                     />
+                    {isCheckingPhone && (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                      </div>
+                    )}
                   </div>
 
                   <button
                     onClick={handleSendOtp}
                     type="button"
-                    disabled={loading || !phone || !email || otpCooldown > 0}
+                    disabled={loading || isCheckingPhone || isCheckingEmail || phoneExists || emailExists || !phone || phone.length !== 10 || !email || otpCooldown > 0}
                     className="bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground text-xs font-bold px-4 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm min-w-[95px]"
                   >
                     {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Send OTP'}
                   </button>
                 </div>
+                {phoneExists && (
+                  <div className="mt-1.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-[11px] font-semibold flex items-center justify-between animate-fade-in">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                      This mobile number is already registered.
+                    </span>
+                    <a href="/login" className="underline font-bold hover:text-amber-700 dark:hover:text-amber-300 ml-2 whitespace-nowrap">
+                      Sign in instead →
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* OTP Verification Input (Greyed out until sent) */}
@@ -521,9 +629,8 @@ function RegisterForm() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className={`mt-1.5 text-[9px] font-semibold leading-relaxed transition-colors duration-200 ${
-                  passwordInvalid ? 'text-destructive font-bold' : 'text-muted-foreground'
-                }`}>
+                <p className={`mt-1.5 text-[9px] font-semibold leading-relaxed transition-colors duration-200 ${passwordInvalid ? 'text-destructive font-bold' : 'text-muted-foreground'
+                  }`}>
                   * Password must be 8-12 characters containing letters and numbers.
                 </p>
               </div>

@@ -51,9 +51,15 @@ module.exports = {
         }
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        none: '0px',
+        sm: '2px',
+        DEFAULT: '4px',
+        md: '4px',
+        lg: '6px',
+        xl: '6px',
+        '2xl': '6px',
+        '3xl': '8px',
+        full: '9999px',
       },
       fontFamily: {
         outfit: ['Outfit', 'sans-serif'],

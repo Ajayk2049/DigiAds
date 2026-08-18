@@ -99,7 +99,10 @@ export default function LoginPage() {
 
     try {
       const fullPhone = `+91${resetPhone}`;
-      const response = await axios.post(`${API_BASE}/auth/send-otp`, { phone: fullPhone });
+      const response = await axios.post(`${API_BASE}/auth/send-otp`, {
+        phone: fullPhone,
+        type: 'reset'
+      });
 
       setResetOtpSent(true);
       setResetOtpCooldown(60); // Start 60s cooldown timer

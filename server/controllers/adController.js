@@ -51,7 +51,7 @@ const deleteMediaFile = (mediaUrl) => {
 
 const pollTransactionStatus = (bookingId, transactionId) => {
   let attempts = 0;
-  const maxAttempts = 15; // 15 attempts * 10 seconds = 150 seconds (2.5 min) total
+  const maxAttempts = 32; // 32 attempts * 15 seconds = 480 seconds (8 minutes) total
   const interval = setInterval(async () => {
     attempts++;
     console.log(`[Auto-Polling] Checking status for booking ${bookingId} (Attempt ${attempts}/${maxAttempts})...`);
@@ -135,7 +135,7 @@ const pollTransactionStatus = (bookingId, transactionId) => {
         clearInterval(interval);
       }
     }
-  }, 10000); // Poll every 10 seconds
+  }, 15000); // Poll every 15 seconds (8 minutes total)
 };
 
 const { generateUniqueCustomId } = require('../utils/idGenerator');

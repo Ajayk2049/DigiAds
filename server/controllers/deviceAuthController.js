@@ -198,8 +198,74 @@ class DeviceAuthController {
           };
         });
 
-      // Combine: 3rd-party ads + venue promos in a unified playlist
-      const combinedPlaylist = [...thirdPartyAds, ...promoAds];
+      // Combine active 3rd-party ads and venue in-house promos
+      let combinedPlaylist = [...thirdPartyAds, ...promoAds];
+
+      // Strict Open-Ads Venue Check: Only Open Ads venues receive Platform & Fallback Ads
+      const isOpenAdsVenue = hostApp.allowOpenAds !== false && hostApp.adMode !== 'closed';
+
+      if (isOpenAdsVenue) {
+        const PlatformAd = require('../models/PlatformAd');
+
+        // 1. Fetch targeted Platform Ads explicitly assigned to this venue
+        const targetedPlatformDocs = await PlatformAd.find({
+          type: 'platform',
+          isActive: true,
+          targetVenueIds: hostApplicationId,
+          targetDeviceType: { $in: ['all', deviceType] },
+          transcodeStatus: { $ne: 'processing' }
+        });
+
+        const targetedPlatformAds = targetedPlatformDocs.map(ad => {
+          const rawUrls = (ad.mediaUrls && ad.mediaUrls.length > 0) ? ad.mediaUrls : [ad.mediaUrl];
+          const resolvedUrls = rawUrls.map(u => resolveMediaUrl(u, req.headers.host));
+          const firstUrl = resolvedUrls[0] || resolveMediaUrl(ad.mediaUrl, req.headers.host);
+          const isVideo = ad.mediaType === 'video' || firstUrl.endsWith('.mp4') || firstUrl.endsWith('.webm');
+
+          return {
+            bookingId: ad.adId || `PAD_${ad._id.toString().slice(-6).toUpperCase()}`,
+            mediaUrl: firstUrl,
+            mediaUrls: resolvedUrls,
+            frequencyMinutes: 0,
+            durationSeconds: ad.durationSeconds || (isVideo ? 30 : 10),
+            title: ad.title || 'Platform Feature',
+            mediaType: isVideo ? 'video' : 'static',
+            isPlatformAd: true
+          };
+        });
+
+        combinedPlaylist = [...combinedPlaylist, ...targetedPlatformAds];
+
+        // 2. Fallback Ads: Injected ONLY in the absence of ANY active ads (count === 0)
+        if (combinedPlaylist.length === 0) {
+          const fallbackDocs = await PlatformAd.find({
+            type: 'fallback',
+            isActive: true,
+            targetDeviceType: { $in: ['all', deviceType] },
+            transcodeStatus: { $ne: 'processing' }
+          });
+
+          const fallbackAds = fallbackDocs.map(ad => {
+            const rawUrls = (ad.mediaUrls && ad.mediaUrls.length > 0) ? ad.mediaUrls : [ad.mediaUrl];
+            const resolvedUrls = rawUrls.map(u => resolveMediaUrl(u, req.headers.host));
+            const firstUrl = resolvedUrls[0] || resolveMediaUrl(ad.mediaUrl, req.headers.host);
+            const isVideo = ad.mediaType === 'video' || firstUrl.endsWith('.mp4') || firstUrl.endsWith('.webm');
+
+            return {
+              bookingId: ad.adId || `FALLBACK_${ad._id.toString().slice(-6).toUpperCase()}`,
+              mediaUrl: firstUrl,
+              mediaUrls: resolvedUrls,
+              frequencyMinutes: 0,
+              durationSeconds: ad.durationSeconds || (isVideo ? 30 : 10),
+              title: ad.title || 'DigiAds Network',
+              mediaType: isVideo ? 'video' : 'static',
+              isFallbackAd: true
+            };
+          });
+
+          combinedPlaylist = fallbackAds;
+        }
+      }
 
       // Generate lightweight ETag hash for fast 304 Not Modified validation during backup polling
       const crypto = require('crypto');

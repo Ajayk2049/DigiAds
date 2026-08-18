@@ -42,6 +42,7 @@ function registerRoutes(fastify, options, done) {
   };
 
   // Public Auth Routes
+  fastify.post('/auth/check-availability', authRateLimitConfig, authController.checkAvailability);
   fastify.post('/auth/send-otp', authRateLimitConfig, authController.sendOtp);
   fastify.post('/auth/verify-otp', authRateLimitConfig, authController.verifyOtp);
   fastify.post('/auth/register', authRateLimitConfig, authController.register);
@@ -155,6 +156,13 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.post('/admin/device-requests/review', adminController.reviewDeviceRequest.bind(adminController));
     adminRoutes.get('/admin/mode-change-requests', adminController.getModeChangeRequests.bind(adminController));
     adminRoutes.put('/admin/mode-change-requests/:requestId/review', adminController.reviewModeChangeRequest.bind(adminController));
+
+    // Admin Platform Ads & Global Fallback Ads
+    adminRoutes.get('/admin/platform-ads', adminController.getPlatformAds.bind(adminController));
+    adminRoutes.post('/admin/platform-ads/upload', { bodyLimit: 104857600 }, adminController.uploadPlatformAdMedia.bind(adminController));
+    adminRoutes.post('/admin/platform-ads', adminController.createPlatformAd.bind(adminController));
+    adminRoutes.patch('/admin/platform-ads/:id', adminController.updatePlatformAd.bind(adminController));
+    adminRoutes.delete('/admin/platform-ads/:id', adminController.deletePlatformAd.bind(adminController));
 
     // Admin Release Management
     adminRoutes.get('/admin/releases', releaseController.listReleases.bind(releaseController));

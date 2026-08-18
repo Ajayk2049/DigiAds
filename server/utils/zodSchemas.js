@@ -57,7 +57,17 @@ const verifyOtpSchema = z.object({
 });
 
 const sendOtpSchema = z.object({
-  phone: z.string({ required_error: 'Phone is required' }).min(1, 'Phone is required')
+  phone: z.string({ required_error: 'Phone is required' }).min(1, 'Phone is required'),
+  email: z.string().email('Invalid email format').optional().or(z.literal('')),
+  type: z.enum(['register', 'reset']).optional()
+});
+
+const checkAvailabilitySchema = z.object({
+  phone: z.string().optional(),
+  email: z.string().email('Invalid email format').optional().or(z.literal(''))
+}).refine((data) => (data.phone && data.phone.trim().length > 0) || (data.email && data.email.trim().length > 0), {
+  message: 'Either phone or email must be provided to check availability',
+  path: ['phone']
 });
 
 const resetPasswordSchema = z.object({
@@ -77,5 +87,7 @@ module.exports = {
   loginSchema,
   verifyOtpSchema,
   sendOtpSchema,
+  checkAvailabilitySchema,
   resetPasswordSchema
 };
+

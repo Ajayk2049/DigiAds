@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:grpc/grpc.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -123,10 +122,7 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
 
   void _onReset() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('serverHost');
-    await prefs.remove('deviceId');
-    await prefs.remove('hostApplicationId');
+    await prefs.clear();
 
     setState(() {
       _isActivated = false;
@@ -149,26 +145,55 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
       token: _token,
       hostApplicationId: _hostApplicationId,
       onReset: _onReset,
+      onReconfigure: () {
+        setState(() {
+          _isActivated = false;
+        });
+      },
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Setup Screen (unchanged except minor fixes)
+// Setup Screen — Zero hardcoding, clean input fields, reconfigure support
 // ---------------------------------------------------------------------------
 class ScreenSetupScreen extends StatefulWidget {
   final Function(String, String, String, String) onActivate;
-  const ScreenSetupScreen({super.key, required this.onActivate});
+  final String? initialServerHost;
+  final String? initialDeviceId;
+  final VoidCallback? onCancel;
+
+  const ScreenSetupScreen({
+    super.key,
+    required this.onActivate,
+    this.initialServerHost,
+    this.initialDeviceId,
+    this.onCancel,
+  });
 
   @override
   State<ScreenSetupScreen> createState() => _ScreenSetupScreenState();
 }
 
 class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
-  final _serverHostController = TextEditingController(text: '10.0.2.2');
-  final _deviceIdController = TextEditingController();
+  late final TextEditingController _serverHostController;
+  late final TextEditingController _deviceIdController;
   String _error = '';
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _serverHostController = TextEditingController(text: widget.initialServerHost ?? '');
+    _deviceIdController = TextEditingController(text: widget.initialDeviceId ?? '');
+  }
+
+  @override
+  void dispose() {
+    _serverHostController.dispose();
+    _deviceIdController.dispose();
+    super.dispose();
+  }
 
   void _submit() async {
     setState(() {
@@ -189,7 +214,7 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
 
     if (serverHost.isEmpty || deviceId.isEmpty) {
       setState(() {
-        _error = 'All fields are required';
+        _error = 'Both Server Host / IP and Device ID are required.';
         _loading = false;
       });
       return;
@@ -228,13 +253,13 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
         widget.onActivate(serverHost, deviceId, token, hostApplicationId);
       } else {
         setState(() {
-          _error = data['message'] ?? 'Activation failed';
+          _error = data['message'] ?? 'Activation failed: Check credentials.';
           _loading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _error = 'Connection failed: Ensure server is running and IP is correct';
+        _error = 'Connection failed: Ensure server is running and reachable at $serverHost:4200';
         _loading = false;
       });
     }
@@ -243,84 +268,121 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        color: const Color(0xFF030712),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              width: 420,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFF111827),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Icon(Icons.settings_suggest, size: 64, color: Colors.indigoAccent),
+      backgroundColor: const Color(0xFF030712),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Container(
+            width: 480,
+            padding: const EdgeInsets.all(36),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111827),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white12),
+              boxShadow: const [
+                BoxShadow(color: Colors.black54, blurRadius: 30, offset: Offset(0, 10)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.tv_rounded, size: 64, color: Colors.indigoAccent),
+                const SizedBox(height: 16),
+                const Text(
+                  "DigiAds Screen Setup",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Connect this wall display screen to your DigiAds network.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                ),
+                const SizedBox(height: 24),
+                if (_error.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _error,
+                            style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  const Text(
-                    "Wall Display Setup",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    "One-time authorization setup for ad playback screen.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_error.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
-                      ),
-                      child: Text(
-                        _error,
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  TextField(
-                    controller: _serverHostController,
-                    decoration: InputDecoration(
-                      labelText: "Server Host / IP",
-                      helperText: "e.g. 10.0.2.2 (Emulator) or 192.168.1.X (Local Wifi)",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      prefixIcon: const Icon(Icons.dns),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _deviceIdController,
-                    decoration: InputDecoration(
-                      labelText: "Device ID (e.g. DEV_SCR_XXXX)",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      prefixIcon: const Icon(Icons.tv),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.indigoAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: _loading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text("Authorize & Bind Screen", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
                 ],
-              ),
+                TextField(
+                  controller: _serverHostController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: "Server Host / IP Address",
+                    hintText: "e.g. 192.168.1.100 or cms.digiads.space",
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    prefixIcon: const Icon(Icons.dns_rounded, color: Colors.indigoAccent),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _deviceIdController,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: "Device ID",
+                    hintText: "e.g. DEV_SCR_A1B2",
+                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    prefixIcon: const Icon(Icons.tv_rounded, color: Colors.indigoAccent),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    if (widget.onCancel != null) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _loading ? null : widget.onCancel,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: const BorderSide(color: Colors.white24),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: const Text("Cancel", style: TextStyle(color: Colors.white70)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.indigoAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 4,
+                        ),
+                        child: _loading
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text("Authorize & Bind Screen", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -338,6 +400,7 @@ class AdPlayerScreen extends StatefulWidget {
   final String token;
   final String hostApplicationId;
   final VoidCallback onReset;
+  final VoidCallback onReconfigure;
 
   const AdPlayerScreen({
     super.key,
@@ -346,6 +409,7 @@ class AdPlayerScreen extends StatefulWidget {
     required this.token,
     required this.hostApplicationId,
     required this.onReset,
+    required this.onReconfigure,
   });
 
   @override
@@ -364,25 +428,18 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   String _statusMessage = 'Initializing...';
 
   // ---------- Playlist ----------
-  List<String> _localPlaylist = []; // file paths or 'static__...' strings
+  List<String> _localPlaylist = []; // file paths or 'img__...' or 'static__...' strings
   int _currentAdIndex = 0;
 
-  // ---------- Video Controllers (double-buffer) ----------
-  VideoPlayerController? _activeController;
-  VideoPlayerController? _preloadedController;
-
-  // ---------- Playback monitoring ----------
-  Timer? _positionPollTimer;
-  Timer? _watchdogTimer;
+  // ---------- Single Video Controller & Timers (Low-RAM 60 FPS) ----------
+  VideoPlayerController? _videoController;
   Timer? _staticAdTimer;
-  Duration _lastKnownPosition = Duration.zero;
-  int _positionStallCount = 0;
+  Timer? _videoWatchdogTimer;
 
-  // ---------- Sync & Download ----------
+  // ---------- Sync ----------
   bool _isSyncing = false;
-  Timer? _syncTimer;
   int _syncRetryCount = 0;
-  String _downloadProgress = '';
+  Timer? _syncTimer;
 
   // ---------- Storage directory ----------
   late String _adsDirectory;
@@ -390,6 +447,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   // ---------- Ad scheduling & frequency ----------
   List<String> _masterAdPlaylist = [];
   Map<String, int> _adFrequencies = {};
+  Map<String, int> _adDurations = {};
   Map<String, int> _lastPlayedTimes = {};
 
   @override
@@ -397,6 +455,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Limit memory image cache to 30MB for 1GB RAM budget Android 10 hardware
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 30 * 1024 * 1024;
     _boot();
   }
 
@@ -414,74 +474,48 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
     // 3. Init gRPC for heartbeat / telemetry
     _initGrpc();
+
+    // 4. Start gRPC heartbeat loop
     _startHeartbeat();
 
-    // 4. Attempt server sync in background (won't block playback)
+    // 5. Initial sync with server in background
     _attemptSync();
-
-    // Local timer to check for ad unlocks periodically when the playlist is empty
-    Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
-        if (_playerState != PlayerState.booting && _localPlaylist.isEmpty && _masterAdPlaylist.isNotEmpty) {
-          final eligible = _getEligiblePlaylist(_masterAdPlaylist);
-          if (eligible.isNotEmpty) {
-            print('[SCHEDULER] Ads unlocked! Resuming ad loop.');
-            setState(() {
-              _localPlaylist = eligible;
-              _playerState = PlayerState.playing;
-              _statusMessage = '';
-            });
-            _startPlaybackLoop();
-          }
-        }
-      } else {
-        timer.cancel();
-      }
-    });
   }
 
   Future<void> _ensureStorageReady() async {
-    // Request storage permission on Android
     if (Platform.isAndroid) {
-      final status = await Permission.manageExternalStorage.request();
-      if (!status.isGranted) {
-        // Fall back to requesting regular storage
+      final manageStatus = await Permission.manageExternalStorage.status;
+      if (!manageStatus.isGranted) {
+        await Permission.manageExternalStorage.request();
+      }
+      final storageStatus = await Permission.storage.status;
+      if (!storageStatus.isGranted) {
         await Permission.storage.request();
       }
     }
 
-    // Create ads directory in external storage root
-    _adsDirectory = '/sdcard/AIBotInk/ads';
-    final dir = Directory(_adsDirectory);
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-      print('[STORAGE] Created ads directory: $_adsDirectory');
-    } else {
-      print('[STORAGE] Ads directory exists: $_adsDirectory');
+    final baseDir = Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
+    if (!baseDir.existsSync()) {
+      baseDir.createSync(recursive: true);
     }
+    _adsDirectory = baseDir.path;
+    print('[BOOT] Ads directory ready: $_adsDirectory');
   }
 
-  // =====================================================================
-  // CACHED PLAYLIST LOADING (Offline-First)
-  // =====================================================================
   Future<void> _loadCachedPlaylist() async {
     final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getStringList('local_playlist') ?? [];
+    final cached = prefs.getStringList('local_playlist');
 
-    if (cached.isNotEmpty) {
-      // Filter to only files that still exist on disk
-      final validFiles = <String>[];
-      for (final path in cached) {
-        if (path.startsWith('static__')) {
-          validFiles.add(path);
-        } else if (File(path).existsSync() && File(path).lengthSync() > 1000) {
-          validFiles.add(path);
-        }
-      }
+    if (cached != null && cached.isNotEmpty) {
+      final valid = cached.where((path) {
+        if (path.startsWith('static__') || path.startsWith('img__')) return true;
+        final file = File(path);
+        return file.existsSync() && file.lengthSync() > 1000;
+      }).toList();
 
-      if (validFiles.isNotEmpty) {
-        print('[BOOT] Found ${validFiles.length} cached ads on disk. Starting playback.');
-        _masterAdPlaylist = List.from(validFiles);
+      if (valid.isNotEmpty) {
+        print('[BOOT] Found ${valid.length} valid cached ads. Starting playback immediately.');
+        _masterAdPlaylist = List.from(valid);
         await _loadFrequenciesAndTimestamps();
         final eligible = _getEligiblePlaylist(_masterAdPlaylist);
         setState(() {
@@ -494,19 +528,16 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       }
     }
 
-    // Also scan the ads directory for any .mp4/.webm files (recovery fallback)
+    // No cached playlist in prefs — scan filesystem for leftover video files
     final dir = Directory(_adsDirectory);
     if (dir.existsSync()) {
       final files = dir.listSync().whereType<File>().where((f) {
-        final name = f.path.split('/').last;
-        return ((name.endsWith('.mp4') || name.endsWith('.webm')) && f.lengthSync() > 1000) ||
-               ((name.endsWith('.webp') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png')) && f.lengthSync() > 500);
+        return (f.path.endsWith('.mp4') || f.path.endsWith('.webm')) && f.lengthSync() > 1000;
       }).toList();
 
       if (files.isNotEmpty) {
         final recovered = files.map((f) => f.path).toList();
-        print('[BOOT] Recovered ${recovered.length} video files from disk scan.');
-        await prefs.setStringList('local_playlist', recovered);
+        print('[BOOT] Recovered ${recovered.length} ads from filesystem. Starting playback.');
         _masterAdPlaylist = List.from(recovered);
         await _loadFrequenciesAndTimestamps();
         final eligible = _getEligiblePlaylist(_masterAdPlaylist);
@@ -548,35 +579,33 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   }
 
   void _startHeartbeat() async {
-    // Initial registration
-    try {
-      final req = RegisterDeviceRequest()
-        ..deviceId = widget.deviceId
-        ..deviceType = 'screen'
-        ..hostApplicationId = widget.hostApplicationId;
-      await _deviceClient.registerDevice(req, options: _callOptions);
-      print('[gRPC] Screen registered successfully');
-    } catch (e) {
-      print('[gRPC] Screen registration failed: $e');
-    }
-
-    // Periodic heartbeat
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       try {
-        await _deviceClient.sendHeartbeat(
-          HeartbeatRequest()..deviceId = widget.deviceId,
-          options: _callOptions,
-        );
+        final req = HeartbeatRequest()
+          ..deviceId = widget.deviceId;
+
+        final res = await _deviceClient.sendHeartbeat(req, options: _callOptions);
+
+        if (res.hasCommand()) {
+          final cmd = res.command.toLowerCase();
+          if (cmd == 'refresh' || cmd == 'sync' || cmd == 'reload_ads') {
+            print('[HEARTBEAT] Server requested ad refresh: $cmd');
+            _attemptSync();
+          } else if (cmd == 'reboot') {
+            print('[HEARTBEAT] Server requested reboot.');
+          }
+        }
       } catch (e) {
-        // Heartbeat failure is non-critical, just log it
+        print('[HEARTBEAT] Heartbeat failed: $e');
       }
     });
   }
 
   // =====================================================================
-  // SERVER SYNC — Connection-aware with retry
+  // SERVER SYNC — Backoff retry engine
   // =====================================================================
-  void _attemptSync() async {
+  Future<void> _attemptSync() async {
     if (_isSyncing) return;
 
     print('[SYNC] Attempting server sync (retry #$_syncRetryCount)...');
@@ -616,12 +645,11 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   void _scheduleRetrySync() {
     _syncTimer?.cancel();
     _syncRetryCount++;
-    // Backoff: 10s for testing
     final delay = const Duration(seconds: 10);
 
     print('[SYNC] Scheduling retry in ${delay.inSeconds}s (attempt #$_syncRetryCount)');
 
-    if (mounted) {
+    if (mounted && _playerState == PlayerState.waiting) {
       setState(() {
         _statusMessage = 'Server unreachable. Retrying in ${delay.inSeconds}s...';
       });
@@ -636,33 +664,32 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _syncTimer?.cancel();
     _syncRetryCount = 0;
 
-    // Re-sync every 10 seconds for testing
-    _syncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (mounted) _attemptSync();
     });
   }
 
   // =====================================================================
-  // DOWNLOAD ENGINE — Per-file retry with validation
+  // DOWNLOAD ENGINE — Per-file silent background download
   // =====================================================================
   Future<void> _syncAndDownloadAds(List<dynamic> serverAds) async {
     if (_isSyncing) return;
     _isSyncing = true;
 
-    if (mounted) {
-      setState(() => _downloadProgress = 'Syncing ads...');
-    }
-
     try {
-      // Save frequencies mapping to cache
+      // Save frequencies and durations mapping to cache
       final prefs = await SharedPreferences.getInstance();
       final Map<String, int> frequencies = {};
+      final Map<String, int> durations = {};
       for (final ad in serverAds) {
         final bookingId = ad['bookingId'] as String? ?? 'unknown';
         final freqMin = ad['frequencyMinutes'] as int? ?? 0;
+        final durSec = ad['durationSeconds'] as int? ?? 10;
         frequencies[bookingId] = freqMin;
+        durations[bookingId] = durSec;
       }
       await prefs.setString('ad_frequencies_map', jsonEncode(frequencies));
+      await prefs.setString('ad_durations_map', jsonEncode(durations));
 
       final List<String> newLocalPaths = [];
       final List<String> activeFileNames = [];
@@ -692,7 +719,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
               continue;
             }
           } else {
-            print('[DOWNLOAD] Ad $bookingId already cached: ${localFile.path} (${(localFile.lengthSync() / 1024).round()} KB)');
+            print('[DOWNLOAD] Ad $bookingId already cached: ${localFile.path}');
           }
 
           newLocalPaths.add(localFile.path);
@@ -715,7 +742,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
               continue;
             }
           } else {
-            print('[DOWNLOAD] Image ad $bookingId already cached: ${localFile.path} (${(localFile.lengthSync() / 1024).round()} KB)');
+            print('[DOWNLOAD] Image ad $bookingId already cached: ${localFile.path}');
           }
 
           // Register as img__[localPath] so the player knows it is an image
@@ -732,13 +759,6 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       await _updatePlaylist(newLocalPaths, activeFileNames);
     } catch (e) {
       print('[SYNC] Download error: $e');
-      if (mounted) {
-        setState(() => _downloadProgress = 'Sync failed. Using cache.');
-      }
-      // Clear status after 3 seconds
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _downloadProgress = '');
-      });
     } finally {
       _isSyncing = false;
     }
@@ -757,10 +777,14 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
     if (eligible.isEmpty) {
       print('[PLAYER] New playlist is empty. Stopping playback.');
-      _stopPlaybackMonitoring();
-      _disposeActiveController();
-      _preloadedController?.dispose();
-      _preloadedController = null;
+      _staticAdTimer?.cancel();
+      _videoWatchdogTimer?.cancel();
+      if (_videoController != null) {
+        final old = _videoController;
+        _videoController = null;
+        old?.removeListener(_videoListener);
+        old?.dispose();
+      }
       setState(() {
         _localPlaylist = [];
         _playerState = PlayerState.waiting;
@@ -792,40 +816,21 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     final currentPlayingIndexInNew = eligible.indexOf(currentPlayingSource);
 
     if (currentPlayingIndexInNew != -1) {
-      // Currently playing ad is still valid. Just update playlist and index
       print('[PLAYER] Playlist updated. Currently playing ad is still valid.');
       setState(() {
         _localPlaylist = eligible;
         _currentAdIndex = currentPlayingIndexInNew;
-        _downloadProgress = '';
       });
-      // Re-preload the next ad just in case the next ad changed
-      _preloadedController?.dispose();
-      _preloadedController = null;
-      _preloadNextAd();
-      
       _cleanupOldFiles(activeFileNames);
     } else {
-      // Currently playing ad was revoked/deleted or is now scheduled out!
-      print('[PLAYER] Currently playing ad is no longer active. Stopping and advancing.');
-      
-      // 1. Stop active playback & dispose so the file is unlocked
-      _stopPlaybackMonitoring();
-      _disposeActiveController();
-      _preloadedController?.dispose();
-      _preloadedController = null;
-
-      // 2. Update playlist in state
+      print('[PLAYER] Currently playing ad is no longer active. Advancing.');
+      _staticAdTimer?.cancel();
+      _videoWatchdogTimer?.cancel();
       setState(() {
         _localPlaylist = eligible;
         _currentAdIndex = _currentAdIndex % eligible.length;
-        _downloadProgress = '';
       });
-
-      // 3. Delete files safely now that controllers are disposed
       _cleanupOldFiles(activeFileNames);
-
-      // 4. Start playing the next ad
       _playCurrentAd();
     }
   }
@@ -835,26 +840,18 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        if (mounted) {
-          setState(() => _downloadProgress = 'Downloading ad $current/$total (attempt $attempt)...');
-        }
-
         print('[DOWNLOAD] Attempt $attempt: $url');
         final response = await http.get(Uri.parse(url)).timeout(const Duration(minutes: 5));
 
         if (response.statusCode == 200 && response.bodyBytes.length > 1000) {
           await targetFile.writeAsBytes(response.bodyBytes);
-          final sizeKB = (targetFile.lengthSync() / 1024).round();
-          print('[DOWNLOAD] Success: ${targetFile.path} ($sizeKB KB)');
+          print('[DOWNLOAD] Success: ${targetFile.path}');
           return true;
-        } else {
-          print('[DOWNLOAD] Bad response: status=${response.statusCode}, size=${response.bodyBytes.length}');
         }
       } catch (e) {
         print('[DOWNLOAD] Attempt $attempt failed: $e');
       }
 
-      // Wait before retry
       if (attempt < maxRetries) {
         await Future.delayed(Duration(seconds: 2 * attempt));
       }
@@ -883,7 +880,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   }
 
   // =====================================================================
-  // PLAYBACK ENGINE — Position-polling + Watchdog + Double-Buffer
+  // PLAYBACK ENGINE — Single Controller 60 FPS Native Texture + Pure Black Letterboxing
   // =====================================================================
   void _startPlaybackLoop() {
     if (_localPlaylist.isEmpty) return;
@@ -894,9 +891,16 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   }
 
   void _playCurrentAd() async {
-    // Cancel all existing timers & controllers
-    _stopPlaybackMonitoring();
-    _disposeActiveController();
+    _staticAdTimer?.cancel();
+    _videoWatchdogTimer?.cancel();
+
+    // Clean up previous video controller immediately to free VPU decoder on 1GB RAM
+    if (_videoController != null) {
+      final old = _videoController;
+      _videoController = null;
+      old?.removeListener(_videoListener);
+      old?.dispose();
+    }
 
     if (_localPlaylist.isEmpty) {
       print('[PLAYER] Playlist is empty. Going to waiting state.');
@@ -907,29 +911,30 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       return;
     }
 
-    // Wrap index safely
     _currentAdIndex = _currentAdIndex % _localPlaylist.length;
     final adSource = _localPlaylist[_currentAdIndex];
 
     print('[PLAYER] Playing ad index $_currentAdIndex: $adSource');
 
     if (adSource.startsWith('static__')) {
-      // Static text ad — show for 8 seconds then advance
+      // Static text ad card — show for 8 seconds
       if (mounted) setState(() {});
       _staticAdTimer = Timer(const Duration(seconds: 8), () {
-        _trackImpression(adSource);
+        _trackImpression(adSource, 8);
         _advanceToNextAd();
       });
     } else if (adSource.startsWith('img__')) {
-      // Image ad — show for 10 seconds then advance
-      print('[PLAYER] Showing image ad: $adSource');
+      // Image ad — show for designated duration
+      final bookingId = _getBookingId(adSource);
+      final durationSec = _adDurations[bookingId] ?? 10;
+      print('[PLAYER] Showing image ad: $adSource for ${durationSec}s');
       if (mounted) setState(() {});
-      _staticAdTimer = Timer(const Duration(seconds: 10), () {
-        _trackImpression(adSource);
+      _staticAdTimer = Timer(Duration(seconds: durationSec), () {
+        _trackImpression(adSource, durationSec);
         _advanceToNextAd();
       });
     } else {
-      // Video ad
+      // Native Video ad — 60 FPS Hardware Decoded Texture
       final file = File(adSource);
       if (!file.existsSync() || file.lengthSync() < 1000) {
         print('[PLAYER] File missing or corrupt: $adSource. Skipping.');
@@ -937,176 +942,74 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         return;
       }
 
-      // Check if we have a preloaded controller ready for this index
-      if (_preloadedController != null && _preloadedController!.value.isInitialized) {
-        print('[PLAYER] Using preloaded controller.');
-        _activeController = _preloadedController;
-        _preloadedController = null;
-
-        if (mounted) setState(() {});
-        _activeController!.play();
-        _startPlaybackMonitoring();
-        _preloadNextAd();
-        return;
-      }
-
-      // No preloaded — initialize fresh
       try {
         final controller = VideoPlayerController.file(file);
         await controller.initialize();
-
         if (!mounted) {
           controller.dispose();
           return;
         }
 
-        _activeController = controller;
-        setState(() {});
-        controller.play();
-        controller.setLooping(false);
+        _videoController = controller;
+        controller.addListener(_videoListener);
+        await controller.play();
 
-        _startPlaybackMonitoring();
-        _preloadNextAd();
+        if (mounted) setState(() {});
+
+        // Safety watchdog: advance if video completes or stalls
+        final dur = controller.value.duration;
+        final timeout = dur > Duration.zero ? dur + const Duration(seconds: 4) : const Duration(seconds: 35);
+        _videoWatchdogTimer = Timer(timeout, () {
+          print('[WATCHDOG] Video timer expired for $adSource');
+          _onVideoComplete();
+        });
       } catch (e) {
-        print('[PLAYER] Video init failed: $e. Skipping.');
+        print('[PLAYER] Controller init error for $adSource: $e');
         _advanceToNextAd();
       }
     }
   }
 
-  void _preloadNextAd() {
-    if (_localPlaylist.length <= 1) return;
-
-    final nextIndex = (_currentAdIndex + 1) % _localPlaylist.length;
-    final nextSource = _localPlaylist[nextIndex];
-
-    if (nextSource.startsWith('static__') || nextSource.startsWith('img__')) return; // No preload needed for static/image
-
-    final file = File(nextSource);
-    if (!file.existsSync() || file.lengthSync() < 1000) return;
-
-    // Dispose any existing preloaded controller
-    _preloadedController?.dispose();
-    _preloadedController = null;
-
-    final controller = VideoPlayerController.file(file);
-    controller.initialize().then((_) {
-      if (mounted && nextIndex == (_currentAdIndex + 1) % _localPlaylist.length) {
-        _preloadedController = controller;
-        print('[PRELOAD] Next ad ready: $nextSource');
-      } else {
-        controller.dispose();
-      }
-    }).catchError((e) {
-      print('[PRELOAD] Failed: $e');
-    });
+  void _videoListener() {
+    final controller = _videoController;
+    if (controller == null || !mounted) return;
+    final pos = controller.value.position;
+    final dur = controller.value.duration;
+    if (dur > Duration.zero && pos >= dur) {
+      _onVideoComplete();
+    }
   }
 
-  // =====================================================================
-  // POSITION POLLING + WATCHDOG (replaces unreliable completion listener)
-  // =====================================================================
-  void _startPlaybackMonitoring() {
-    _lastKnownPosition = Duration.zero;
-    _positionStallCount = 0;
-
-    // Poll position every 200ms to detect video end
-    _positionPollTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (_activeController == null || !_activeController!.value.isInitialized) return;
-
-      final pos = _activeController!.value.position;
-      final dur = _activeController!.value.duration;
-
-      // Check if video has reached the end (within 500ms tolerance)
-      if (dur > Duration.zero && pos >= dur - const Duration(milliseconds: 500)) {
-        print('[PLAYER] Video completed (pos: ${pos.inMilliseconds}ms, dur: ${dur.inMilliseconds}ms)');
-        _trackImpression(_localPlaylist[_currentAdIndex]);
-        _advanceToNextAd();
-        return;
-      }
-
-      // Check for errors
-      if (_activeController!.value.hasError) {
-        print('[PLAYER] Video error detected: ${_activeController!.value.errorDescription}');
-        _advanceToNextAd();
-      }
-    });
-
-    // Watchdog: if position doesn't advance for 5 seconds, force-advance
-    _watchdogTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_activeController == null || !_activeController!.value.isInitialized) return;
-
-      final pos = _activeController!.value.position;
-      if (pos == _lastKnownPosition && pos > Duration.zero) {
-        _positionStallCount++;
-        if (_positionStallCount >= 5) {
-          print('[WATCHDOG] Video stalled for 5s at ${pos.inMilliseconds}ms. Force-advancing.');
-          _positionStallCount = 0;
-          _trackImpression(_localPlaylist[_currentAdIndex]);
-          _advanceToNextAd();
-        }
-      } else {
-        _positionStallCount = 0;
-        _lastKnownPosition = pos;
-      }
-    });
+  void _onVideoComplete() {
+    _videoWatchdogTimer?.cancel();
+    if (_localPlaylist.isNotEmpty) {
+      final adSource = _localPlaylist[_currentAdIndex % _localPlaylist.length];
+      final dur = _videoController?.value.duration.inSeconds ?? 0;
+      _trackImpression(adSource, dur);
+    }
+    _advanceToNextAd();
   }
 
-  void _stopPlaybackMonitoring() {
-    _positionPollTimer?.cancel();
-    _positionPollTimer = null;
-    _watchdogTimer?.cancel();
-    _watchdogTimer = null;
-    _staticAdTimer?.cancel();
-    _staticAdTimer = null;
-    _positionStallCount = 0;
-    _lastKnownPosition = Duration.zero;
-  }
-
-  // =====================================================================
-  // AD ADVANCEMENT — Circular navigation
-  // =====================================================================
   void _advanceToNextAd() {
     if (_localPlaylist.isEmpty) return;
 
-    _stopPlaybackMonitoring();
+    _loadFrequenciesAndTimestamps().then((_) {
+      final eligible = _getEligiblePlaylist(_masterAdPlaylist);
+      if (eligible.isEmpty) {
+        print('[PLAYER] No eligible ads after frequency filter. Repeating full master list.');
+        _currentAdIndex = (_currentAdIndex + 1) % _localPlaylist.length;
+      } else {
+        _localPlaylist = eligible;
+        _currentAdIndex = (_currentAdIndex + 1) % eligible.length;
+      }
 
-    // Advance to next ad in circular fashion
-    final nextIndex = (_currentAdIndex + 1) % _localPlaylist.length;
-    final nextSource = _localPlaylist[nextIndex];
-    final isNextVideo = !nextSource.startsWith('static__') && !nextSource.startsWith('img__');
-
-    // Dispose active controller
-    final oldController = _activeController;
-    _activeController = null;
-
-    _currentAdIndex = nextIndex;
-
-    if (isNextVideo && _preloadedController != null && _preloadedController!.value.isInitialized) {
-      // Seamless swap: use preloaded controller
-      _activeController = _preloadedController;
-      _preloadedController = null;
-
-      if (mounted) setState(() {});
-      _activeController!.play();
-      _activeController!.setLooping(false);
-      _startPlaybackMonitoring();
-
-      // Dispose old controller after frame
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        oldController?.dispose();
-      });
-
-      // Preload the one after next
-      _preloadNextAd();
-    } else {
-      // Dispose old and init fresh
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        oldController?.dispose();
-      });
       _playCurrentAd();
-    }
+    });
   }
 
+  // =====================================================================
+  // AD FREQUENCY & RE-BUILDING LOGIC
+  // =====================================================================
   Future<void> _loadFrequenciesAndTimestamps() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1114,6 +1017,11 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       if (freqStr != null) {
         final decoded = jsonDecode(freqStr) as Map<String, dynamic>;
         _adFrequencies = decoded.map((k, v) => MapEntry(k, v as int));
+      }
+      final durStr = prefs.getString('ad_durations_map');
+      if (durStr != null) {
+        final decoded = jsonDecode(durStr) as Map<String, dynamic>;
+        _adDurations = decoded.map((k, v) => MapEntry(k, v as int));
       }
       final timesStr = prefs.getString('ad_last_played_times');
       if (timesStr != null) {
@@ -1136,7 +1044,6 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
   String _getBookingId(String path) {
     if (path.startsWith('img__')) {
-      // Image ad: img__/path/to/file.webp or img__bookingId
       final inner = path.substring(5);
       final fileName = inner.split('/').last.split('\\').last;
       if (fileName.startsWith('img_')) {
@@ -1151,88 +1058,47 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       if (fileName.startsWith('ad_')) {
         return fileName.replaceAll('ad_', '').split('.').first;
       }
-      if (fileName.startsWith('img_')) {
-        return fileName.replaceAll('img_', '').split('.').first;
-      }
     }
     return '';
   }
 
   List<String> _getEligiblePlaylist(List<String> master) {
     if (master.isEmpty) return [];
+
     final now = DateTime.now().millisecondsSinceEpoch;
-    final eligible = <String>[];
+    final List<String> eligible = [];
+
     for (final path in master) {
       final bookingId = _getBookingId(path);
       if (bookingId.isEmpty) {
         eligible.add(path);
         continue;
       }
+
       final freqMin = _adFrequencies[bookingId] ?? 0;
-      if (freqMin == 0) {
+      if (freqMin <= 0) {
         eligible.add(path);
         continue;
       }
-      int bufferMin = 5;
-      if (freqMin <= 30) {
-        bufferMin = 3;
-      } else if (freqMin > 120) {
-        bufferMin = 15;
-      }
-      final cooldownMs = (freqMin - bufferMin) * 60 * 1000;
+
       final lastPlayed = _lastPlayedTimes[bookingId] ?? 0;
-      if (now - lastPlayed >= cooldownMs) {
+      final diffMillis = now - lastPlayed;
+      final freqMillis = freqMin * 60 * 1000;
+
+      if (lastPlayed == 0 || diffMillis >= freqMillis) {
         eligible.add(path);
       }
     }
-    // Fallback: if all ads are blocked by cooldowns, check if we have any continuous loop ads
-    // in the master list. If there are no continuous loop ads at all, we bypass the filter
-    // so the hourly ads loop continuously. If continuous ads do exist, we return empty/standby.
+
     if (eligible.isEmpty) {
-      bool hasContinuous = false;
-      for (final path in master) {
-        final bookingId = _getBookingId(path);
-        final freqMin = _adFrequencies[bookingId] ?? 0;
-        if (freqMin == 0) {
-          hasContinuous = true;
-          break;
-        }
-      }
-      if (!hasContinuous) {
-        print('[SCHEDULER] All hourly ads on cooldown and no continuous loop ads exist. Bypassing filter.');
-        return List.from(master);
-      }
-      print('[SCHEDULER] All eligible ads on cooldown. Transitioning to standby screen.');
-      return [];
+      return List.from(master);
     }
+
     return eligible;
   }
 
-  void _rebuildAndApplyPlaylist() {
-    final eligible = _getEligiblePlaylist(_masterAdPlaylist);
-    setState(() {
-      _localPlaylist = eligible;
-    });
-    if (eligible.isEmpty) {
-      // Stop playback and go to standby state
-      _stopPlaybackMonitoring();
-      _disposeActiveController();
-      _preloadedController?.dispose();
-      _preloadedController = null;
-      setState(() {
-        _playerState = PlayerState.waiting;
-        _statusMessage = 'Standby. Waiting for scheduled ad slot...';
-      });
-    } else {
-      // Re-preload the next ad in case it changed
-      _preloadedController?.dispose();
-      _preloadedController = null;
-      _preloadNextAd();
-    }
-  }
-
   // =====================================================================
-  // TELEMETRY
+  // TELEMETRY (Billable ads only)
   // =====================================================================
   void _trackImpression(String adSource, [int durationSeconds = 0]) {
     String bookingId = 'unknown';
@@ -1249,10 +1115,21 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     if (bookingId != 'unknown' && bookingId.isNotEmpty) {
       _lastPlayedTimes[bookingId] = DateTime.now().millisecondsSinceEpoch;
       _saveLastPlayedTimes();
-      _rebuildAndApplyPlaylist();
     }
 
-    // Fire-and-forget telemetry
+    // Skip telemetry for fallback ads, platform house ads, venue promos, and unknown sources
+    final isNonBillable = bookingId == 'unknown' ||
+        bookingId.isEmpty ||
+        bookingId.startsWith('FALLBACK') ||
+        bookingId.startsWith('PAD') ||
+        bookingId.startsWith('VENUE_AD') ||
+        bookingId == 'FALLBACK' ||
+        bookingId == 'PAD' ||
+        bookingId == 'VENUE_AD';
+
+    if (isNonBillable) return;
+
+    // Fire-and-forget telemetry for billable 3rd-party ads
     try {
       final req = AdImpressionRequest()
         ..deviceId = widget.deviceId
@@ -1265,27 +1142,15 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     }
   }
 
-  // =====================================================================
-  // CONTROLLER DISPOSAL HELPERS
-  // =====================================================================
-  void _disposeActiveController() {
-    _activeController?.dispose();
-    _activeController = null;
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Re-enforce immersive mode when app resumes
     if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      // If playback stopped somehow, restart it
-      if (_playerState == PlayerState.playing &&
-          _activeController == null &&
-          _localPlaylist.isNotEmpty) {
-        print('[LIFECYCLE] App resumed, restarting playback...');
-        _playCurrentAd();
+      if (_videoController != null && !_videoController!.value.isPlaying) {
+        _videoController!.play();
       }
+    } else if (state == AppLifecycleState.paused) {
+      _videoController?.pause();
     }
   }
 
@@ -1294,36 +1159,84 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     _syncTimer?.cancel();
-    _stopPlaybackMonitoring();
-    _activeController?.dispose();
-    _preloadedController?.dispose();
+    _staticAdTimer?.cancel();
+    _videoWatchdogTimer?.cancel();
+    if (_videoController != null) {
+      final old = _videoController;
+      _videoController = null;
+      old?.removeListener(_videoListener);
+      old?.dispose();
+    }
     _channel.shutdown();
     super.dispose();
   }
 
   // =====================================================================
-  // BUILD UI
+  // BUILD UI — Clean full-screen ad display with zero popups
   // =====================================================================
   @override
   Widget build(BuildContext context) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Main content based on state
+          // Main player content
           _buildMainContent(),
 
-          // QR Code Overlay (only when playing a real ad)
-          if (_playerState == PlayerState.playing) _buildQrOverlay(),
-
-          // Download progress overlay
-          if (_downloadProgress.isNotEmpty) _buildDownloadOverlay(),
-
-          // Hidden settings button
-          _buildSettingsButton(),
+          // Subtle unobtrusive settings trigger in top-right corner
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                onTap: _openSettingsScreen,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.settings_outlined,
+                    color: Colors.white24,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _openSettingsScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ScreenSettingsScreen(
+          serverHost: widget.serverHost,
+          deviceId: widget.deviceId,
+          token: widget.token,
+          hostApplicationId: widget.hostApplicationId,
+          activePlaylistCount: _localPlaylist.length,
+          onReSync: () async {
+            _syncRetryCount = 0;
+            await _attemptSync();
+          },
+          onReconfigure: () {
+            Navigator.of(context).pop();
+            widget.onReconfigure();
+          },
+          onReset: () {
+            Navigator.of(context).pop();
+            widget.onReset();
+          },
+        ),
       ),
     );
   }
@@ -1331,7 +1244,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   Widget _buildMainContent() {
     switch (_playerState) {
       case PlayerState.booting:
-        return _buildSplashScreen('Initializing...');
+        return _buildSplashScreen('Starting up DigiAds Screen...');
 
       case PlayerState.waiting:
         return _buildWaitingScreen();
@@ -1343,15 +1256,15 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
   Widget _buildSplashScreen(String message) {
     return Container(
-      color: const Color(0xFF030712),
+      color: Colors.black,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.tv, size: 80, color: Colors.indigoAccent),
+            const Icon(Icons.tv_rounded, size: 80, color: Colors.indigoAccent),
             const SizedBox(height: 24),
             const Text(
-              'AIBot Ink',
+              'DigiAds Screen',
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -1378,15 +1291,15 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
   Widget _buildWaitingScreen() {
     return Container(
-      color: const Color(0xFF030712),
+      color: Colors.black,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi_find, size: 80, color: Colors.indigoAccent),
+            const Icon(Icons.wifi_find_rounded, size: 80, color: Colors.indigoAccent),
             const SizedBox(height: 24),
             const Text(
-              'AIBot Ink Display',
+              'DigiAds Wall Screen',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -1396,8 +1309,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
             ),
             const SizedBox(height: 8),
             Text(
-              'Device: ${widget.deviceId}',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), letterSpacing: 1),
+              'Device ID: ${widget.deviceId}',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), letterSpacing: 1),
             ),
             const SizedBox(height: 24),
             Container(
@@ -1431,7 +1344,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
               },
               icon: const Icon(Icons.refresh, color: Colors.indigoAccent, size: 18),
               label: const Text(
-                'Retry Now',
+                'Retry Sync Now',
                 style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold),
               ),
             ),
@@ -1442,78 +1355,60 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   }
 
   Widget _buildPlayerView() {
-    if (_localPlaylist.isEmpty) return _buildSplashScreen('Loading...');
+    if (_localPlaylist.isEmpty) return _buildSplashScreen('Loading ad creatives...');
 
     final adSource = _localPlaylist[_currentAdIndex % _localPlaylist.length];
-    final hasVideo = !adSource.startsWith('static__') && !adSource.startsWith('img__');
     final hasImage = adSource.startsWith('img__');
-    final isReady = _activeController != null && _activeController!.value.isInitialized;
+    final hasStatic = adSource.startsWith('static__');
 
-    if (hasVideo && isReady) {
-      // Full-screen video player
-      return FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: _activeController!.value.size.width,
-          height: _activeController!.value.size.height,
-          child: VideoPlayer(_activeController!),
-        ),
-      );
-    } else if (hasImage) {
-      // Full-screen image ad
-      final imagePath = adSource.substring(5); // Remove 'img__' prefix
+    if (hasImage) {
+      // Full-screen image ad with clean black containment (0% content crop)
+      final imagePath = adSource.substring(5);
       final imageFile = File(imagePath);
-      if (imageFile.existsSync()) {
-        return Container(
-          color: Colors.black,
-          child: Image.file(
-            imageFile,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: const Color(0xFF030712),
-                child: const Center(
+      return Container(
+        color: Colors.black,
+        width: double.infinity,
+        height: double.infinity,
+        child: imageFile.existsSync()
+            ? Image.file(
+                imageFile,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                height: double.infinity,
+                cacheWidth: 1920,
+                errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image, size: 80, color: Colors.white24),
                 ),
-              );
-            },
-          ),
-        );
-      } else {
-        return Container(
-          color: const Color(0xFF030712),
-          child: const Center(
-            child: Icon(Icons.image_not_supported, size: 80, color: Colors.white24),
-          ),
-        );
-      }
-    } else if (!hasVideo && !hasImage) {
-      // Static ad card
+              )
+            : const Center(
+                child: Icon(Icons.image_not_supported, size: 80, color: Colors.white24),
+              ),
+      );
+    } else if (hasStatic) {
+      // Static text fallback card
       String title = 'DigiAds Display';
       String subtitle = '';
-      if (adSource.startsWith('static__')) {
-        final parts = adSource.split('__');
-        if (parts.length >= 4) {
-          title = parts[2];
-          subtitle = parts[3];
-        }
+      final parts = adSource.split('__');
+      if (parts.length >= 4) {
+        title = parts[2];
+        subtitle = parts[3];
       }
 
       return Container(
-        color: const Color(0xFF030712),
+        color: Colors.black,
+        width: double.infinity,
+        height: double.infinity,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.video_library, size: 100, color: Colors.indigoAccent),
+              const Icon(Icons.tv_rounded, size: 100, color: Colors.indigoAccent),
               const SizedBox(height: 24),
               Text(
-                'CMS DISPLAY DEVICE: ${widget.deviceId}',
+                'DIGIADS WALL SCREEN: ${widget.deviceId}',
                 style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.indigo,
+                  color: Colors.indigoAccent,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
                 ),
@@ -1535,126 +1430,365 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         ),
       );
     } else {
-      // Video loading state (brief moment while controller initializes)
-      return Container(
-        color: Colors.black,
-        child: const Center(
-          child: CircularProgressIndicator(color: Colors.indigoAccent),
+      // Full-content aspect-ratio video player with pure black letterboxing & micro-overscan to eliminate decoder chroma lines
+      final isReady = _videoController != null && _videoController!.value.isInitialized;
+      if (isReady) {
+        final aspect = _videoController!.value.aspectRatio;
+        return Container(
+          color: Colors.black,
+          width: double.infinity,
+          height: double.infinity,
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: aspect > 0 ? aspect : 16 / 9,
+              child: ClipRect(
+                child: Transform.scale(
+                  scale: 1.025, // 2.5% micro-overscan pushes hardware decoder's green macroblock padding outside the clip boundary
+                  child: VideoPlayer(_videoController!),
+                ),
+              ),
+            ),
+          ),
+        );
+      } else {
+        return Container(
+          color: Colors.black,
+          width: double.infinity,
+          height: double.infinity,
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.indigoAccent),
+          ),
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SCREEN SETTINGS SCREEN — Complete parity with tablet settings
+// ---------------------------------------------------------------------------
+class ScreenSettingsScreen extends StatefulWidget {
+  final String serverHost;
+  final String deviceId;
+  final String token;
+  final String hostApplicationId;
+  final int activePlaylistCount;
+  final Future<void> Function() onReSync;
+  final VoidCallback onReconfigure;
+  final VoidCallback onReset;
+
+  const ScreenSettingsScreen({
+    super.key,
+    required this.serverHost,
+    required this.deviceId,
+    required this.token,
+    required this.hostApplicationId,
+    required this.activePlaylistCount,
+    required this.onReSync,
+    required this.onReconfigure,
+    required this.onReset,
+  });
+
+  @override
+  State<ScreenSettingsScreen> createState() => _ScreenSettingsScreenState();
+}
+
+class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
+  static const MethodChannel _systemChannel = MethodChannel('com.digiads.screen/system');
+  bool _isReSyncing = false;
+
+  Future<void> _handleReSync() async {
+    setState(() => _isReSyncing = true);
+    try {
+      await widget.onReSync();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ads re-download and playlist refresh completed!'),
+          backgroundColor: Colors.green,
         ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to re-sync: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isReSyncing = false);
+    }
+  }
+
+  Future<void> _handleReset() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111827),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Reset Screen Device?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This will clear all saved credentials, stored tokens, and cached ads.\n\n'
+          'The screen will return to initial setup and require re-authorization.',
+          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Reset Device', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      widget.onReset();
+    }
+  }
+
+  Future<void> _openAndroidSettings() async {
+    try {
+      await _systemChannel.invokeMethod('openAndroidSettings');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to open Android Settings: $e')),
       );
     }
   }
 
-  Widget _buildQrOverlay() {
-    final adSource = _localPlaylist.isNotEmpty
-        ? _localPlaylist[_currentAdIndex % _localPlaylist.length]
-        : '';
-
-    String bookingId = 'unknown';
-    if (adSource.startsWith('static__')) {
-      final parts = adSource.split('__');
-      if (parts.length >= 2) bookingId = parts[1];
-    } else if (adSource.isNotEmpty) {
-      final fileName = adSource.split('/').last.split('\\').last;
-      if (fileName.startsWith('ad_')) {
-        bookingId = fileName.replaceAll('ad_', '').split('.').first;
-      }
-    }
-
-    return Positioned(
-      bottom: 30,
-      right: 30,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Colors.black45, blurRadius: 15, offset: Offset(0, 5)),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF030712),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF111827),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 100,
-              height: 100,
-              child: QrImageView(
-                data: 'http://${widget.serverHost}:4200/ad/$bookingId',
-                version: QrVersions.auto,
-                size: 100,
-                gapless: false,
-                foregroundColor: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
             const Text(
-              "Scan to Claim Offer",
-              style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+              'Screen Display Settings',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDownloadOverlay() {
-    return Positioned(
-      bottom: 30,
-      left: 30,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.indigoAccent.withOpacity(0.5)),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigoAccent),
-            ),
-            const SizedBox(width: 10),
             Text(
-              _downloadProgress,
-              style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+              'Device ID: ${widget.deviceId}',
+              style: const TextStyle(fontSize: 11, color: Colors.indigoAccent),
             ),
           ],
         ),
       ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          // Info Card
+          _buildInfoCard(),
+
+          const SizedBox(height: 24),
+
+          const Text(
+            "DEVICE & NETWORK CONTROLS",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 1),
+          ),
+          const SizedBox(height: 12),
+
+          // Operational Actions
+          _buildActionCard(
+            icon: Icons.refresh_rounded,
+            title: 'Re-download & Sync Ads',
+            subtitle: 'Force an immediate sync with the server to fetch and cache the latest ad creatives.',
+            isLoading: _isReSyncing,
+            onTap: _isReSyncing ? null : _handleReSync,
+          ),
+          const SizedBox(height: 12),
+
+          _buildActionCard(
+            icon: Icons.settings_remote_rounded,
+            title: 'Re-configure Screen Connection',
+            subtitle: 'Update Server Host / IP address or assign a different Device ID.',
+            onTap: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => ScreenSetupScreen(
+                    initialServerHost: widget.serverHost,
+                    initialDeviceId: widget.deviceId,
+                    onActivate: (host, dId, tok, hAppId) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => LandscapeAdScreenApp(
+                            initialActivated: true,
+                            initialServerHost: host,
+                            initialDeviceId: dId,
+                            initialToken: tok,
+                            initialHostApplicationId: hAppId,
+                          ),
+                        ),
+                      );
+                    },
+                    onCancel: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          _buildActionCard(
+            icon: Icons.lock_reset_rounded,
+            title: 'Reset Screen Device',
+            subtitle: 'Clear all credentials and return to factory setup. Requires re-authorization.',
+            isDanger: true,
+            onTap: _handleReset,
+          ),
+          const SizedBox(height: 12),
+
+          _buildActionCard(
+            icon: Icons.settings_applications_rounded,
+            title: 'Open Android System Settings',
+            subtitle: 'Configure device WiFi network, display resolution, sound, or system time.',
+            onTap: _openAndroidSettings,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSettingsButton() {
-    return Positioned(
-      top: 30,
-      right: 30,
-      child: IconButton(
-        icon: const Icon(Icons.settings, color: Colors.white10),
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text("Reset Device Screen?"),
-              content: const Text("This will return the screen display to setup mode."),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.indigoAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    widget.onReset();
-                  },
-                  child: const Text("Reset"),
-                ),
-              ],
+                child: const Icon(Icons.info_outline_rounded, color: Colors.indigoAccent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'System & Connection Information',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow('Device ID', widget.deviceId),
+          _buildInfoRow('Server Host', widget.serverHost),
+          _buildInfoRow('Venue Application ID', widget.hostApplicationId.isNotEmpty ? widget.hostApplicationId : 'Not Assigned'),
+          _buildInfoRow('Display Type', 'Wall Display Screen (16:9 Landscape)'),
+          _buildInfoRow('Active Playlist', '${widget.activePlaylistCount} Ads in rotation'),
+          _buildInfoRow('Package Name', 'com.digiads.screen'),
+          _buildInfoRow('App Version', 'v1.0.0 (Build 1)'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+    bool isDanger = false,
+    bool isLoading = false,
+  }) {
+    return Material(
+      color: const Color(0xFF111827),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDanger ? Colors.redAccent.withOpacity(0.3) : Colors.white10,
             ),
-          );
-        },
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDanger ? Colors.redAccent.withOpacity(0.15) : Colors.indigoAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: isDanger ? Colors.redAccent : Colors.indigoAccent,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isDanger ? Colors.redAccent : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    ),
+                  ],
+                ),
+              ),
+              if (isLoading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigoAccent),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDanger ? Colors.redAccent : Colors.white38,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

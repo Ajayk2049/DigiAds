@@ -26,7 +26,7 @@
   --border: oklch(0.82 0.01 214.3);
   --input: oklch(0.82 0.01 214.3);
   --ring: oklch(0.723 0.014 214.4);
-  --radius: 0.45rem;
+  --radius: 4px;
 }
 
 .dark {
@@ -48,6 +48,30 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.56 0.021 213.5);
+  --radius: 4px;
+}
+
+/* Enforce crisp subtle rounding (2%-4px) globally on all elements */
+.rounded-3xl, 
+.rounded-2xl, 
+.rounded-xl, 
+.rounded-lg,
+[class*="rounded-["] {
+  border-radius: 6px !important;
+}
+
+.rounded-md,
+.rounded,
+input,
+select,
+textarea,
+button:not(.rounded-full),
+.card {
+  border-radius: 4px !important;
+}
+
+.rounded-sm {
+  border-radius: 2px !important;
 }
 
 * {

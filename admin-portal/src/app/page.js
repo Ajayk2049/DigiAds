@@ -179,6 +179,28 @@ export default function AdminPortal() {
 
   const [toasts, setToasts] = useState([]);
 
+  // Platform Ads & Fallback Ads States
+  const [platformAds, setPlatformAds] = useState([]);
+  const [platformAdsSubTab, setPlatformAdsSubTab] = useState('fallback'); // 'fallback' | 'platform'
+  const [platformAdsSearchQuery, setPlatformAdsSearchQuery] = useState('');
+  const [showCreatePlatformAdModal, setShowCreatePlatformAdModal] = useState(false);
+  const [createPlatformAdForm, setCreatePlatformAdForm] = useState({
+    type: 'fallback',
+    title: '',
+    mediaType: null,
+    targetDeviceType: 'all',
+    targetVenueIds: [],
+    durationSeconds: 10,
+    frequency: 'continuous',
+    isActive: true,
+    file: null
+  });
+  const [uploadingPlatformAd, setUploadingPlatformAd] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewPlatformAd, setPreviewPlatformAd] = useState(null);
+  const [deletingPlatformAdId, setDeletingPlatformAdId] = useState('');
+  const [venueSearchFilter, setVenueSearchFilter] = useState('');
+
   // User edit/delete states
   const [editingUser, setEditingUser] = useState(null);
   const [userForm, setUserForm] = useState({ name: '', phone: '', email: '', roles: [] });
@@ -851,10 +873,26 @@ export default function AdminPortal() {
     setShowNotifications(false);
   };
 
-  const showToast = (type, message) => {
+  const showToast = (a, b) => {
+    let type = 'success';
+    let message = '';
+
+    if (['success', 'error', 'warning', 'info'].includes(a)) {
+      type = a;
+      message = b || '';
+    } else if (['success', 'error', 'warning', 'info'].includes(b)) {
+      type = b;
+      message = a || '';
+    } else if (b) {
+      type = a;
+      message = b;
+    } else {
+      message = a || '';
+    }
+
     if (!message) return;
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, type, message }]);
+    setToasts(prev => [...prev, { id, type, message: String(message) }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
@@ -882,7 +920,7 @@ export default function AdminPortal() {
   const loadDashboardData = async (authToken) => {
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
-      const [statsRes, hostsRes, campaignsRes, ratesRes, devicesRes, usersRes, deviceReqsRes, modeReqsRes, releasesRes] = await Promise.all([
+      const [statsRes, hostsRes, campaignsRes, ratesRes, devicesRes, usersRes, deviceReqsRes, modeReqsRes, releasesRes, platformAdsRes] = await Promise.all([
         axios.get(`${API_BASE}/admin/stats`, { headers }).catch(() => ({ data: { data: null } })),
         axios.get(`${API_BASE}/admin/hosts`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/bookings`, { headers }).catch(() => ({ data: { data: [] } })),
@@ -891,7 +929,8 @@ export default function AdminPortal() {
         axios.get(`${API_BASE}/admin/users`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/device-requests`, { headers }).catch(() => ({ data: { data: [] } })),
         axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/releases`, { headers }).catch(() => ({ data: { releases: [] } }))
+        axios.get(`${API_BASE}/admin/releases`, { headers }).catch(() => ({ data: { releases: [] } })),
+        axios.get(`${API_BASE}/admin/platform-ads`, { headers }).catch(() => ({ data: { data: [] } }))
       ]);
 
       setStats(statsRes.data.data);
@@ -903,11 +942,157 @@ export default function AdminPortal() {
       setDeviceRequests(deviceReqsRes.data.data || []);
       setModeChangeRequests(modeReqsRes.data.data || []);
       setReleases(releasesRes.data.releases || []);
+      setPlatformAds(platformAdsRes.data.data || []);
     } catch (err) {
       console.error(err);
       if (err.response?.status === 401) {
         handleLogout();
       }
+    }
+  };
+
+  const fetchPlatformAds = async (authToken = token) => {
+    try {
+      const res = await axios.get(`${API_BASE}/admin/platform-ads`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.data.success) {
+        setPlatformAds(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch platform ads:', err);
+    }
+  };
+
+  const handleTogglePlatformAdActive = async (ad) => {
+    try {
+      const newStatus = !ad.isActive;
+      const res = await axios.patch(`${API_BASE}/admin/platform-ads/${ad._id}`, {
+        isActive: newStatus
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        showToast(`Ad status updated to ${newStatus ? 'Active' : 'Inactive'}`, 'success');
+        setPlatformAds(prev => prev.map(a => a._id === ad._id ? { ...a, isActive: newStatus } : a));
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to update ad status', 'error');
+    }
+  };
+
+  const handleDeletePlatformAd = async (adId) => {
+    if (!confirm('Are you sure you want to permanently delete this ad? All associated media files will be immediately wiped from disk.')) {
+      return;
+    }
+    setDeletingPlatformAdId(adId);
+    try {
+      const res = await axios.delete(`${API_BASE}/admin/platform-ads/${adId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        showToast('Ad and disk media files deleted successfully!', 'success');
+        setPlatformAds(prev => prev.filter(a => a._id !== adId));
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to delete ad', 'error');
+    } finally {
+      setDeletingPlatformAdId('');
+    }
+  };
+
+  const handleCreatePlatformAd = async (e) => {
+    e.preventDefault();
+    if (!createPlatformAdForm.title.trim()) {
+      showToast('Ad title is required', 'error');
+      return;
+    }
+    if (!createPlatformAdForm.file) {
+      showToast('Please select a video or image file to upload', 'error');
+      return;
+    }
+    if (createPlatformAdForm.file.size > 100 * 1024 * 1024) {
+      showToast(`File size (${(createPlatformAdForm.file.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 100 MB limit. Please choose a smaller file.`, 'error');
+      return;
+    }
+    if (createPlatformAdForm.type === 'platform' && createPlatformAdForm.targetVenueIds.length === 0) {
+      showToast('Please select at least one Open-Ads target venue for this platform ad', 'error');
+      return;
+    }
+
+    setUploadingPlatformAd(true);
+    setUploadProgress(0);
+
+    try {
+      const file = createPlatformAdForm.file;
+      const adType = createPlatformAdForm.type;
+
+      // 1. Upload Media File
+      const uploadRes = await axios.post(`${API_BASE}/admin/platform-ads/upload?adType=${encodeURIComponent(adType)}&filename=${encodeURIComponent(file.name)}`, file, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-filename': encodeURIComponent(file.name),
+          'x-ad-type': adType,
+          Authorization: `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+          }
+        }
+      });
+
+      if (!uploadRes.data.success) {
+        throw new Error(uploadRes.data.message || 'Media upload failed');
+      }
+
+      const uploadedData = uploadRes.data.data;
+
+      // 2. Save Ad Document
+      const createRes = await axios.post(`${API_BASE}/admin/platform-ads`, {
+        type: createPlatformAdForm.type,
+        title: createPlatformAdForm.title.trim(),
+        mediaType: uploadedData.mediaType,
+        mediaUrl: uploadedData.mediaUrl,
+        mediaUrls: [uploadedData.mediaUrl],
+        targetDeviceType: createPlatformAdForm.targetDeviceType,
+        targetVenueIds: createPlatformAdForm.type === 'platform' ? createPlatformAdForm.targetVenueIds : [],
+        durationSeconds: uploadedData.mediaType === 'video'
+          ? (uploadedData.durationSeconds || 30)
+          : (Number(createPlatformAdForm.durationSeconds) || 10),
+        frequency: 'continuous',
+        isActive: createPlatformAdForm.isActive
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (createRes.data.success) {
+        showToast(`${createPlatformAdForm.type === 'fallback' ? 'Global Fallback Ad' : 'Targeted Platform Ad'} created successfully!`, 'success');
+        setShowCreatePlatformAdModal(false);
+        setCreatePlatformAdForm({
+          type: 'fallback',
+          title: '',
+          mediaType: null,
+          targetDeviceType: 'all',
+          targetVenueIds: [],
+          durationSeconds: 10,
+          frequency: 'continuous',
+          isActive: true,
+          file: null
+        });
+        fetchPlatformAds(token);
+      }
+    } catch (err) {
+      console.error(err);
+      let errorMsg = err.response?.data?.message || err.message || 'Failed to create platform ad';
+      if (err.response?.status === 413 || err.response?.data?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || errorMsg.toLowerCase().includes('100mb') || errorMsg.toLowerCase().includes('large')) {
+        errorMsg = 'Upload rejected: File exceeds the maximum 100 MB size limit.';
+      }
+      showToast(errorMsg, 'error');
+    } finally {
+      setUploadingPlatformAd(false);
+      setUploadProgress(0);
     }
   };
 
@@ -1375,6 +1560,7 @@ export default function AdminPortal() {
     { id: 'requests', label: 'Requests', icon: <FileCheck className="w-4 h-4" /> },
     { id: 'venues', label: 'Venues', icon: <Building className="w-4 h-4" /> },
     { id: 'advertisers', label: 'Advertisers', icon: <Tv className="w-4 h-4" /> },
+    { id: 'platform_ads', label: 'Platform Ads', icon: <Megaphone className="w-4 h-4" /> },
     { id: 'devices', label: 'Devices', icon: <Smartphone className="w-4 h-4" /> },
     { id: 'ota', label: 'OTA Updates', icon: <RefreshCw className="w-4 h-4" /> },
     { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
@@ -1544,23 +1730,23 @@ export default function AdminPortal() {
 
       {/* Side Navigation Bar */}
       <aside
-        className={`bg-card border-r border-border py-4 px-0 flex flex-col justify-between hidden md:flex transition-all duration-300 h-screen sticky top-0 shrink-0 select-none ${sidebarCollapsed ? 'w-16' : 'w-56'}`}
+        className={`bg-card border-r border-border py-4 px-0 flex flex-col justify-between hidden md:flex transition-all duration-300 h-screen sticky top-0 shrink-0 select-none ${sidebarCollapsed ? 'w-14' : 'w-44'}`}
       >
         <div>
-          <div className={`flex items-center mb-8 ${sidebarCollapsed ? 'justify-center' : 'px-4 space-x-2.5'}`}>
+          <div className={`flex items-center mb-6 ${sidebarCollapsed ? 'justify-center' : 'px-3 space-x-2'}`}>
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="relative group w-9 h-9 rounded-xl flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all duration-300 hover:bg-muted/50"
+              className="relative group w-8 h-8 rounded-lg flex items-center justify-center shrink-0 cursor-pointer overflow-hidden transition-all duration-300 hover:bg-muted/50"
               aria-label="Toggle Sidebar"
             >
               <div className="transition-all duration-300 transform group-hover:scale-0 group-hover:opacity-0 flex items-center justify-center">
-                <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 object-contain" />
+                <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-6 h-6 object-contain" />
               </div>
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100">
                 {sidebarCollapsed ? (
-                  <ChevronRight className="w-5 h-5 text-white" />
+                  <ChevronRight className="w-4 h-4 text-white" />
                 ) : (
-                  <ChevronLeft className="w-5 h-5 text-white" />
+                  <ChevronLeft className="w-4 h-4 text-white" />
                 )}
               </div>
             </button>
@@ -1569,24 +1755,24 @@ export default function AdminPortal() {
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="font-outfit text-sm font-bold tracking-tight brandLogo"
+                className="font-outfit text-sm font-bold tracking-tight brandLogo truncate"
               >
                 Digi<span className="text-primary">Ads</span>
               </motion.span>
             )}
           </div>
 
-          <nav className="space-y-1">
+          <nav className="space-y-0.5">
             {navItems.map((item) => {
               const badgeCount = getTabBadgeCount(item.id);
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center py-3 text-xs font-bold transition-colors duration-200 cursor-pointer relative ${activeTab === item.id
+                  className={`w-full flex items-center py-2.5 text-xs font-bold transition-colors duration-200 cursor-pointer relative ${activeTab === item.id
                     ? 'bg-primary/10 text-primary border-l-4 border-primary'
                     : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground border-l-4 border-transparent'
-                    } ${sidebarCollapsed ? 'justify-center px-0' : 'px-4 space-x-3'}`}
+                    } ${sidebarCollapsed ? 'justify-center px-0' : 'px-3 space-x-2.5'}`}
                   title={item.label}
                   aria-label={item.label}
                 >
@@ -1612,24 +1798,24 @@ export default function AdminPortal() {
         </div>
 
         {/* Footer Sidebar Controls */}
-        <div className="px-3 space-y-2 border-t border-border/50 pt-4">
+        <div className="px-2 space-y-1.5 border-t border-border/50 pt-3">
           <button
             onClick={toggleTheme}
-            className={`w-full flex items-center py-2.5 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-200 cursor-pointer ${sidebarCollapsed ? 'justify-center' : 'px-3 space-x-3'}`}
+            className={`w-full flex items-center py-2 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-200 cursor-pointer ${sidebarCollapsed ? 'justify-center' : 'px-2.5 space-x-2.5'}`}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             aria-label="Toggle theme"
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500 shrink-0" /> : <Moon className="w-4 h-4 text-blue-500 shrink-0" />}
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-500 shrink-0" /> : <Moon className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
             {!sidebarCollapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
 
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center py-2.5 rounded-xl text-xs font-semibold text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors duration-200 cursor-pointer ${sidebarCollapsed ? 'justify-center' : 'px-3 space-x-3'}`}
+            className={`w-full flex items-center py-2 rounded-lg text-xs font-semibold text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors duration-200 cursor-pointer ${sidebarCollapsed ? 'justify-center' : 'px-2.5 space-x-2.5'}`}
             title="Sign Out"
             aria-label="Sign out"
           >
-            <LogOut className="w-4 h-4 shrink-0" />
+            <LogOut className="w-3.5 h-3.5 shrink-0" />
             {!sidebarCollapsed && <span>Sign Out</span>}
           </button>
         </div>
@@ -3483,6 +3669,334 @@ export default function AdminPortal() {
               </motion.div>
             )}
 
+            {/* 8. PLATFORM ADS & FALLBACK ADS TAB */}
+            {activeTab === 'platform_ads' && (
+              <motion.div
+                key="platform-ads-tab"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-6"
+              >
+                {/* KPI Overview Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-2xl bg-card/40 border border-border flex items-center justify-between shadow-md">
+                    <div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Fallback Ads</p>
+                      <h4 className="font-outfit text-2xl font-black text-blue-500 mt-1">
+                        {platformAds.filter(a => a.type === 'fallback' && a.isActive).length}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">Broadcasts to all open venues on 0 ads</p>
+                    </div>
+                    <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
+                      <Tv className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-card/40 border border-border flex items-center justify-between shadow-md">
+                    <div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Targeted Platform Ads</p>
+                      <h4 className="font-outfit text-2xl font-black text-emerald-500 mt-1">
+                        {platformAds.filter(a => a.type === 'platform' && a.isActive).length}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">Active in selected venue loops</p>
+                    </div>
+                    <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl">
+                      <Megaphone className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-card/40 border border-border flex items-center justify-between shadow-md">
+                    <div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Eligible Open-Ads Venues</p>
+                      <h4 className="font-outfit text-2xl font-black text-indigo-500 mt-1">
+                        {hosts.filter(h => h.status === 'approved' && h.allowOpenAds !== false && h.adMode !== 'closed').length}
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">Closed-Ads venues remain 100% private</p>
+                    </div>
+                    <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-xl">
+                      <Building className="w-5 h-5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-Tab Navigation Bar & Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-2xl bg-card/40 border border-border">
+                  <div className="flex items-center gap-2 bg-muted/40 p-1 rounded-xl border border-border/50">
+                    <button
+                      type="button"
+                      onClick={() => setPlatformAdsSubTab('fallback')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                        platformAdsSubTab === 'fallback'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>Global Fallback Ads ({platformAds.filter(a => a.type === 'fallback').length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPlatformAdsSubTab('platform')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                        platformAdsSubTab === 'platform'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Megaphone className="w-3.5 h-3.5" />
+                      <span>Targeted Platform Ads ({platformAds.filter(a => a.type === 'platform').length})</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1 sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search ads by title or ID..."
+                        value={platformAdsSearchQuery}
+                        onChange={(e) => setPlatformAdsSearchQuery(e.target.value)}
+                        className="w-full bg-background border border-input rounded-xl pl-9 pr-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreatePlatformAdForm({
+                          type: platformAdsSubTab,
+                          title: '',
+                          mediaType: 'video',
+                          targetDeviceType: 'all',
+                          targetVenueIds: [],
+                          durationSeconds: 30,
+                          frequency: 'continuous',
+                          isActive: true,
+                          file: null
+                        });
+                        setShowCreatePlatformAdModal(true);
+                      }}
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create New {platformAdsSubTab === 'fallback' ? 'Fallback Ad' : 'Platform Ad'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ads List Table */}
+                <div className="rounded-2xl border border-border bg-card/30 backdrop-blur-xl overflow-hidden shadow-xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-muted/40 text-[10px] uppercase font-black text-muted-foreground border-b border-border">
+                        <tr>
+                          <th className="p-4 pl-6">Preview & Title</th>
+                          <th className="p-4">Format</th>
+                          <th className="p-4">Hardware Target</th>
+                          <th className="p-4">Scope / Venues</th>
+                          <th className="p-4">Duration</th>
+                          <th className="p-4 text-center">Status</th>
+                          <th className="p-4 text-right pr-6">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40 font-medium">
+                        {platformAds.filter(a => a.type === platformAdsSubTab).length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="p-12 text-center text-muted-foreground">
+                              <div className="max-w-md mx-auto space-y-3">
+                                <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
+                                  {platformAdsSubTab === 'fallback' ? <Tv className="w-6 h-6" /> : <Megaphone className="w-6 h-6" />}
+                                </div>
+                                <h4 className="font-outfit text-base font-bold text-foreground">
+                                  No {platformAdsSubTab === 'fallback' ? 'Global Fallback Ads' : 'Targeted Platform Ads'} Configured
+                                </h4>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {platformAdsSubTab === 'fallback'
+                                    ? 'Fallback ads automatically stream across all Open-Ads tablets & screens when no other active ads are available.'
+                                    : 'Targeted platform ads allow you to stream in-house website trailers or plan promos to specific selected venues for free.'}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCreatePlatformAdForm({
+                                      type: platformAdsSubTab,
+                                      title: '',
+                                      mediaType: 'video',
+                                      targetDeviceType: 'all',
+                                      targetVenueIds: [],
+                                      durationSeconds: 30,
+                                      frequency: 'continuous',
+                                      isActive: true,
+                                      file: null
+                                    });
+                                    setShowCreatePlatformAdModal(true);
+                                  }}
+                                  className="mt-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-md"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Add First {platformAdsSubTab === 'fallback' ? 'Fallback Ad' : 'Platform Ad'}</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          platformAds
+                            .filter(a => {
+                              if (a.type !== platformAdsSubTab) return false;
+                              if (!platformAdsSearchQuery) return true;
+                              const q = platformAdsSearchQuery.toLowerCase().trim();
+                              return (
+                                (a.title || '').toLowerCase().includes(q) ||
+                                (a.adId || '').toLowerCase().includes(q) ||
+                                (a.targetVenueIds || []).some(v => (v.outletName || '').toLowerCase().includes(q) || (v.city || '').toLowerCase().includes(q))
+                              );
+                            })
+                            .map((ad) => {
+                              const isVideo = ad.mediaType === 'video' || (ad.mediaUrl || '').endsWith('.mp4') || (ad.mediaUrl || '').endsWith('.webm');
+                              const resolvedUrl = resolveMediaUrl(ad.mediaUrl);
+
+                              return (
+                                <tr key={ad._id} className="hover:bg-muted/20 transition-colors">
+                                  {/* Preview & Title */}
+                                  <td className="p-4 pl-6">
+                                    <div className="flex items-center space-x-3">
+                                      <div
+                                        onClick={() => setPreviewPlatformAd(ad)}
+                                        className="w-14 h-10 rounded-lg bg-black/40 border border-border overflow-hidden shrink-0 relative group cursor-pointer flex items-center justify-center shadow-inner"
+                                      >
+                                        {isVideo ? (
+                                          <>
+                                            <video src={resolvedUrl} className="w-full h-full object-cover opacity-75" />
+                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/10 transition-all">
+                                              <Play className="w-4 h-4 text-white drop-shadow" />
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <img src={resolvedUrl} alt={ad.title} className="w-full h-full object-cover" />
+                                        )}
+                                      </div>
+
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-foreground truncate max-w-[200px]">{ad.title}</p>
+                                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{ad.adId || ad._id}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Format */}
+                                  <td className="p-4">
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                      isVideo
+                                        ? 'bg-purple-500/10 text-purple-500 border-purple-500/20'
+                                        : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                    }`}>
+                                      {isVideo ? '🎬 Video' : '🖼️ Image'}
+                                    </span>
+                                  </td>
+
+                                  {/* Hardware Target */}
+                                  <td className="p-4">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-muted-foreground text-[11px] font-bold border border-border/60">
+                                      {ad.targetDeviceType === 'tablet' ? (
+                                        <>
+                                          <Tablet className="w-3 h-3 text-blue-500" />
+                                          <span>Tablets (3:4)</span>
+                                        </>
+                                      ) : ad.targetDeviceType === 'screen' ? (
+                                        <>
+                                          <Tv className="w-3 h-3 text-emerald-500" />
+                                          <span>Screens (16:9)</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Layers className="w-3 h-3 text-indigo-500" />
+                                          <span>All Hardware</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  </td>
+
+                                  {/* Scope / Venues */}
+                                  <td className="p-4">
+                                    {ad.type === 'fallback' ? (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-500 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20">
+                                        🌐 All Open-Ads Venues (Auto)
+                                      </span>
+                                    ) : (
+                                      <div className="flex flex-wrap gap-1 max-w-xs">
+                                        {(ad.targetVenueIds || []).length === 0 ? (
+                                          <span className="text-muted-foreground text-[11px]">None assigned</span>
+                                        ) : (
+                                          ad.targetVenueIds.map(v => (
+                                            <span
+                                              key={v._id || v}
+                                              className="px-2 py-0.5 bg-muted text-foreground text-[10px] font-semibold rounded-md border border-border/80 truncate max-w-[140px]"
+                                              title={`${v.outletName} (${v.city})`}
+                                            >
+                                              📍 {v.outletName || 'Venue'}
+                                            </span>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  {/* Duration */}
+                                  <td className="p-4 font-bold text-foreground text-xs">
+                                    {ad.mediaType === 'video' ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                                        🎬 Full Video
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
+                                        ⏱️ {ad.durationSeconds || 10}s
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* Active Toggle Status */}
+                                  <td className="p-4 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleTogglePlatformAdActive(ad)}
+                                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm ${
+                                        ad.isActive
+                                          ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25'
+                                          : 'bg-muted text-muted-foreground border-border hover:text-foreground'
+                                      }`}
+                                    >
+                                      {ad.isActive ? '● Active' : '○ Inactive'}
+                                    </button>
+                                  </td>
+
+                                  {/* Actions */}
+                                  <td className="p-4 text-right pr-6">
+                                    <div className="flex items-center justify-end space-x-2">
+                                      <button
+                                        type="button"
+                                        disabled={deletingPlatformAdId === ad._id}
+                                        onClick={() => handleDeletePlatformAd(ad._id)}
+                                        className="p-1.5 bg-muted hover:bg-destructive hover:text-white border border-border rounded-lg text-muted-foreground transition-colors cursor-pointer disabled:opacity-50"
+                                        title="Delete ad (wipes files from disk)"
+                                        aria-label="Delete ad"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </AnimatePresence>
         </main>
       </div>
@@ -5183,6 +5697,354 @@ export default function AdminPortal() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* CREATE PLATFORM AD / FALLBACK AD MODAL */}
+      {showCreatePlatformAdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-xl bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-primary/10 text-primary rounded-xl">
+                  {createPlatformAdForm.type === 'fallback' ? <Tv className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-outfit text-base font-bold text-foreground">
+                    Create {createPlatformAdForm.type === 'fallback' ? 'Global Fallback Ad' : 'Targeted Platform Ad'}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    {createPlatformAdForm.type === 'fallback'
+                      ? 'Streams across all Open-Ads venues when devices have zero active ads'
+                      : 'Streams in rotation on specific Open-Ads venues selected below'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreatePlatformAdModal(false)}
+                className="p-1.5 hover:bg-muted border border-border rounded-lg text-muted-foreground cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePlatformAd} className="space-y-4 text-xs font-semibold">
+              {/* Ad Type Selector */}
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1.5 font-bold">Ad Distribution Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreatePlatformAdForm({ ...createPlatformAdForm, type: 'fallback' })}
+                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                      createPlatformAdForm.type === 'fallback'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                        : 'bg-background text-muted-foreground border-input hover:text-foreground'
+                    }`}
+                  >
+                    <Tv className="w-3.5 h-3.5" />
+                    <span>Global Fallback Ad</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCreatePlatformAdForm({ ...createPlatformAdForm, type: 'platform' })}
+                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                      createPlatformAdForm.type === 'platform'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                        : 'bg-background text-muted-foreground border-input hover:text-foreground'
+                    }`}
+                  >
+                    <Megaphone className="w-3.5 h-3.5" />
+                    <span>Targeted Platform Ad</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1 font-bold">Ad Title / Campaign Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Website Promotion / Spring Special Promo"
+                  value={createPlatformAdForm.title}
+                  onChange={(e) => setCreatePlatformAdForm({ ...createPlatformAdForm, title: e.target.value })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              {/* Hardware Target */}
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1 font-bold">Target Hardware Display</label>
+                <select
+                  value={createPlatformAdForm.targetDeviceType}
+                  onChange={(e) => setCreatePlatformAdForm({ ...createPlatformAdForm, targetDeviceType: e.target.value })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Hardware (Tablets & Wall Screens)</option>
+                  <option value="tablet">Tabletop Tablets Only (3:4)</option>
+                  <option value="screen">Wall Screens Only (16:9)</option>
+                </select>
+              </div>
+
+              {/* Venue Selection (for Targeted Platform Ads only) */}
+              {createPlatformAdForm.type === 'platform' && (
+                <div className="space-y-2 p-3 bg-muted/20 border border-border rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] uppercase text-muted-foreground font-bold">
+                      Target Open-Ads Venues ({createPlatformAdForm.targetVenueIds.length} selected)
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const openVenues = hosts.filter(h => h.status === 'approved' && h.allowOpenAds !== false && h.adMode !== 'closed').map(h => h._id);
+                          setCreatePlatformAdForm({ ...createPlatformAdForm, targetVenueIds: openVenues });
+                        }}
+                        className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                      >
+                        Select All Open
+                      </button>
+                      <span className="text-muted-foreground text-[10px]">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setCreatePlatformAdForm({ ...createPlatformAdForm, targetVenueIds: [] })}
+                        className="text-[10px] font-bold text-muted-foreground hover:underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Filter venues by name or city..."
+                    value={venueSearchFilter}
+                    onChange={(e) => setVenueSearchFilter(e.target.value)}
+                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none"
+                  />
+
+                  <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                    {hosts
+                      .filter(h => h.status === 'approved' && h.allowOpenAds !== false && h.adMode !== 'closed')
+                      .filter(h => {
+                        if (!venueSearchFilter) return true;
+                        const q = venueSearchFilter.toLowerCase();
+                        return (h.outletName || '').toLowerCase().includes(q) || (h.city || '').toLowerCase().includes(q);
+                      })
+                      .map(venue => {
+                        const isSelected = createPlatformAdForm.targetVenueIds.includes(venue._id);
+                        return (
+                          <label
+                            key={venue._id}
+                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-primary/10 border-primary/40 text-foreground font-bold'
+                                : 'bg-background border-border/50 text-muted-foreground hover:bg-muted/30'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 truncate">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setCreatePlatformAdForm({
+                                      ...createPlatformAdForm,
+                                      targetVenueIds: [...createPlatformAdForm.targetVenueIds, venue._id]
+                                    });
+                                  } else {
+                                    setCreatePlatformAdForm({
+                                      ...createPlatformAdForm,
+                                      targetVenueIds: createPlatformAdForm.targetVenueIds.filter(id => id !== venue._id)
+                                    });
+                                  }
+                                }}
+                                className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
+                              />
+                              <span className="truncate text-xs">{venue.outletName}</span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{venue.city || 'City'}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    ℹ️ Closed-Ads venues are excluded to protect private dining exclusivity.
+                  </p>
+                </div>
+              )}
+
+              {/* Media File Upload */}
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1 font-bold">
+                  Media Creative File (Video or Image, Max 100MB)
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".mp4,.webm,.mov,.avi,.jpg,.jpeg,.png,.webp"
+                  onChange={(e) => {
+                    const selected = e.target.files[0];
+                    if (selected) {
+                      if (selected.size > 100 * 1024 * 1024) {
+                        showToast(`File size (${(selected.size / (1024 * 1024)).toFixed(1)} MB) exceeds the maximum allowed limit of 100 MB. Please select a smaller file.`, 'error');
+                        e.target.value = '';
+                        setCreatePlatformAdForm({
+                          ...createPlatformAdForm,
+                          file: null
+                        });
+                        return;
+                      }
+                      const isVid = ['.mp4', '.webm', '.mov', '.avi'].some(ext => selected.name.toLowerCase().endsWith(ext));
+                      setCreatePlatformAdForm({
+                        ...createPlatformAdForm,
+                        file: selected,
+                        mediaType: isVid ? 'video' : 'image',
+                        durationSeconds: isVid ? 30 : 10
+                      });
+                    }
+                  }}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  ⚡ Auto-optimized: Sharp WebP / FFmpeg H.264 Baseline 3.1 silent transcode pipeline.
+                </p>
+              </div>
+
+              {/* Image Duration (Only for Images) */}
+              {createPlatformAdForm.mediaType === 'image' && (
+                <div>
+                  <label className="block text-[10px] uppercase text-muted-foreground mb-1 font-bold">Image Display Duration (Seconds)</label>
+                  <input
+                    type="number"
+                    required
+                    min="3"
+                    max="300"
+                    value={createPlatformAdForm.durationSeconds}
+                    onChange={(e) => setCreatePlatformAdForm({ ...createPlatformAdForm, durationSeconds: parseInt(e.target.value, 10) || 10 })}
+                    className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-bold"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Timer before advancing to next ad.</p>
+                </div>
+              )}
+
+              {/* Activation Checkbox */}
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isAdActive"
+                  checked={createPlatformAdForm.isActive}
+                  onChange={(e) => setCreatePlatformAdForm({ ...createPlatformAdForm, isActive: e.target.checked })}
+                  className="rounded border-input text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                />
+                <label htmlFor="isAdActive" className="text-xs text-foreground cursor-pointer font-bold">
+                  Activate Immediately
+                </label>
+              </div>
+
+              {/* Upload Progress Bar */}
+              {uploadingPlatformAd && (
+                <div className="space-y-1 p-3 bg-primary/10 border border-primary/20 rounded-xl">
+                  <div className="flex justify-between text-[11px] font-bold text-primary">
+                    <span>Uploading & Optimizing Media...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-full transition-all duration-200"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  disabled={uploadingPlatformAd}
+                  onClick={() => setShowCreatePlatformAdModal(false)}
+                  className="px-4 py-2 bg-muted text-foreground font-bold rounded-xl text-xs cursor-pointer hover:bg-muted/80 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingPlatformAd}
+                  className="px-5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {uploadingPlatformAd ? 'Processing...' : 'Upload & Create Ad'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* AD MEDIA PREVIEW MODAL */}
+      {previewPlatformAd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-2xl bg-card border border-border rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="font-outfit text-base font-bold text-foreground flex items-center gap-2">
+                  <span>{previewPlatformAd.title}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-mono">
+                    {previewPlatformAd.adId}
+                  </span>
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Type: <span className="font-bold text-foreground uppercase">{previewPlatformAd.type}</span> | Duration: <span className="font-bold text-foreground">{previewPlatformAd.durationSeconds}s</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewPlatformAd(null)}
+                className="p-1.5 hover:bg-muted border border-border rounded-lg text-muted-foreground cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl overflow-hidden bg-black/60 border border-border flex items-center justify-center min-h-[260px] max-h-[400px]">
+              {previewPlatformAd.mediaType === 'video' || (previewPlatformAd.mediaUrl || '').endsWith('.mp4') || (previewPlatformAd.mediaUrl || '').endsWith('.webm') ? (
+                <video
+                  src={resolveMediaUrl(previewPlatformAd.mediaUrl)}
+                  controls
+                  autoPlay
+                  loop
+                  className="max-h-[380px] w-auto max-w-full rounded-lg"
+                />
+              ) : (
+                <img
+                  src={resolveMediaUrl(previewPlatformAd.mediaUrl)}
+                  alt={previewPlatformAd.title}
+                  className="max-h-[380px] w-auto max-w-full object-contain rounded-lg"
+                />
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setPreviewPlatformAd(null)}
+                className="px-5 py-2 bg-primary text-primary-foreground font-bold rounded-xl text-xs cursor-pointer shadow-md"
+              >
+                Close Preview
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
