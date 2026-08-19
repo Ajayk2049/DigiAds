@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import 'device_setup_screen.dart';
@@ -158,9 +160,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
-        title: const Text('Reset device?'),
+        title: const Text('Reset device to clean slate?'),
         content: const Text(
-          'This will clear all saved credentials. You will need to run setup again before the kiosk can connect to a server.',
+          'This will permanently clear all saved credentials, server configuration, '
+          'table assignment, cached ad videos, and menu images from this tablet.\n\n'
+          'The device will be completely locked out of this venue until a new setup is performed.',
         ),
         actions: [
           TextButton(
@@ -170,38 +174,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Reset'),
+            child: const Text('Reset Clean Slate'),
           ),
         ],
       ),
     );
     if (confirm != true) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => DeviceSetupScreen(onActivate: _activate)),
-    );
-  }
 
-  void _activate(String host, String dId, String tok, String hAppId, String pass, String tbl) {
-    Navigator.of(context).pushReplacement(
+    // 1. Clear SharedPreferences while retaining physical hardware_id
+    final prefs = await SharedPreferences.getInstance();
+    final hardwareId = prefs.getString('hardware_id');
+    await prefs.clear();
+    if (hardwareId != null && hardwareId.isNotEmpty) {
+      await prefs.setString('hardware_id', hardwareId);
+    }
+
+    // 2. Wipe cached ad video files
+    try {
+      final adsDir = Directory(kAdsDirectoryPath);
+      if (await adsDir.exists()) {
+        await adsDir.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('[RESET] Failed to delete ads dir: $e');
+    }
+
+    // 3. Wipe cached menu images
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final menuImagesDir = Directory('${docs.path}/menu_images');
+      if (await menuImagesDir.exists()) {
+        await menuImagesDir.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('[RESET] Failed to delete menu images: $e');
+    }
+
+    // 4. Reset circuit breaker / safe mode counter
+    try {
+      await _perfChannel.invokeMethod('resetCircuitBreaker');
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    // 5. Navigate to clean-slate setup screen, clearing the entire backstack
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
-        builder: (_) => DownloadProgressScreen(
-          serverHost: host,
-          deviceId: dId,
-          token: tok,
-          hostApplicationId: hAppId,
-          bypassPassword: pass,
-          tableNumber: tbl,
+        builder: (_) => const DeviceSetupScreen(
+          isReRun: false,
         ),
       ),
+      (route) => false,
     );
   }
 
-  void _reRunSetup() async {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => DeviceSetupScreen(onActivate: _activate)),
+  void _reRunSetup() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (setupCtx) => DeviceSetupScreen(
+          isReRun: true,
+          initialServerHost: widget.serverHost,
+          initialDeviceId: widget.deviceId,
+          initialTableNumber: widget.tableNumber,
+          initialBypassPassword: widget.bypassPassword,
+          onCancel: () => Navigator.of(setupCtx).pop(),
+        ),
+      ),
     );
   }
 
@@ -248,13 +286,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildActionCard(
             icon: Icons.settings_remote_rounded,
             title: 'Re-run setup',
-            subtitle: 'Change server, device ID or table number.',
+            subtitle: 'Change server IP, device ID, table number or password.',
             onTap: _reRunSetup,
           ),
           _buildActionCard(
             icon: Icons.lock_reset_rounded,
             title: 'Reset device',
-            subtitle: 'Clear all credentials. Requires full setup before kiosk can run.',
+            subtitle: 'Clear all credentials and wiped cached assets. Returns to clean slate.',
             onTap: _resetDevice,
             danger: true,
           ),
@@ -270,13 +308,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton.icon(
             onPressed: () async {
               try {
-                await const MethodChannel('com.digiads.tabletop/performance').invokeMethod('openAndroidSettings');
+                try {
+                  await _perfChannel.invokeMethod('stopKioskMode');
+                } catch (_) {}
+                await _perfChannel.invokeMethod('openAndroidSettings');
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to open Android Settings: $e')),
-                  );
-                }
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to open Android Settings: $e')),
+                );
               }
             },
             icon: const Icon(Icons.settings_applications_rounded, color: Colors.white),

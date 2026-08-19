@@ -122,7 +122,21 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
 
   void _onReset() async {
     final prefs = await SharedPreferences.getInstance();
+    final hardwareId = prefs.getString('hardware_id');
     await prefs.clear();
+    if (hardwareId != null && hardwareId.isNotEmpty) {
+      await prefs.setString('hardware_id', hardwareId);
+    }
+
+    // Wipe cached ads from storage
+    try {
+      final adsDir = Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
+      if (await adsDir.exists()) {
+        await adsDir.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('[RESET] Failed to delete screen ads dir: $e');
+    }
 
     setState(() {
       _isActivated = false;
@@ -928,6 +942,13 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       final bookingId = _getBookingId(adSource);
       final durationSec = _adDurations[bookingId] ?? 10;
       print('[PLAYER] Showing image ad: $adSource for ${durationSec}s');
+      if (_localPlaylist.length <= 1) {
+        _staticAdTimer = Timer(Duration(seconds: durationSec), () {
+          _trackImpression(adSource, durationSec);
+          _advanceToNextAd();
+        });
+        return;
+      }
       if (mounted) setState(() {});
       _staticAdTimer = Timer(Duration(seconds: durationSec), () {
         _trackImpression(adSource, durationSec);
@@ -1375,6 +1396,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
                 fit: BoxFit.contain,
                 width: double.infinity,
                 height: double.infinity,
+                gaplessPlayback: true,
                 cacheWidth: 1920,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image, size: 80, color: Colors.white24),
@@ -1546,6 +1568,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
 
     if (confirm == true) {
       widget.onReset();
+      if (!mounted) return;
+      Navigator.of(context).pop();
     }
   }
 
@@ -1614,13 +1638,13 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
             title: 'Re-configure Screen Connection',
             subtitle: 'Update Server Host / IP address or assign a different Device ID.',
             onTap: () {
-              Navigator.of(context).pushReplacement(
+              Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => ScreenSetupScreen(
                     initialServerHost: widget.serverHost,
                     initialDeviceId: widget.deviceId,
                     onActivate: (host, dId, tok, hAppId) {
-                      Navigator.of(context).pushReplacement(
+                      Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                           builder: (_) => LandscapeAdScreenApp(
                             initialActivated: true,
@@ -1630,6 +1654,7 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
                             initialHostApplicationId: hAppId,
                           ),
                         ),
+                        (route) => false,
                       );
                     },
                     onCancel: () => Navigator.of(context).pop(),

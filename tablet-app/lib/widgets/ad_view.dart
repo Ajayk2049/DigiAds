@@ -92,6 +92,8 @@ class AdViewWidget extends StatelessWidget {
               fit: BoxFit.contain,
               width: double.infinity,
               height: double.infinity,
+              gaplessPlayback: true,
+              cacheWidth: 1920,
               errorBuilder: (context, error, stackTrace) {
                 return _buildStaticAdCard(adSource);
               },

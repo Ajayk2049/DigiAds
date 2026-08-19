@@ -147,6 +147,17 @@ class AdPlayerService {
 
   void _advance() {
     if (_disposed || _playlist.isEmpty || _isPaused) return;
+
+    // If there is only 1 ad in the playlist, do not re-trigger transitions or native pause
+    if (_playlist.length <= 1) {
+      onImpression?.call(_currentSource, kStaticAdDisplayDuration.inSeconds);
+      _staticTimer?.cancel();
+      _staticTimer = Timer(kStaticAdDisplayDuration, () {
+        if (!_disposed && !_isPaused) _advance();
+      });
+      return;
+    }
+
     _previousSource = _currentSource;
     _currentIndex = (_currentIndex + 1) % _playlist.length;
     _playCurrent();

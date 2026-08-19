@@ -58,7 +58,7 @@ class KioskScreen extends StatefulWidget {
   State<KioskScreen> createState() => _KioskScreenState();
 }
 
-class _KioskScreenState extends State<KioskScreen> {
+class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   // ── Broad state ──
   bool _isIdle = false;
   bool _showCart = false;
@@ -146,6 +146,7 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _enableLockTaskMode();
     _tableNumber = widget.tableNumber;
@@ -161,6 +162,14 @@ class _KioskScreenState extends State<KioskScreen> {
 
     // ═══ CRITICAL ANR FIX ═══
     WidgetsBinding.instance.addPostFrameCallback((_) => _deferredBootstrap());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      _enableLockTaskMode();
+    }
   }
 
   WebSocket? _socket;
@@ -345,6 +354,9 @@ class _KioskScreenState extends State<KioskScreen> {
             } else if (event == 'reload_menu') {
               debugPrint('[WS] Menu update reload request received');
               _fetchMenu();
+            } else if (event == 'reload_ads') {
+              debugPrint('[WS] Ad update reload request received from server');
+              _adSync.syncNow();
             } else if (event == 'app_update') {
               debugPrint('[WS] App update event received from server');
               UpdateService.checkForUpdate(
@@ -356,6 +368,7 @@ class _KioskScreenState extends State<KioskScreen> {
               UpdateService.purgePendingUpdate();
             } else if (event == 'connected') {
               // Server connection established/restored.
+              _adSync.syncNow();
               Timer(const Duration(seconds: 2), () {
                 if (mounted && _socket == newSocket) {
                   final status = _tableSession?['status'] as String? ?? '';
@@ -1117,14 +1130,6 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  void _disableLockTaskMode() async {
-    try {
-      await _perfChannel.invokeMethod('stopKioskMode');
-    } catch (e) {
-      debugPrint('Lock task mode stop skipped: $e');
-    }
-  }
-
   void _promptUnlock() {
     _passwordController.clear();
     showDialog(
@@ -1153,12 +1158,11 @@ class _KioskScreenState extends State<KioskScreen> {
               }
 
               if (entered.isNotEmpty && entered == expected) {
-                _disableLockTaskMode();
                 if (dialogCtx.mounted) {
                   Navigator.pop(dialogCtx);
                 }
                 if (mounted) {
-                  Navigator.of(context).push(
+                  await Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (settingsCtx) => SettingsScreen(
                         serverHost: widget.serverHost,
@@ -1174,6 +1178,10 @@ class _KioskScreenState extends State<KioskScreen> {
                       ),
                     ),
                   );
+                  if (mounted) {
+                    _enableLockTaskMode();
+                    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+                  }
                 }
               } else {
                 if (dialogCtx.mounted) {
@@ -1194,6 +1202,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _socket?.close();
     _wsPingTimer?.cancel();
     _otaCheckTimer?.cancel();

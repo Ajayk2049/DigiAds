@@ -279,7 +279,13 @@ class MainActivity : FlutterActivity() {
                             } else {
                                 kioskActive = true
                                 lockTaskAttempts = 0
-                                scheduleKioskPolicies()
+                                if (policiesApplied && !KioskGuard.isColdBootLaunch()) {
+                                    applyLockTaskPolicies()
+                                    applyStatusBarPolicy()
+                                } else {
+                                    scheduleKioskPolicies()
+                                }
+                                hideSystemUI()
                                 result.success(true)
                             }
                         } catch (e: Exception) {
@@ -463,17 +469,19 @@ class MainActivity : FlutterActivity() {
             showSystemUI()
             return
         }
-        // Do nothing until the deferred boot policies have run, otherwise resume would
-        // pull LockTask and SystemUI work straight back into the boot danger window.
-        if (!policiesApplied) return
-        hideSystemUI()
-        if (kioskActive) enterLockTask()
+        if (kioskActive) {
+            hideSystemUI()
+            if (policiesApplied) {
+                enterLockTask()
+                applyStatusBarPolicy()
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) return
-        if (isCircuitBreakerTripped) showSystemUI() else if (policiesApplied) hideSystemUI()
+        if (isCircuitBreakerTripped) showSystemUI() else if (kioskActive) hideSystemUI()
     }
 
     override fun onDestroy() {
@@ -528,7 +536,7 @@ class MainActivity : FlutterActivity() {
                         android.view.WindowInsets.Type.navigationBars()
                 )
                 c.systemBarsBehavior =
-                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    android.view.WindowInsetsController.BEHAVIOR_DEFAULT
             }
         } else {
             @Suppress("DEPRECATION")
@@ -641,13 +649,19 @@ class NativeVideoView(
             addView(pv)
 
             player.addListener(object : androidx.media3.common.Player.Listener {
-                override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                    val currentIdx = player.currentMediaItemIndex
-                    currentIndex = currentIdx
-                    methodChannel?.invokeMethod(
-                        "onVideoComplete",
-                        mapOf("path" to playlist.getOrNull(currentIdx))
-                    )
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                        val currentIdx = player.currentMediaItemIndex
+                        val durationMs = player.duration
+                        val durationSec = if (durationMs > 0) (durationMs / 1000).toInt() else 0
+                        methodChannel?.invokeMethod(
+                            "onVideoComplete",
+                            mapOf(
+                                "path" to playlist.getOrNull(currentIdx),
+                                "duration" to durationSec
+                            )
+                        )
+                    }
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -689,7 +703,7 @@ class NativeVideoView(
         }
 
         player.setMediaItems(mediaItems, startIndex, 0L)
-        player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+        player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
         player.prepare()
         if (isPlaying) {
             player.play()
@@ -721,7 +735,11 @@ class NativeVideoView(
         if (disposed) return
         isPlaying = true
         exoPlayer?.let {
-            if (!it.isPlaying) it.play()
+            if (it.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                it.seekTo(0, 0L)
+                it.prepare()
+            }
+            it.play()
         }
     }
 

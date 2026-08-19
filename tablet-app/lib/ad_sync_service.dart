@@ -335,9 +335,29 @@ class AdSyncService {
           progress.value = const SyncProgress.idle();
         }
 
-        // 2. Persist playlist and frequencies to cache
+        // 2. Build verified playlist containing only fully downloaded files on disk
+        final List<String> verifiedPlaylist = [];
+        for (final path in newLocalPaths) {
+          if (path.startsWith('img__')) {
+            final parts = path.split('__');
+            final filePath = parts.length > 2 ? parts[2] : '';
+            final f = File(filePath);
+            if (f.existsSync() && f.lengthSync() > 0) {
+              verifiedPlaylist.add(path);
+            }
+          } else if (path.startsWith('static__')) {
+            verifiedPlaylist.add(path);
+          } else {
+            final f = File(path);
+            if (f.existsSync() && f.lengthSync() >= kMinValidFileSize) {
+              verifiedPlaylist.add(path);
+            }
+          }
+        }
+
+        // 3. Persist verified playlist and frequencies to cache
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList(kPlaylistCacheKey, newLocalPaths);
+        await prefs.setStringList(kPlaylistCacheKey, verifiedPlaylist);
         await prefs.setString(kLastSyncTimeKey, DateTime.now().toIso8601String());
         
         final Map<String, int> frequencies = {};
@@ -348,10 +368,10 @@ class AdSyncService {
         }
         await prefs.setString('ad_frequencies_map', jsonEncode(frequencies));
 
-        // 3. Cleanup deleted ads from disk
+        // 4. Cleanup deleted ads from disk
         await _cleanupOldFiles(activeFileNames);
 
-        return newLocalPaths;
+        return verifiedPlaylist;
       }
     }
     return null;

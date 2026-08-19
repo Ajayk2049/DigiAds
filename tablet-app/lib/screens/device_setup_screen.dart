@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
+import 'download_progress_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  DEVICE SETUP SCREEN — One-time activation with connection test
@@ -12,20 +13,35 @@ import '../constants.dart';
 enum _ConnStatus { idle, testing, ok, fail }
 
 class DeviceSetupScreen extends StatefulWidget {
-  final Function(String, String, String, String, String, String) onActivate;
+  final Function(String, String, String, String, String, String)? onActivate;
+  final bool isReRun;
+  final String? initialServerHost;
+  final String? initialDeviceId;
+  final String? initialTableNumber;
+  final String? initialBypassPassword;
+  final VoidCallback? onCancel;
 
-  const DeviceSetupScreen({super.key, required this.onActivate});
+  const DeviceSetupScreen({
+    super.key,
+    this.onActivate,
+    this.isReRun = false,
+    this.initialServerHost,
+    this.initialDeviceId,
+    this.initialTableNumber,
+    this.initialBypassPassword,
+    this.onCancel,
+  });
 
   @override
   State<DeviceSetupScreen> createState() => _DeviceSetupScreenState();
 }
 
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
-  final _serverHostController = TextEditingController();
-  final _deviceIdController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  final _tableNumberController = TextEditingController();
+  late final TextEditingController _serverHostController;
+  late final TextEditingController _deviceIdController;
+  late final TextEditingController _passwordController;
+  late final TextEditingController _confirmPasswordController;
+  late final TextEditingController _tableNumberController;
 
   static const MethodChannel _perfChannel = MethodChannel('com.digiads.tabletop/performance');
 
@@ -33,8 +49,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   bool _loading = false;
   _ConnStatus _connStatus = _ConnStatus.idle;
   String _connMessage = '';
-
-  List<String>? _pendingActivation;
 
   void _promptUnlockFromSetup() {
     final passwordController = TextEditingController();
@@ -73,9 +87,11 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                   );
                 }
               } else {
-                ScaffoldMessenger.of(dialogCtx).showSnackBar(
-                  const SnackBar(content: Text("Incorrect password")),
-                );
+                if (dialogCtx.mounted) {
+                  ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                    const SnackBar(content: Text("Incorrect password")),
+                  );
+                }
               }
             },
             child: const Text("Unlock"),
@@ -88,7 +104,21 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   @override
   void initState() {
     super.initState();
-    // Setup fields start completely blank without pre-filled data
+    _serverHostController = TextEditingController(
+      text: widget.isReRun ? (widget.initialServerHost ?? '') : '',
+    );
+    _deviceIdController = TextEditingController(
+      text: widget.isReRun ? (widget.initialDeviceId ?? '') : '',
+    );
+    _passwordController = TextEditingController(
+      text: widget.isReRun ? (widget.initialBypassPassword ?? '') : '',
+    );
+    _confirmPasswordController = TextEditingController(
+      text: widget.isReRun ? (widget.initialBypassPassword ?? '') : '',
+    );
+    _tableNumberController = TextEditingController(
+      text: widget.isReRun ? (widget.initialTableNumber ?? '') : '',
+    );
   }
 
   @override
@@ -218,13 +248,28 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
         await prefs.setString('bypassPassword', password);
         await prefs.setString('tableNumber', tableNumber);
         if (!mounted) return;
-        // Defer the callback to the next frame so it runs after this widget's
-        // own dispose has settled and we have a guaranteed valid BuildContext
-        // for the navigator lookup.
+
         setState(() {
           _loading = false;
-          _pendingActivation = [serverHost, deviceId, token, hostApplicationId, password, tableNumber];
         });
+
+        if (widget.onActivate != null) {
+          widget.onActivate!(serverHost, deviceId, token, hostApplicationId, password, tableNumber);
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute<void>(
+              builder: (_) => DownloadProgressScreen(
+                serverHost: serverHost,
+                deviceId: deviceId,
+                token: token,
+                hostApplicationId: hostApplicationId,
+                bypassPassword: password,
+                tableNumber: tableNumber,
+              ),
+            ),
+            (route) => false,
+          );
+        }
       } else {
         if (!mounted) return;
         setState(() {
@@ -243,22 +288,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // If a successful activation is pending, fire the callback on the next
-    // frame using THIS widget's context (which is valid during build). This
-    // is the safest point to trigger navigation away from setup.
-    if (_pendingActivation != null) {
-      final args = _pendingActivation!;
-      _pendingActivation = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        widget.onActivate(args[0], args[1], args[2], args[3], args[4], args[5]);
-      });
-    }
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: widget.onCancel != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.blueAccent),
+                onPressed: widget.onCancel,
+                tooltip: "Cancel and Return",
+              )
+            : null,
         actions: [
           IconButton(
             icon: const Icon(Icons.admin_panel_settings_outlined, color: Colors.blueAccent),
@@ -286,10 +326,19 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                 children: [
                   const Icon(Icons.settings_suggest_rounded, size: 64, color: Colors.blueAccent),
                   const SizedBox(height: 16),
-                  const Text("Kiosk Tablet Setup", textAlign: TextAlign.center, style: kSetupTitleStyle),
+                  Text(
+                    widget.isReRun ? "Re-configure Tablet Setup" : "Kiosk Tablet Setup",
+                    textAlign: TextAlign.center,
+                    style: kSetupTitleStyle,
+                  ),
                   const SizedBox(height: 8),
-                  const Text("One-time authorization setup for tabletop display device.",
-                      textAlign: TextAlign.center, style: kSetupSubtitleStyle),
+                  Text(
+                    widget.isReRun
+                        ? "Update server IP, table assignment, or security bypass password."
+                        : "One-time authorization setup for tabletop display device.",
+                    textAlign: TextAlign.center,
+                    style: kSetupSubtitleStyle,
+                  ),
                   const SizedBox(height: 24),
                   if (_error.isNotEmpty) ...[
                     Container(
@@ -379,17 +428,41 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: _loading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text("Authorize & Bind Device", style: TextStyle(fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      if (widget.onCancel != null) ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _loading ? null : widget.onCancel,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: BorderSide(color: Colors.blueAccent.shade100),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text("Cancel", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: _loading ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _loading
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : Text(
+                                  widget.isReRun ? "Update & Re-Authorize" : "Authorize & Bind Device",
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -160,10 +160,10 @@ class VideoQueueService {
 
     // 2. Run single-thread FFmpeg H.264 Baseline 3.1 transcode into an isolated temp file first
     if (fs.existsSync(tempPath) && fs.statSync(tempPath).size > 0 && filePath) {
-      const transcodeTempPath = `${filePath}.tmp_${Date.now()}`;
+      const transcodeTempPath = `${filePath}_tmp_${Date.now()}.mp4`;
       try {
         await new Promise((resolve, reject) => {
-          let ffmpegCommand = ffmpeg(tempPath).videoCodec('libx264');
+          let ffmpegCommand = ffmpeg(tempPath).videoCodec('libx264').format('mp4');
 
           if (resolution) {
             ffmpegCommand = ffmpegCommand.size(resolution).fps(30);
@@ -171,9 +171,9 @@ class VideoQueueService {
 
           ffmpegCommand
             .noAudio()                 // Strip audio stream for silent kiosk video playback
+            .videoFilters('scale=trunc(iw/16)*16:trunc(ih/16)*16') // Guarantees 16-pixel macroblock alignment for Android MediaCodec decoders
             .outputOptions([
               '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
-              '-vf scale=trunc(iw/16)*16:trunc(ih/16)*16', // Guarantees 16-pixel macroblock alignment for Android MediaCodec decoders
               '-profile:v baseline',   // Android Baseline 3.1 compatibility
               '-level 3.1',
               '-pix_fmt yuv420p',
