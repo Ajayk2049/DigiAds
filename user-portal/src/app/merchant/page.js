@@ -2003,9 +2003,21 @@ export default function MerchantDashboard() {
       videoElement.onloadedmetadata = () => {
         window.URL.revokeObjectURL(videoElement.src);
         const duration = videoElement.duration || 0;
+        const w = videoElement.videoWidth || 0;
+        const h = videoElement.videoHeight || 0;
+
         if (duration > maxAllowedSecs + 0.5) {
           showToast(`Video duration (${Math.round(duration)}s) exceeds the ${maxAllowedSecs}-second limit for ${isClosedMode ? 'Closed' : 'Open'} Ads Mode venues.`, 'error');
           return;
+        }
+
+        if (w > 0 && h > 0) {
+          const isScreen = slotType.startsWith('screen');
+          if (isScreen && (w < 1280 || h < 720)) {
+            showToast(`⚠️ Low Resolution (${w}x${h}): Recommended 1920x1080 Full HD for Wall Screens. It will be centered with letterboxing.`, 'warning');
+          } else if (!isScreen && (w < 720 || h < 1280)) {
+            showToast(`⚠️ Low Resolution (${w}x${h}): Recommended 1080x1920 Portrait for Tabletop Tablets. It will be centered with letterboxing.`, 'warning');
+          }
         }
 
         const localPreviewUrl = URL.createObjectURL(file);

@@ -200,6 +200,7 @@ export default function AdminPortal() {
   const [previewPlatformAd, setPreviewPlatformAd] = useState(null);
   const [deletingPlatformAdId, setDeletingPlatformAdId] = useState('');
   const [venueSearchFilter, setVenueSearchFilter] = useState('');
+  const [platformAdResolutionWarning, setPlatformAdResolutionWarning] = useState(null);
 
   // User edit/delete states
   const [editingUser, setEditingUser] = useState(null);
@@ -5910,6 +5911,51 @@ export default function AdminPortal() {
                         mediaType: isVid ? 'video' : 'image',
                         durationSeconds: isVid ? 30 : 10
                       });
+
+                      if (isVid) {
+                        const video = document.createElement('video');
+                        video.preload = 'metadata';
+                        video.onloadedmetadata = () => {
+                          window.URL.revokeObjectURL(video.src);
+                          const w = video.videoWidth || 0;
+                          const h = video.videoHeight || 0;
+                          const targetDevice = createPlatformAdForm.targetDeviceType;
+
+                          let isLowRes = false;
+                          let isOrientationMismatch = false;
+                          let mismatchDesc = null;
+                          let recommended = '1920 × 1080 (16:9 Landscape Full HD)';
+
+                          if (targetDevice === 'screen' || targetDevice === 'all') {
+                            isLowRes = w < 1280 || h < 720;
+                            isOrientationMismatch = h > w;
+                            recommended = '1920 × 1080 (16:9 Landscape Full HD)';
+                            if (isOrientationMismatch) {
+                              mismatchDesc = 'You selected a Vertical / Portrait video for Horizontal Wall Screens. It will be centered with black letterbox bars on the left and right.';
+                            }
+                          } else if (targetDevice === 'tablet') {
+                            isLowRes = w < 720 || h < 1280;
+                            isOrientationMismatch = w > h;
+                            recommended = '1080 × 1920 (9:16 Portrait Full HD)';
+                            if (isOrientationMismatch) {
+                              mismatchDesc = 'You selected a Horizontal / Landscape video for Vertical Tabletop Tablets. It will be centered with black letterbox bars on top and bottom.';
+                            }
+                          }
+
+                          if (w > 0 && h > 0 && (isLowRes || isOrientationMismatch)) {
+                            setPlatformAdResolutionWarning({
+                              width: w,
+                              height: h,
+                              recommended,
+                              isLowRes,
+                              isOrientationMismatch,
+                              mismatchDesc
+                            });
+                          }
+                        };
+                        video.onerror = () => {};
+                        video.src = URL.createObjectURL(selected);
+                      }
                     }
                   }}
                   className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground"
@@ -6046,6 +6092,84 @@ export default function AdminPortal() {
               </button>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {/* PLATFORM AD RESOLUTION ADVISORY MODAL */}
+      {platformAdResolutionWarning && (
+        <div className="fixed inset-0 z-[160] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="w-full max-w-lg bg-card border border-amber-500/40 rounded-3xl p-6 shadow-2xl relative space-y-5">
+            <div className="flex items-center space-x-3 pb-3 border-b border-border/50">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-outfit text-base font-bold text-foreground">
+                  Video Resolution & Orientation Advisory
+                </h3>
+                <p className="text-xs text-muted-foreground font-semibold">
+                  Quality check for commercial screen/tablet display
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-muted/40 p-4 rounded-2xl border border-border/40 text-xs font-semibold">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-muted-foreground">Uploaded Resolution:</span>
+                <span className="font-mono font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                  {platformAdResolutionWarning.width} × {platformAdResolutionWarning.height} px
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-t border-border/30">
+                <span className="text-muted-foreground">Recommended Standard:</span>
+                <span className="font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  {platformAdResolutionWarning.recommended}
+                </span>
+              </div>
+
+              {platformAdResolutionWarning.isLowRes && (
+                <div className="pt-2 border-t border-border/30 text-amber-600 dark:text-amber-400">
+                  ⚠️ <strong className="font-bold">Low Resolution Notice:</strong> Videos below 720p may appear blurry or pixelated when displayed on high-definition commercial screens.
+                </div>
+              )}
+
+              {platformAdResolutionWarning.isOrientationMismatch && platformAdResolutionWarning.mismatchDesc && (
+                <div className="pt-2 border-t border-border/30 text-amber-600 dark:text-amber-400">
+                  📐 <strong className="font-bold">Orientation Notice:</strong> {platformAdResolutionWarning.mismatchDesc}
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
+              The server will automatically preserve the aspect ratio with clean letterboxing. For best visual clarity, 1080p Full HD is recommended.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatePlatformAdForm({
+                    ...createPlatformAdForm,
+                    file: null
+                  });
+                  setPlatformAdResolutionWarning(null);
+                }}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-xl text-xs cursor-pointer border border-border transition-colors"
+              >
+                Change Video
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlatformAdResolutionWarning(null);
+                  showToast('info', 'Video retained! Click "Upload & Create Ad" to proceed.');
+                }}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md transition-colors"
+              >
+                Continue Anyway
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

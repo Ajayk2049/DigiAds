@@ -39,7 +39,7 @@ function verifyPassword(password, storedPassword) {
 const { generateUniqueCustomId } = require('../utils/idGenerator');
 
 async function generateDeviceId(prefix) {
-  const pfx = (prefix || '').toUpperCase().includes('SCREEN') ? 'SCR_' : 'TAB_';
+  const pfx = (prefix || '').toUpperCase().startsWith('SCR') ? 'SCR_' : 'TAB_';
   return await generateUniqueCustomId(Device, 'deviceId', pfx);
 }
 

@@ -33,6 +33,7 @@ class AdPlayerService {
   int _currentIndex = 0;
   String _previousSource = '';
   Timer? _staticTimer;
+  Timer? _videoWatchdogTimer;
   bool _isPaused = false;
   bool _disposed = false;
 
@@ -94,6 +95,7 @@ class AdPlayerService {
   void dispose() {
     _disposed = true;
     _staticTimer?.cancel();
+    _videoWatchdogTimer?.cancel();
     state.dispose();
   }
 
@@ -129,6 +131,7 @@ class AdPlayerService {
 
     if (source.startsWith('static__') || source.startsWith('img__')) {
       _staticTimer?.cancel();
+      _videoWatchdogTimer?.cancel();
       _channel.invokeMethod('pause');
       onImpression?.call(source, kStaticAdDisplayDuration.inSeconds);
       _emitState();
@@ -139,19 +142,29 @@ class AdPlayerService {
     }
 
     _staticTimer?.cancel();
+    _videoWatchdogTimer?.cancel();
     _emitState();
     if (!_isPaused) {
       _channel.invokeMethod('play');
+      // Watchdog timer: if native video completes, crashes or freezes, auto-advance after 32s
+      _videoWatchdogTimer = Timer(const Duration(seconds: 32), () {
+        if (!_disposed && !_isPaused) {
+          debugPrint('[AD_PLAYER] Video watchdog timer expired (32s). Advancing ad.');
+          _advance();
+        }
+      });
     }
   }
 
   void _advance() {
     if (_disposed || _playlist.isEmpty || _isPaused) return;
 
+    _staticTimer?.cancel();
+    _videoWatchdogTimer?.cancel();
+
     // If there is only 1 ad in the playlist, do not re-trigger transitions or native pause
     if (_playlist.length <= 1) {
       onImpression?.call(_currentSource, kStaticAdDisplayDuration.inSeconds);
-      _staticTimer?.cancel();
       _staticTimer = Timer(kStaticAdDisplayDuration, () {
         if (!_disposed && !_isPaused) _advance();
       });
@@ -166,20 +179,21 @@ class AdPlayerService {
   void _stopAndClear() {
     _staticTimer?.cancel();
     _staticTimer = null;
+    _videoWatchdogTimer?.cancel();
+    _videoWatchdogTimer = null;
   }
 
   Future<void> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'onVideoComplete':
+        _videoWatchdogTimer?.cancel();
         final args = call.arguments as Map;
-        final path = args['path'] as String;
         final dur = (args['duration'] as num?)?.toInt() ?? 0;
-        if (path == _currentSource) {
-          onImpression?.call(path, dur);
-          if (!_disposed && !_isPaused) _advance();
-        }
+        onImpression?.call(_currentSource, dur > 0 ? dur : 30);
+        if (!_disposed && !_isPaused) _advance();
         break;
       case 'onVideoError':
+        _videoWatchdogTimer?.cancel();
         debugPrint('[NATIVE_PLAYER] Playback error: ${call.arguments}');
         if (!_disposed && !_isPaused) _advance();
         break;

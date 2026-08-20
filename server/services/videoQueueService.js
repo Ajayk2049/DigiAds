@@ -171,7 +171,11 @@ class VideoQueueService {
 
           ffmpegCommand
             .noAudio()                 // Strip audio stream for silent kiosk video playback
-            .videoFilters('scale=trunc(iw/16)*16:trunc(ih/16)*16') // Guarantees 16-pixel macroblock alignment for Android MediaCodec decoders
+            .renice(15)                // Low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
+            .videoFilters([
+              'scale=w=\'min(1920,iw)\':h=\'min(1080,ih)\':force_original_aspect_ratio=decrease',
+              'scale=trunc(iw/16)*16:trunc(ih/16)*16'
+            ]) // Guarantees max 1080p bound and 16-pixel macroblock alignment for Android MediaCodec decoders
             .outputOptions([
               '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
               '-profile:v baseline',   // Android Baseline 3.1 compatibility

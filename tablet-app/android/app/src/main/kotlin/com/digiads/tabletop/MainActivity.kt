@@ -15,6 +15,7 @@ import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -37,6 +38,30 @@ import kotlin.math.min
 private const val TAG = "DigiAdsKiosk"
 
 class KioskAdminReceiver : DeviceAdminReceiver()
+
+/**
+ * Ensures Wi-Fi is enabled on device boot and app start.
+ * If Wi-Fi is off, turns it on. If Wi-Fi is already on, leaves as is.
+ */
+object WifiHelper {
+    fun ensureWifiEnabled(context: Context) {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            if (wifiManager != null) {
+                if (!wifiManager.isWifiEnabled) {
+                    Log.i(TAG, "Wi-Fi is currently disabled. Automatically enabling Wi-Fi...")
+                    @Suppress("DEPRECATION")
+                    val result = wifiManager.setWifiEnabled(true)
+                    Log.i(TAG, "setWifiEnabled(true) executed. Result: $result")
+                } else {
+                    Log.d(TAG, "Wi-Fi is already enabled. Leaving as is.")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not ensure Wi-Fi state: ${e.message}")
+        }
+    }
+}
 
 /**
  * Boot-safety policy shared by the Activity, the boot receiver and the video view.
@@ -154,6 +179,8 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         try {
+            WifiHelper.ensureWifiEnabled(context)
+
             if (context.packageManager.isSafeMode) {
                 Log.w(TAG, "Android safe mode — skipping kiosk auto-launch.")
                 return
@@ -237,6 +264,7 @@ class MainActivity : FlutterActivity() {
             Log.w(TAG, "Could not set thread priority: ${e.message}")
         }
 
+        WifiHelper.ensureWifiEnabled(this)
         evaluateBootGuard()
 
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VIDEO_CHANNEL)
@@ -346,6 +374,11 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             result.error("CLEAR_OWNER_ERROR", e.message, null)
                         }
+                    }
+
+                    "ensureWifiEnabled" -> {
+                        WifiHelper.ensureWifiEnabled(this)
+                        result.success(true)
                     }
 
                     else -> result.notImplemented()
@@ -465,6 +498,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        WifiHelper.ensureWifiEnabled(this)
         if (isCircuitBreakerTripped) {
             showSystemUI()
             return
@@ -735,8 +769,8 @@ class NativeVideoView(
         if (disposed) return
         isPlaying = true
         exoPlayer?.let {
-            if (it.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                it.seekTo(0, 0L)
+            if (it.playbackState == androidx.media3.common.Player.STATE_ENDED || it.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                it.seekToDefaultPosition()
                 it.prepare()
             }
             it.play()
