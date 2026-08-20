@@ -1,7 +1,7 @@
 {
-  "name": "cms-backend",
+  "name": "digiads-backend",
   "version": "1.0.0",
-  "description": "CMS and Tabletop Ordering backend server",
+  "description": "DigiAds Platform & Tabletop Kiosk Backend Server",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js --env-file=config/.env.dev",

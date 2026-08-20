@@ -1,11 +1,22 @@
-# DigiAds Content Management Platform
+# DigiAds Platform
 
-A highly integrated content management system (CMS) and tabletop ordering platform designed for dual Android devices (Tabletop Ordering Tablet and Landscape Wall Screens) and Next.js web applications.
+<p align="center">
+  <img src="./Logo/digiads-logo.svg" alt="DigiAds Logo" width="280" />
+</p>
+
+<p align="center">
+  <strong>Smart Tabletop Dining, Interactive Ordering & Venue Advertising Network</strong>
+</p>
+
+<p align="center">
+  DigiAds is an integrated ecosystem uniting restaurant tabletop ordering, venue display advertising, and venue management across commercial Android tablets, wall screens, and web portals.
+</p>
 
 ---
 
 ## 🛠️ Technology Stack
 
+### Backend & Realtime Infrastructure
 <p align="left">
   <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/Fastify-000000?style=for-the-badge&logo=fastify&logoColor=white" alt="Fastify" />
@@ -14,176 +25,196 @@ A highly integrated content management system (CMS) and tabletop ordering platfo
   <img src="https://img.shields.io/badge/BullMQ-FF5733?style=for-the-badge&logo=bullmq&logoColor=white" alt="BullMQ" />
   <img src="https://img.shields.io/badge/gRPC-244D80?style=for-the-badge&logo=grpc&logoColor=white" alt="gRPC" />
   <img src="https://img.shields.io/badge/Protobuf-E37400?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Protobuf" />
+  <img src="https://img.shields.io/badge/WebSocket-000000?style=for-the-badge&logo=socketdotio&logoColor=white" alt="WebSocket" />
+  <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white" alt="FFmpeg" />
   <img src="https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white" alt="JWT" />
-  <img src="https://img.shields.io/badge/PhonePe-5F259F?style=for-the-badge&logo=phone&logoColor=white" alt="PhonePe" />
+  <img src="https://img.shields.io/badge/PhonePe_Gateway-5F259F?style=for-the-badge&logo=phone&logoColor=white" alt="PhonePe" />
 </p>
 
+### Frontend & Web Portals
 <p align="left">
-  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
-  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/Next.js_15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white" alt="Axios" />
 </p>
 
+### Android Tablet & Screen Applications
 <p align="left">
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
   <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-  <img src="https://img.shields.io/badge/PhonePe_API-5F259F?style=for-the-badge&logo=phone&logoColor=white" alt="PhonePe API" />
-  <img src="https://img.shields.io/badge/WebSocket-000000?style=for-the-badge&logo=socketdotio&logoColor=white" alt="WebSocket" />
-  <img src="https://img.shields.io/badge/OpenAPI-6BA539?style=for-the-badge&logo=openapiinitiative&logoColor=white" alt="OpenAPI" />
+  <img src="https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/AndroidX_Media3_ExoPlayer-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Media3 ExoPlayer" />
+  <img src="https://img.shields.io/badge/Device_Owner_DPM-34A853?style=for-the-badge&logo=google&logoColor=white" alt="Device Policy Manager" />
 </p>
 
 ---
 
-## 🚀 Key Features & Components
+## 📊 Flow Diagrams & Architecture
 
-### 1. Marketing Landing Page (`/landing-page`)
+### System Architecture
+![System Architecture](./Flow_Diagrams/systemArchitecture.png)
 
-- Modern, high-performance Next.js landing site configured with Outfit and Inter fonts.
-- Features carousel device mockups, a responsive features grid, and a custom **About Us** page detailing the vision of Aibot Ink.
+### Device Flow
+![Device Flow](./Flow_Diagrams/deviceFlow.png)
 
-### 2. User & Merchant Portal (`/user-portal`)
-
-- **Hosts (Merchants)**: Apply to host Ordering Tablets or screens at their venue, manage digital food menu items (CRUD), and accept/reject orders in real-time.
-- **Advertisers**: Multi-step booking pipeline to target ads at specific States → Cities → Outlets.
-- **OTP Verification**: Indian mobile numbers (+91) receive SMS OTPs via the StartMessaging gateway.
-
-### 3. Administrator Console (`/admin-portal`)
-
-- **Dashboard**: Features custom SVG trend graphs for daily revenue projections, donut charts for device split distributions, and quick status metrics.
-- **Compact Sidebar**: Lockable, fixed-height sidebar with expandable toggle icons.
-- **Moderation Queue**: Plays paid campaigns inside a client-side `video.js` player with details of targeted screens, allowing quick Approve/Reject decisions.
-- **Device Provisioning**: Direct tab to register/provision new tabletop tablets or wall displays.
-- **Users drilldown**: Inspect host assets or ad bookings.
-- **Rates Card CRUD**: Update spot pricing packages (Tablet vs Screens) in real-time.
-- **Support Reports**: Review and resolve case tickets submitted by merchants or advertisers.
-
-### 4. Hybrid API Server (`/server`)
-
-- **Fastify HTTP REST endpoints** for web portal users, session tokens, and PhonePe callbacks.
-- **Fastify WebSocket endpoints** to stream incoming tabletop orders to restaurant hosts.
-- **gRPC Services** (on port `50051`) for Dart client applications on tablets and screens, handling device registration, telemetry logs, and ad impressions.
+### User Flow
+![User Flow](./Flow_Diagrams/userflow.png)
 
 ---
 
-## 🗂️ Folder Structure
+## 🚀 Key Modules & Capabilities
+
+### 🍽️ 1. Tabletop Smart Kiosk (`/tablet-app`)
+*Built with Flutter, Kotlin & AndroidX Media3 ExoPlayer*
+- **Interactive Digital Menu**: Visual food catalog with instant category filtering, item customization, and cart management.
+- **Dual Ad Rotation**: Plays targeted sponsor campaigns and restaurant promotional videos with zero screen tearing.
+- **Fail-Safe Video Engine**: 32-second hardware watchdog timer and offline caching guarantee uninterrupted playback even during network drops.
+- **Enterprise Kiosk Lockdown**: Device Owner integration with automatic Wi-Fi activation on boot and single-app pin mode.
+- **Silent OTA Updates**: Background update installer with SHA-256 verification and immediate post-install cleanup.
+
+### 📺 2. Wall Screen Engine (`/screen-app`)
+*Built with Flutter, Kotlin & AndroidX Media3 ExoPlayer*
+- **Full HD Commercial Advertising**: High-definition video and static banner rotation designed for large venue wall displays.
+- **Precision Scheduling**: Real-time frequency control (hourly cooldowns, continuous loops, and venue-targeted slots).
+- **Live WebSocket & gRPC Sync**: Instant ad schedule reload and telemetry reporting.
+
+### 🌐 3. User & Merchant Portal (`/user-portal`)
+*Built with Next.js 15, React 19 & Tailwind CSS*
+- **For Restaurant Hosts**:
+  - Live order management dashboard with real-time audio alerts and WebSocket updates.
+  - Digital menu builder with categories, pricing, item availability, and photo uploads.
+  - Bill configuration & instant thermal/print invoice generation.
+  - Venue promo media manager with automatic resolution verification.
+- **For Advertisers**:
+  - Targeted multi-step campaign builder (Filter by State → City → Specific Outlets).
+  - Flexible spot packages (Per Device vs Whole Venue, Tablet vs Wall Screen).
+  - Secure payment integration with PhonePe gateway.
+  - Live campaign analytics, impression logs, and playback metrics.
+
+### 🛡️ 4. Administrator Console (`/admin-portal`)
+*Built with Next.js 15, React 19 & Tailwind CSS*
+- **Centralized Moderation**: Built-in video preview player for approving or rejecting paid campaigns.
+- **Device & Venue Fleet Management**: Provision, monitor, and manage tablet (`TAB_`) and wall screen (`SCR_`) hardware.
+- **Spot Rates & Pricing Management**: Dynamic price configuration for tabletop and screen ad slots.
+- **OTA Release Manager**: Publish and distribute APK updates over the air with mandatory/optional flags.
+- **Financial & Analytics Reports**: Daily revenue projections, payout distributions, and platform audit logs.
+
+### ⚡ 5. Core Backend Engine (`/server`)
+*Built with Fastify, gRPC, Redis & BullMQ*
+- **High-Performance REST & WebSockets**: Low-latency endpoints for orders, device telemetry, and live sync.
+- **gRPC Services (Port 50051)**: High-speed Protobuf streaming for device heartbeats and ad impressions.
+- **Intelligent Video Queue**: BullMQ-backed single-concurrency FFmpeg pipeline with resolution max-bounding (downscales 4K/2K to 1080p, preserves native aspect ratio, and applies macroblock alignment).
+- **Multi-Role Security**: JWT authentication with SMS OTP verification via StartMessaging gateway.
+
+---
+
+## 🗂️ Project Structure
 
 ```text
-d:/AIBotInk/CMS/
-├── Logo/                      # Brand assets and graphics (Aibot_Logo.png)
-├── Docs/                      # PDFs and workflow guides
-├── server/                    # Fastify REST/WebSocket and gRPC Node.js Backend
-│   ├── config/                # Environment-segregated configurations (.env.dev, .env.prod)
-│   ├── controllers/           # REST and gRPC service logic handlers
-│   ├── models/                # MongoDB Mongoose collection models
-│   ├── protos/                # gRPC Protocol Buffer interface files
-│   ├── routes/                # Endpoint routing mapping
-│   ├── services/              # External API integrations (PhonePe, OTP)
-│   └── server.js              # Server entry point bootstrapper
-├── landing-page/              # Next.js marketing page (port 3000)
-├── user-portal/               # Next.js Merchant & Advertiser application (port 3001)
-├── admin-portal/              # Next.js Administrator dashboard console (port 3002)
-├── tablet-app/                # Flutter Tabletop Kiosk tablet application (Dart)
-├── screen-app/                # Flutter Advertising Screen application (Dart)
-├── docker-compose.yml         # Local Docker cache (MongoDB & Redis runner)
-├── .gitattributes             # Git LF line-ending normalization rules
-└── README.md                  # Main developer documentation
+digiads/
+├── Flow_Diagrams/             # System architecture, device & user flow diagrams
+├── Logo/                      # Brand assets & SVG logos
+│
+├── server/                    # Fastify REST, WebSockets, gRPC & BullMQ Backend
+│   ├── config/                # Environment configurations (.env.dev, .env.prod)
+│   ├── controllers/           # Business logic & API request handlers
+│   ├── models/                # MongoDB Mongoose schemas
+│   ├── protos/                # gRPC Protocol Buffer definitions
+│   ├── routes/                # Fastify API route declarations
+│   ├── services/              # SMS, Payment Gateway, and Video Transcoding queues
+│   └── server.js              # Main backend bootstrap entry point
+│
+├── landing-page/              # Public marketing website (Port 3000)
+├── user-portal/               # Merchant & Advertiser portal (Port 3002)
+├── admin-portal/              # Platform Admin management dashboard (Port 3001)
+│
+├── tablet-app/                # Flutter Android Tabletop Ordering Kiosk
+└── screen-app/                # Flutter Android Wall Display Advertising Engine
 ```
 
 ---
 
 ## 🔌 Port Mapping Configuration
 
-| Component | Protocol | Port | Host Address |
+| Service | Protocol | Default Port | Description |
 | :--- | :--- | :--- | :--- |
-| **Landing Page** | HTTP | `3000` | `http://localhost:3000` |
-| **User Portal** | HTTP | `3001` | `http://localhost:3001` |
-| **Admin Console** | HTTP | `3002` | `http://localhost:3002` |
-| **Backend REST & WS** | HTTP | `4200` | `http://localhost:4200` |
-| **Backend gRPC** | HTTP/2 | `50051` | `localhost:50051` |
+| **Landing Page** | HTTP | `3000` | Public marketing website |
+| **Admin Portal** | HTTP | `3001` | Platform administrator console |
+| **User Portal** | HTTP | `3002` | Merchant & Advertiser portal |
+| **Backend API & WS** | HTTP / WS | `4200` | REST endpoints & live WebSocket |
+| **Backend gRPC** | HTTP/2 | `50051` | Tablet & Screen telemetry streams |
+| **Redis** | TCP | `6379` | Background BullMQ transcode queue |
 
 ---
 
-## 🛠️ Installation & Getting Started
+## 🚀 Quick Start Guide
 
-### 1. Prerequisites
+### Prerequisites
+- **Node.js**: v18 or v20 LTS+
+- **Redis**: Local or system service (`redis-server`)
+- **MongoDB**: MongoDB Atlas URI or local database
+- **Flutter SDK**: v3.0+ (Only required for building Android APKs)
 
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- [Docker & Docker Compose](https://www.docker.com/)
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (only for mobile app builds)
+---
 
-### 2. Automated Run Scripts
+### Running in Development Mode
 
-Automate database provisioning, dependency setups, and builds using target flags (`-m` / `-M`) with the root deployment helpers.
+1. **Start the Backend Server**:
+   ```bash
+   cd server
+   npm install
+   npm run dev
+   ```
 
-#### On Windows (PowerShell)
+2. **Start the Web Portals** (in separate terminals):
+   ```bash
+   # Landing Page (Port 3000)
+   cd landing-page && npm install && npm run dev
 
-```powershell
-# Setup development databases and run local servers
-.\deploy.ps1 -m development
-# Shorthand: .\deploy.ps1 -M dev
+   # Admin Console (Port 3001)
+   cd admin-portal && npm install && npm run dev
 
-# Build production bundles and compile local assets
-.\deploy.ps1 -m production
-# Shorthand: .\deploy.ps1 -M prod
-```
+   # User & Merchant Portal (Port 3002)
+   cd user-portal && npm install && npm run dev
+   ```
 
-#### On Linux / macOS (Shell)
+3. **Build the Tablet App (APK)**:
+   ```bash
+   cd tablet-app
+   flutter build apk --release --android-skip-build-dependency-validation
+   ```
 
-```bash
-# Make deploy script executable
-chmod +x deploy.sh
+---
 
-# Run development servers
-./deploy.sh -m development
-# Shorthand: ./deploy.sh -M dev
-
-# Build production environment
-./deploy.sh -m production
-# Shorthand: ./deploy.sh -M prod
-```
-
-### 3. Manual Steps
-
-To run individual elements manually:
-
-#### A. Launch Databases
+### Production Deployment (Linux VPS with PM2)
 
 ```bash
-docker compose up -d
-```
-
-#### B. Start Backend Server
-
-```bash
+# 1. Start Backend Server
 cd server
-npm install
-npm run dev
-```
+npm install --omit=dev
+pm2 start server.js --name "digiads-server" -- --env-file=config/.env.prod
 
-#### C. Start Frontend Portals
+# 2. Build and Start Web Portals
+cd ../admin-portal
+npm install && npm run build
+pm2 start npm --name "digiads-admin" -- start -- -p 3001
 
-Open separate terminals for each app:
+cd ../user-portal
+npm install && npm run build
+pm2 start npm --name "digiads-user" -- start -- -p 3002
 
-```bash
-# Marketing page
-cd landing-page && npm install && npm run dev
+cd ../landing-page
+npm install && npm run build
+pm2 start npm --name "digiads-landing" -- start -- -p 3000
 
-# Merchant & Advertiser portal
-cd user-portal && npm install && npm run dev
-
-# Admin Dashboard console
-cd admin-portal && npm install && npm run dev
+# 3. Persist Process List across Reboots
+pm2 save
+pm2 startup
 ```
 
 ---
 
-## 🛡️ Zero-Hardcoding Policy
-
-No server, portal, database, or API credentials may be hardcoded.
-
-- All environment-specific variables are imported and exported inside the `config.js` of each package.
-- All code modules load environment values solely from the centralized config configuration.
-- Local configuration is loaded from `.env.dev` during `npm run dev`, and `.env.prod` during builds.
+## 📄 License
+Commercial proprietary software. Developed for **DigiAds** / **Aibot Ink**. All rights reserved.

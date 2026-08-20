@@ -9,8 +9,8 @@ const { authenticate, authorize } = require('../utils/authMiddleware');
 
 function registerRoutes(fastify, options, done) {
   // Webhook and Ping verification support
-  fastify.get('/', async (request, reply) => ({ status: 'ok', message: 'CMS Backend Service is online' }));
-  fastify.post('/', async (request, reply) => ({ status: 'ok', message: 'CMS Backend Service is online' }));
+  fastify.get('/', async (request, reply) => ({ status: 'ok', message: 'DigiAds Backend Service is online' }));
+  fastify.post('/', async (request, reply) => ({ status: 'ok', message: 'DigiAds Backend Service is online' }));
 
   // Health check route
   fastify.get('/health', async (request, reply) => {

@@ -25,7 +25,7 @@ class SMSService {
           templateId: config.otpTemplateId,
           variables: {
             otp: otp,
-            appName: 'CMSPlatform'
+            appName: 'DigiAds'
           }
         },
         {
