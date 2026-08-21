@@ -211,7 +211,7 @@ class AdSyncService {
   // ────────────────── Sync engine ──────────────────
 
   Future<List<String>?> _syncWithServer() async {
-    final url = Uri.parse('http://$serverHost:4200/api/v1/auth/device/ads');
+    final url = Uri.parse(buildServerUrl(serverHost, path: '/api/v1/auth/device/ads'));
     final response = await http.get(
       url,
       headers: {'Authorization': 'Bearer $token'},
@@ -248,12 +248,11 @@ class AdSyncService {
             String absoluteUrl;
             if (mediaUrl.contains('/uploads/')) {
               final sub = mediaUrl.split('/uploads/')[1];
-              absoluteUrl = 'http://$serverHost:4200/uploads/$sub';
+              absoluteUrl = buildServerUrl(serverHost, path: '/uploads/$sub');
             } else if (mediaUrl.startsWith('http')) {
               absoluteUrl = mediaUrl;
             } else {
-              final cleanPath = mediaUrl.startsWith('/') ? mediaUrl : '/$mediaUrl';
-              absoluteUrl = 'http://$serverHost:4200$cleanPath';
+              absoluteUrl = buildServerUrl(serverHost, path: mediaUrl);
             }
 
             final isVideo = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm');

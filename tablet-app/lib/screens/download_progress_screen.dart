@@ -98,7 +98,7 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen> {
 
   void _initGrpc() {
     _channel = ClientChannel(
-      widget.serverHost,
+      cleanGrpcHost(widget.serverHost),
       port: 4201,
       options: const ChannelOptions(credentials: ChannelCredentials.insecure()),
     );

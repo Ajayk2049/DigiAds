@@ -32,7 +32,13 @@ function authorize(roles = []) {
       return res.status(401).send({ success: false, message: 'Unauthenticated request' });
     }
 
-    if (roles.length && !roles.includes(req.user.role)) {
+    const userRoles = Array.isArray(req.user.roles)
+      ? req.user.roles
+      : (req.user.role ? [req.user.role] : []);
+
+    const hasRole = roles.length === 0 || roles.some(r => userRoles.includes(r) || req.user.role === r);
+
+    if (!hasRole) {
       return res.status(403).send({ success: false, message: 'Access denied: Insufficient privileges' });
     }
 

@@ -59,6 +59,76 @@ const Duration kBootAggressiveRetryInterval = Duration(seconds: 30);
 /// Minimum file size (bytes) to consider a download valid.
 const int kMinValidFileSize = 1000;
 
+// ───────────────────────── Dynamic Server URL Builders ─────────────────────────
+
+/// Builds a clean HTTP/HTTPS URL from a serverHost string and optional default port.
+String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+  String host = serverHost.trim();
+  if (host.isEmpty) return '';
+
+  bool isHttps = host.startsWith('https://');
+  // Strip protocol prefix if present
+  host = host.replaceFirst(RegExp(r'^https?:\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+
+  final cleanPath = path.isEmpty ? '' : (path.startsWith('/') ? path : '/$path');
+
+  // If host already contains a port (e.g. 192.168.1.100:4000)
+  if (host.contains(':')) {
+    final scheme = isHttps ? 'https' : 'http';
+    return '$scheme://$host$cleanPath';
+  }
+
+  // If host is a standard domain name without a port (e.g. test-api.digiads.space)
+  if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
+    if (defaultPort == 443 || isHttps) {
+      return 'https://$host$cleanPath';
+    } else if (defaultPort == 80) {
+      return 'http://$host$cleanPath';
+    }
+  }
+
+  final scheme = isHttps ? 'https' : 'http';
+  return '$scheme://$host:$defaultPort$cleanPath';
+}
+
+/// Builds a clean WS/WSS URL from a serverHost string and optional default port.
+String buildWsUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+  String host = serverHost.trim();
+  if (host.isEmpty) return '';
+
+  bool isWss = host.startsWith('https://') || host.startsWith('wss://');
+  host = host.replaceFirst(RegExp(r'^(https?|wss?):\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+
+  final cleanPath = path.isEmpty ? '' : (path.startsWith('/') ? path : '/$path');
+
+  if (host.contains(':')) {
+    final scheme = isWss ? 'wss' : 'ws';
+    return '$scheme://$host$cleanPath';
+  }
+
+  if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
+    if (defaultPort == 443 || isWss) {
+      return 'wss://$host$cleanPath';
+    } else if (defaultPort == 80) {
+      return 'ws://$host$cleanPath';
+    }
+  }
+
+  final scheme = isWss ? 'wss' : 'ws';
+  return '$scheme://$host:$defaultPort$cleanPath';
+}
+
+/// Extracts pure IP or Hostname for gRPC ClientChannel (removes protocol and ports).
+String cleanGrpcHost(String serverHost) {
+  String host = serverHost.trim();
+  if (host.isEmpty) return '127.0.0.1';
+  host = host.replaceFirst(RegExp(r'^(https?|wss?):\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+  if (host.contains(':')) {
+    host = host.split(':').first;
+  }
+  return host;
+}
+
 /// Theme check interval.
 const Duration kThemeCheckInterval = Duration(minutes: 5);
 

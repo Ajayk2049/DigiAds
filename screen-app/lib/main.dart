@@ -12,9 +12,45 @@ import 'package:permission_handler/permission_handler.dart';
 import 'generated/device.pbgrpc.dart';
 
 // ---------------------------------------------------------------------------
-// App State Machine
+// App State Machine & Dynamic Server URL Builder
 // ---------------------------------------------------------------------------
 enum PlayerState { booting, waiting, playing }
+
+String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+  String host = serverHost.trim();
+  if (host.isEmpty) return '';
+
+  bool isHttps = host.startsWith('https://');
+  host = host.replaceFirst(RegExp(r'^https?:\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+
+  final cleanPath = path.isEmpty ? '' : (path.startsWith('/') ? path : '/$path');
+
+  if (host.contains(':')) {
+    final scheme = isHttps ? 'https' : 'http';
+    return '$scheme://$host$cleanPath';
+  }
+
+  if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
+    if (defaultPort == 443 || isHttps) {
+      return 'https://$host$cleanPath';
+    } else if (defaultPort == 80) {
+      return 'http://$host$cleanPath';
+    }
+  }
+
+  final scheme = isHttps ? 'https' : 'http';
+  return '$scheme://$host:$defaultPort$cleanPath';
+}
+
+String cleanGrpcHost(String serverHost) {
+  String host = serverHost.trim();
+  if (host.isEmpty) return '127.0.0.1';
+  host = host.replaceFirst(RegExp(r'^(https?|wss?):\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+  if (host.contains(':')) {
+    host = host.split(':').first;
+  }
+  return host;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,6 +227,7 @@ class ScreenSetupScreen extends StatefulWidget {
 
 class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   late final TextEditingController _serverHostController;
+  late final TextEditingController _serverPortController;
   late final TextEditingController _deviceIdController;
   String _error = '';
   bool _loading = false;
@@ -198,13 +235,24 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _serverHostController = TextEditingController(text: widget.initialServerHost ?? '');
+    String rawHost = widget.initialServerHost ?? '';
+    String defaultPort = '4000';
+    if (rawHost.contains(':')) {
+      final parts = rawHost.split(':');
+      rawHost = parts[0];
+      if (parts.length > 1 && parts[1].isNotEmpty) {
+        defaultPort = parts[1];
+      }
+    }
+    _serverHostController = TextEditingController(text: rawHost);
+    _serverPortController = TextEditingController(text: defaultPort);
     _deviceIdController = TextEditingController(text: widget.initialDeviceId ?? '');
   }
 
   @override
   void dispose() {
     _serverHostController.dispose();
+    _serverPortController.dispose();
     _deviceIdController.dispose();
     super.dispose();
   }
@@ -215,18 +263,13 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
       _loading = true;
     });
 
-    var serverHost = _serverHostController.text.trim();
-    if (serverHost.startsWith('http://')) {
-      serverHost = serverHost.replaceAll('http://', '');
-    } else if (serverHost.startsWith('https://')) {
-      serverHost = serverHost.replaceAll('https://', '');
-    }
-    if (serverHost.contains(':')) {
-      serverHost = serverHost.split(':').first;
-    }
+    final host = _serverHostController.text.trim();
+    final portStr = _serverPortController.text.trim();
+    final port = int.tryParse(portStr) ?? 4000;
+    final serverHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
     final deviceId = _deviceIdController.text.trim();
 
-    if (serverHost.isEmpty || deviceId.isEmpty) {
+    if (host.isEmpty || deviceId.isEmpty) {
       setState(() {
         _error = 'Both Server Host / IP and Device ID are required.';
         _loading = false;
@@ -242,7 +285,7 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
         await prefs.setString('hardware_id', hardwareId);
       }
 
-      final url = Uri.parse('http://$serverHost:4200/api/v1/auth/device/activate');
+      final url = Uri.parse(buildServerUrl(serverHost, defaultPort: port, path: '/api/v1/auth/device/activate'));
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -273,7 +316,7 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Connection failed: Ensure server is running and reachable at $serverHost:4200';
+        _error = 'Connection failed: Ensure server is running and reachable at $serverHost';
         _loading = false;
       });
     }
@@ -338,16 +381,40 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                TextField(
-                  controller: _serverHostController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: "Server Host / IP Address",
-                    hintText: "e.g. 192.168.1.100 or cms.digiads.space",
-                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                    prefixIcon: const Icon(Icons.dns_rounded, color: Colors.indigoAccent),
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: TextField(
+                        controller: _serverHostController,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          labelText: "Server Host / IP Address",
+                          hintText: "e.g. 192.168.1.100 or api.digiads.space",
+                          hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          prefixIcon: const Icon(Icons.dns_rounded, color: Colors.indigoAccent),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: _serverPortController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          labelText: "Port",
+                          hintText: "4000",
+                          hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                          prefixIcon: const Icon(Icons.numbers_rounded, color: Colors.indigoAccent),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -578,7 +645,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   // =====================================================================
   void _initGrpc() {
     _channel = ClientChannel(
-      widget.serverHost,
+      cleanGrpcHost(widget.serverHost),
       port: 4201,
       options: const ChannelOptions(
         credentials: ChannelCredentials.insecure(),
@@ -625,7 +692,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     print('[SYNC] Attempting server sync (retry #$_syncRetryCount)...');
 
     try {
-      final url = Uri.parse('http://${widget.serverHost}:4200/api/v1/auth/device/ads');
+      final url = Uri.parse(buildServerUrl(widget.serverHost, path: '/api/v1/auth/device/ads'));
       final response = await http.get(
         url,
         headers: {'Authorization': 'Bearer ${widget.token}'},
@@ -718,7 +785,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
           // Video ad — download as ad_[bookingId].[ext]
           final absoluteUrl = mediaUrl.startsWith('http')
               ? mediaUrl
-              : 'http://${widget.serverHost}:4200$mediaUrl';
+              : buildServerUrl(widget.serverHost, path: mediaUrl);
 
           final fileExt = mediaUrl.split('.').last;
           final fileName = 'ad_$bookingId.$fileExt';
@@ -742,7 +809,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
           // Image ad — download and register as img__ entry
           final absoluteUrl = mediaUrl.startsWith('http')
               ? mediaUrl
-              : 'http://${widget.serverHost}:4200$mediaUrl';
+              : buildServerUrl(widget.serverHost, path: mediaUrl);
 
           final fileExt = mediaUrl.split('.').last;
           final fileName = 'img_$bookingId.$fileExt';
@@ -822,7 +889,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       return;
     }
 
-    // Currently playing -> check if the active ad is still in the new playlist
+    // Currently playing -> preserve active ad playback without interrupting active stream
     final currentPlayingSource = _localPlaylist.isNotEmpty && _currentAdIndex < _localPlaylist.length
         ? _localPlaylist[_currentAdIndex]
         : '';
@@ -837,15 +904,11 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       });
       _cleanupOldFiles(activeFileNames);
     } else {
-      print('[PLAYER] Currently playing ad is no longer active. Advancing.');
-      _staticAdTimer?.cancel();
-      _videoWatchdogTimer?.cancel();
+      print('[PLAYER] Playlist updated. Active ad will finish before transitioning to new playlist.');
       setState(() {
         _localPlaylist = eligible;
-        _currentAdIndex = _currentAdIndex % eligible.length;
       });
       _cleanupOldFiles(activeFileNames);
-      _playCurrentAd();
     }
   }
 
@@ -1452,7 +1515,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         ),
       );
     } else {
-      // Full-content aspect-ratio video player with pure black letterboxing & micro-overscan to eliminate decoder chroma lines
+      // Full-content aspect-ratio video player with pure black letterboxing (0% crop)
       final isReady = _videoController != null && _videoController!.value.isInitialized;
       if (isReady) {
         final aspect = _videoController!.value.aspectRatio;
@@ -1463,12 +1526,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
           child: Center(
             child: AspectRatio(
               aspectRatio: aspect > 0 ? aspect : 16 / 9,
-              child: ClipRect(
-                child: Transform.scale(
-                  scale: 1.025, // 2.5% micro-overscan pushes hardware decoder's green macroblock padding outside the clip boundary
-                  child: VideoPlayer(_videoController!),
-                ),
-              ),
+              child: VideoPlayer(_videoController!),
             ),
           ),
         );

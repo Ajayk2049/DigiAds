@@ -1,40 +1,5 @@
 const HostApplication = require('../models/HostApplication');
-
-// Known default coordinates for Indian cities to provide fallback geo-anchors
-const CITY_COORDINATES = {
-  'bengaluru': { lat: 12.9716, lng: 77.5946 },
-  'bangalore': { lat: 12.9716, lng: 77.5946 },
-  'mumbai': { lat: 19.0760, lng: 72.8777 },
-  'delhi': { lat: 28.6139, lng: 77.2090 },
-  'new delhi': { lat: 28.6139, lng: 77.2090 },
-  'hyderabad': { lat: 17.3850, lng: 78.4867 },
-  'chennai': { lat: 13.0827, lng: 80.2707 },
-  'pune': { lat: 18.5204, lng: 73.8567 },
-  'kolkata': { lat: 22.5726, lng: 88.3639 },
-  'ahmedabad': { lat: 23.0225, lng: 72.5714 },
-  'jaipur': { lat: 26.9124, lng: 75.7873 },
-  'chandigarh': { lat: 30.7333, lng: 76.7794 },
-  'kochi': { lat: 9.9312, lng: 76.2673 },
-  'coimbatore': { lat: 11.0168, lng: 76.9558 },
-  'indore': { lat: 22.7196, lng: 75.8577 },
-  'surat': { lat: 21.1702, lng: 72.8311 },
-  'lucknow': { lat: 26.8467, lng: 80.9462 },
-  'patna': { lat: 25.5941, lng: 85.1376 },
-  'nagpur': { lat: 21.1458, lng: 79.0882 },
-  'goa': { lat: 15.2993, lng: 74.1240 }
-};
-
-// Deterministic small coordinate jitter so multiple venues in the same city don't stack on exact same pixel
-function getDeterministicOffset(idString) {
-  let hash = 0;
-  for (let i = 0; i < idString.length; i++) {
-    hash = (hash << 5) - hash + idString.charCodeAt(i);
-    hash |= 0;
-  }
-  const latOffset = ((Math.abs(hash) % 100) - 50) * 0.0008; // ~±400m
-  const lngOffset = ((Math.abs(hash >> 3) % 100) - 50) * 0.0008;
-  return { latOffset, lngOffset };
-}
+const geocodeService = require('../services/geocodeService');
 
 class PublicController {
   /**
@@ -89,12 +54,9 @@ class PublicController {
         let lat = v.latitude;
         let lng = v.longitude;
 
-        if (!lat || !lng) {
-          const cityKey = (v.city || '').toLowerCase().trim();
-          const baseCoord = CITY_COORDINATES[cityKey] || { lat: 12.9716, lng: 77.5946 };
-          const { latOffset, lngOffset } = getDeterministicOffset(idStr);
-          lat = Number((baseCoord.lat + latOffset).toFixed(6));
-          lng = Number((baseCoord.lng + lngOffset).toFixed(6));
+        if (!geocodeService.isValidCoordinate(lat, lng)) {
+          lat = 12.9716;
+          lng = 77.5946;
         }
 
         const hasTablets = Boolean(v.requestTablet && (v.tabletQuantity || 0) > 0);
@@ -112,8 +74,8 @@ class PublicController {
           zipCode: v.zipCode || '',
           hasTablets,
           hasScreens,
-          latitude: lat,
-          longitude: lng,
+          latitude: Number(Number(lat).toFixed(6)),
+          longitude: Number(Number(lng).toFixed(6)),
           createdAt: v.createdAt
         };
       });

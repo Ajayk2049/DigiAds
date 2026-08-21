@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
+import 'constants.dart';
 import 'generated/menu.pbgrpc.dart';
 
 /// Downloads and caches food-menu images to local app storage so the
@@ -83,11 +84,10 @@ class MenuImageCache {
     if (imageUrl.isEmpty) return '';
     if (imageUrl.contains('/uploads/')) {
       final sub = imageUrl.split('/uploads/')[1];
-      return 'http://$serverHost:$httpPort/uploads/$sub';
+      return buildServerUrl(serverHost, defaultPort: httpPort, path: '/uploads/$sub');
     }
     if (imageUrl.startsWith('http')) return imageUrl;
-    final cleanPath = imageUrl.startsWith('/') ? imageUrl : '/$imageUrl';
-    return 'http://$serverHost:$httpPort$cleanPath';
+    return buildServerUrl(serverHost, defaultPort: httpPort, path: imageUrl);
   }
 
   /// Local on-disk file for a given item, or null if not yet cached.

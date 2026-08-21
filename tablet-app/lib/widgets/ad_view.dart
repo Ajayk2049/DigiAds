@@ -197,17 +197,6 @@ class AdViewWidget extends StatelessWidget {
   }
 
   Widget _buildVideoView(String videoPath) {
-    final videoPaths = playerState.value.playlist
-        .where((path) => !path.startsWith('static__') && path.isNotEmpty)
-        .toList();
-
-    final currentSource = playerState.value.currentSource;
-    int initialIndex = 0;
-    if (!currentSource.startsWith('static__') && currentSource.isNotEmpty) {
-      initialIndex = videoPaths.indexOf(currentSource);
-      if (initialIndex < 0) initialIndex = 0;
-    }
-
     return RepaintBoundary(
       child: Container(
         color: Colors.black,
@@ -219,8 +208,8 @@ class AdViewWidget extends StatelessWidget {
               key: const Key('native_ad_player'),
               viewType: 'native_video_view',
               creationParams: {
-                'paths': videoPaths,
-                'initialIndex': initialIndex,
+                'path': videoPath,
+                'paths': [videoPath],
               },
               creationParamsCodec: const StandardMessageCodec(),
             ),

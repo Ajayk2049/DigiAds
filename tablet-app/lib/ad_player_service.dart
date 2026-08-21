@@ -30,6 +30,7 @@ class AdPlayerService {
   static const MethodChannel _channel = MethodChannel('com.digiads.tabletop/native_video');
 
   List<String> _playlist = [];
+  List<String>? _pendingPlaylist;
   int _currentIndex = 0;
   String _previousSource = '';
   Timer? _staticTimer;
@@ -47,33 +48,37 @@ class AdPlayerService {
   void startLoop(List<String> playlist) {
     if (_disposed) return;
     _playlist = List.from(playlist);
+    _pendingPlaylist = null;
     _currentIndex = 0;
-    _sendPlaylistToNative();
     _playCurrent();
   }
 
   void updatePlaylist(List<String> newPlaylist) {
     if (_disposed) return;
+
     if (newPlaylist.isEmpty) {
       _stopAndClear();
       _playlist = [];
+      _pendingPlaylist = null;
       _currentIndex = 0;
-      _channel.invokeMethod('setPlaylist', {'paths': <String>[]});
+      _channel.invokeMethod('stopVideo');
       _emitState();
       return;
     }
-    final oldSource = _currentSource;
-    _playlist = List.from(newPlaylist);
-    _sendPlaylistToNative();
 
-    final oldIndex = newPlaylist.indexOf(oldSource);
-    if (oldIndex >= 0) {
-      _currentIndex = oldIndex;
-    } else {
+    // If currently idle or no ads playing, apply immediately
+    if (_playlist.isEmpty || _isPaused) {
+      _playlist = List.from(newPlaylist);
+      _pendingPlaylist = null;
       _currentIndex = 0;
-      if (!_isPaused && oldSource != _currentSource) _playCurrent();
+      if (!_isPaused) _playCurrent();
+      _emitState();
+      return;
     }
-    _emitState();
+
+    // If actively playing an ad, queue as pending so the active ad finishes gracefully
+    _pendingPlaylist = List.from(newPlaylist);
+    debugPrint('[AD_PLAYER] New playlist queued as pending (${newPlaylist.length} ads). Active ad will finish.');
   }
 
   void pause() {
@@ -86,7 +91,11 @@ class AdPlayerService {
   void resume() {
     if (_disposed) return;
     _isPaused = false;
-    _sendPlaylistToNative();
+    if (_pendingPlaylist != null) {
+      _playlist = List.from(_pendingPlaylist!);
+      _pendingPlaylist = null;
+      _currentIndex = 0;
+    }
     if (_playlist.isNotEmpty) {
       _playCurrent();
     }
@@ -103,22 +112,6 @@ class AdPlayerService {
       _currentIndex >= 0 && _currentIndex < _playlist.length
           ? _playlist[_currentIndex]
           : '';
-
-  void _sendPlaylistToNative() {
-    final videoPaths = _playlist
-        .where((path) => !path.startsWith('static__') && !path.startsWith('img__') && path.isNotEmpty)
-        .toList();
-    final currentSource = _currentSource;
-    int nativeIndex = 0;
-    if (!currentSource.startsWith('static__') && !currentSource.startsWith('img__') && currentSource.isNotEmpty) {
-      nativeIndex = videoPaths.indexOf(currentSource);
-      if (nativeIndex < 0) nativeIndex = 0;
-    }
-    _channel.invokeMethod('setPlaylist', {
-      'paths': videoPaths,
-      'currentIndex': nativeIndex,
-    });
-  }
 
   void _playCurrent() {
     if (_disposed) return;
@@ -141,15 +134,16 @@ class AdPlayerService {
       return;
     }
 
+    // Video playback
     _staticTimer?.cancel();
     _videoWatchdogTimer?.cancel();
     _emitState();
     if (!_isPaused) {
-      _channel.invokeMethod('play');
-      // Watchdog timer: if native video completes, crashes or freezes, auto-advance after 32s
-      _videoWatchdogTimer = Timer(const Duration(seconds: 32), () {
+      _channel.invokeMethod('playVideo', {'path': source});
+      // Watchdog timer: auto-advance only if hardware media decoder hangs completely
+      _videoWatchdogTimer = Timer(const Duration(seconds: 35), () {
         if (!_disposed && !_isPaused) {
-          debugPrint('[AD_PLAYER] Video watchdog timer expired (32s). Advancing ad.');
+          debugPrint('[AD_PLAYER] Video watchdog timer expired (35s) for $source. Advancing.');
           _advance();
         }
       });
@@ -157,17 +151,49 @@ class AdPlayerService {
   }
 
   void _advance() {
-    if (_disposed || _playlist.isEmpty || _isPaused) return;
+    if (_disposed || _isPaused) return;
 
     _staticTimer?.cancel();
     _videoWatchdogTimer?.cancel();
 
-    // If there is only 1 ad in the playlist, do not re-trigger transitions or native pause
+    // Check if a pending playlist was queued during playback of the finished ad
+    if (_pendingPlaylist != null) {
+      final pending = _pendingPlaylist!;
+      _pendingPlaylist = null;
+      _previousSource = _currentSource;
+      _playlist = List.from(pending);
+
+      if (_playlist.isEmpty) {
+        _stopAndClear();
+        _currentIndex = 0;
+        _channel.invokeMethod('stopVideo');
+        _emitState();
+        return;
+      }
+
+      final prevIdx = _playlist.indexOf(_previousSource);
+      if (prevIdx >= 0) {
+        _currentIndex = (prevIdx + 1) % _playlist.length;
+      } else {
+        _currentIndex = 0;
+      }
+      _playCurrent();
+      return;
+    }
+
+    if (_playlist.isEmpty) return;
+
+    // Single-item repeat loop
     if (_playlist.length <= 1) {
-      onImpression?.call(_currentSource, kStaticAdDisplayDuration.inSeconds);
-      _staticTimer = Timer(kStaticAdDisplayDuration, () {
-        if (!_disposed && !_isPaused) _advance();
-      });
+      final source = _currentSource;
+      if (source.startsWith('static__') || source.startsWith('img__')) {
+        onImpression?.call(source, kStaticAdDisplayDuration.inSeconds);
+        _staticTimer = Timer(kStaticAdDisplayDuration, () {
+          if (!_disposed && !_isPaused) _advance();
+        });
+      } else {
+        _playCurrent();
+      }
       return;
     }
 
@@ -187,8 +213,8 @@ class AdPlayerService {
     switch (call.method) {
       case 'onVideoComplete':
         _videoWatchdogTimer?.cancel();
-        final args = call.arguments as Map;
-        final dur = (args['duration'] as num?)?.toInt() ?? 0;
+        final args = call.arguments as Map?;
+        final dur = (args?['duration'] as num?)?.toInt() ?? 0;
         onImpression?.call(_currentSource, dur > 0 ? dur : 30);
         if (!_disposed && !_isPaused) _advance();
         break;

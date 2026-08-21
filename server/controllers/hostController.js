@@ -3,6 +3,7 @@ const Menu = require('../models/Menu');
 const Device = require('../models/Device');
 const Order = require('../models/Order');
 const { generateUniqueCustomId } = require('../utils/idGenerator');
+const geocodeService = require('../services/geocodeService');
 
 // Utility to push session update to device via WebSocket
 async function notifyDeviceSessionUpdate(order) {
@@ -197,6 +198,16 @@ class HostController {
 
       const venueId = await generateUniqueCustomId(HostApplication, 'venueId', 'VEN_');
 
+      // Auto-resolve geo-coordinates (client GPS or multi-tier OSM Nominatim geocoding)
+      const resolvedGeo = await geocodeService.resolveCoordinates({
+        latitude: req.body.latitude,
+        longitude: req.body.longitude,
+        street,
+        city,
+        state,
+        zipCode
+      });
+
       const application = new HostApplication({
         venueId,
         userId: req.user.uid,
@@ -207,6 +218,8 @@ class HostController {
         city,
         state,
         zipCode,
+        latitude: resolvedGeo.latitude,
+        longitude: resolvedGeo.longitude,
         contactPerson,
         phone,
         email,
@@ -291,6 +304,36 @@ class HostController {
       const application = await HostApplication.findOne({ _id: applicationId, userId: req.user.uid });
       if (!application) {
         return res.status(404).send({ success: false, message: 'Host application not found' });
+      }
+
+      const addressChanged = (
+        application.doorNo !== doorNo ||
+        application.street !== street ||
+        application.city !== city ||
+        application.state !== state ||
+        application.zipCode !== zipCode
+      );
+
+      if (req.body.latitude !== undefined && req.body.longitude !== undefined && req.body.latitude !== null && req.body.longitude !== null) {
+        const resolvedGeo = await geocodeService.resolveCoordinates({
+          latitude: req.body.latitude,
+          longitude: req.body.longitude,
+          street,
+          city,
+          state,
+          zipCode
+        });
+        application.latitude = resolvedGeo.latitude;
+        application.longitude = resolvedGeo.longitude;
+      } else if (addressChanged || application.latitude === null || application.latitude === undefined || application.longitude === null || application.longitude === undefined) {
+        const resolvedGeo = await geocodeService.resolveCoordinates({
+          street,
+          city,
+          state,
+          zipCode
+        });
+        application.latitude = resolvedGeo.latitude;
+        application.longitude = resolvedGeo.longitude;
       }
 
       application.outletName = outletName;

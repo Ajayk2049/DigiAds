@@ -154,15 +154,27 @@ export default function LocationsPage() {
     Object.values(markersRef.current).forEach((marker) => marker.remove());
     markersRef.current = {};
 
-    if (venues.length === 0) return;
-
     const bounds = [];
+    const coordCounts = {};
 
     venues.forEach((venue) => {
       if (!venue.latitude || !venue.longitude) return;
 
       const latLng = [venue.latitude, venue.longitude];
       bounds.push(latLng);
+
+      // Micro-spread only if 2 venues have exact identical coordinates (e.g. food court)
+      const coordKey = `${venue.latitude.toFixed(4)}_${venue.longitude.toFixed(4)}`;
+      const count = coordCounts[coordKey] || 0;
+      coordCounts[coordKey] = count + 1;
+
+      let plotLat = venue.latitude;
+      let plotLng = venue.longitude;
+      if (count > 0) {
+        const angle = count * 1.05;
+        plotLat += 0.00022 * Math.sin(angle);
+        plotLng += 0.00022 * Math.cos(angle);
+      }
 
       // Custom blue pin-drop marker with flag highlight
       const customIcon = L.divIcon({
@@ -185,16 +197,21 @@ export default function LocationsPage() {
         popupAnchor: [0, -42]
       });
 
-      const marker = L.marker(latLng, { icon: customIcon }).addTo(map);
+      const marker = L.marker([plotLat, plotLng], { icon: customIcon }).addTo(map);
 
       // Custom popup HTML with blue theme
       const popupContent = `
-        <div class="p-3.5 font-sans min-w-[230px]">
-          <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-100 text-[#0069a8] border border-sky-300">
-            ${venue.category || 'Restaurant'}
-          </span>
+        <div class="p-3.5 font-sans min-w-[240px]">
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-100 text-[#0069a8] border border-sky-300">
+              ${venue.category || 'Restaurant'}
+            </span>
+            <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+              ${venue.venueId || ''}
+            </span>
+          </div>
           <h4 class="font-bold text-sm text-slate-900 mt-1.5">${venue.outletName}</h4>
-          <p class="text-xs text-slate-500 mt-0.5">📍 ${venue.street ? venue.street + ', ' : ''}${venue.city}</p>
+          <p class="text-xs text-slate-500 mt-0.5 leading-tight">📍 ${venue.street ? venue.street + ', ' : ''}${venue.city}, ${venue.state}${venue.zipCode ? ' - ' + venue.zipCode : ''}</p>
           <div class="flex items-center gap-1.5 mt-2.5 text-[11px] font-semibold text-slate-700">
             ${venue.hasTablets ? '<span class="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">📱 Tablets</span>' : ''}
             ${venue.hasScreens ? '<span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">📺 Screens</span>' : ''}
@@ -211,7 +228,9 @@ export default function LocationsPage() {
       markersRef.current[venue._id] = marker;
     });
 
-    if (bounds.length > 0) {
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 14);
+    } else if (bounds.length > 1) {
       map.fitBounds(bounds, { padding: [80, 80], maxZoom: 15 });
     }
   }, [venues, mapLoaded]);

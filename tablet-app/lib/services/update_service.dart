@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import '../constants.dart';
 
 /// Top-level function for background isolate SHA-256 calculation
 String _calculateFileSha256(String filePath) {
@@ -37,7 +38,7 @@ class UpdateService {
       final currentVersionCode = int.tryParse(currentInfo.buildNumber) ?? 1;
 
       // Construct zero-hardcoded dynamic server URL using saved serverHost
-      final url = Uri.parse('http://$serverHost:4200/api/v1/releases/latest?appType=TABLET_APP');
+      final url = Uri.parse(buildServerUrl(serverHost, path: '/api/v1/releases/latest?appType=TABLET_APP'));
       final res = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (res.statusCode != 200) {
@@ -83,7 +84,7 @@ class UpdateService {
       if (!isDownloadedAndVerified) {
         _isDownloading = true;
         debugPrint('[OTA] Streaming update download from $downloadPath...');
-        final downloadUrl = Uri.parse('http://$serverHost:4200$downloadPath');
+        final downloadUrl = Uri.parse(buildServerUrl(serverHost, path: downloadPath));
         
         final client = http.Client();
         final request = http.Request('GET', downloadUrl);

@@ -173,9 +173,9 @@ class VideoQueueService {
             .noAudio()                 // Strip audio stream for silent kiosk video playback
             .renice(15)                // Low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
             .videoFilters([
-              'scale=w=\'min(1920,iw)\':h=\'min(1080,ih)\':force_original_aspect_ratio=decrease',
+              'scale=w=\'if(gt(iw,ih),min(1920,iw),min(720,iw))\':h=\'if(gt(iw,ih),min(1080,ih),min(1280,ih))\':force_original_aspect_ratio=decrease',
               'scale=trunc(iw/16)*16:trunc(ih/16)*16'
-            ]) // Guarantees max 1080p bound and 16-pixel macroblock alignment for Android MediaCodec decoders
+            ]) // Guarantees 720x1280 (9:16) for portrait tablets, 1920x1080 for landscape screens, and 16-pixel macroblock alignment
             .outputOptions([
               '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
               '-profile:v baseline',   // Android Baseline 3.1 compatibility

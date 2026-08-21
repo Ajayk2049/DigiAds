@@ -616,11 +616,10 @@ export default function LandingPage() {
                           <button
                             key={i}
                             onClick={() => setTabletIndex(i)}
-                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
-                              tabletIndex === i
+                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${tabletIndex === i
                                 ? 'w-9 bg-[#0069a8] shadow-sm shadow-[#0069a8]/40'
                                 : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
-                            }`}
+                              }`}
                             aria-label={`Go to slide ${i + 1}`}
                           />
                         ))}
@@ -660,11 +659,10 @@ export default function LandingPage() {
                           <button
                             key={i}
                             onClick={() => setScreenIndex(i)}
-                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
-                              screenIndex === i
+                            className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${screenIndex === i
                                 ? 'w-9 bg-indigo-600 shadow-sm shadow-indigo-600/40'
                                 : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
-                            }`}
+                              }`}
                             aria-label={`Go to slide ${i + 1}`}
                           />
                         ))}
@@ -1047,7 +1045,6 @@ export default function LandingPage() {
             <a href="#demo" className="hover:text-foreground transition-colors">Devices</a>
             <a href="/locations" className="hover:text-foreground transition-colors text-[#0069a8]">Locations</a>
             <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
-            <a href="#telemetry" className="hover:text-foreground transition-colors">Telemetry</a>
             <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
             <a href="#about" className="hover:text-foreground transition-colors">About Us</a>
           </div>

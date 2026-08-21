@@ -45,10 +45,14 @@ import {
   Download,
   Calendar,
   Search,
-  Loader2
+  Loader2,
+  MapPin,
+  Navigation,
+  Compass
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import LocationPicker from '@/components/LocationPicker';
 
 import { config } from '@/config';
 
@@ -206,8 +210,58 @@ export default function MerchantDashboard() {
     zipCode: '',
     contactPerson: '',
     phone: '',
-    email: ''
+    email: '',
+    latitude: null,
+    longitude: null
   });
+  const [detectingGps, setDetectingGps] = useState(false);
+  const [editDetectingGps, setEditDetectingGps] = useState(false);
+
+  const handleDetectGps = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setForm(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        setDetectingGps(false);
+        showToast(`📍 Exact Store GPS Detected: ${lat}, ${lng}`, 'success');
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setDetectingGps(false);
+        showToast('Unable to detect location. Please check browser location permissions.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const handleEditDetectGps = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    setEditDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setEditAppForm(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        setEditDetectingGps(false);
+        showToast(`📍 Exact Store GPS Detected: ${lat}, ${lng}`, 'success');
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setEditDetectingGps(false);
+        showToast('Unable to detect location. Please check browser location permissions.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
   const [editAppZipError, setEditAppZipError] = useState('');
   const [editAppLoading, setEditAppLoading] = useState(false);
   const [editAppError, setEditAppError] = useState('');
@@ -628,6 +682,8 @@ export default function MerchantDashboard() {
     contactPerson: '',
     phone: '',
     email: '',
+    latitude: null,
+    longitude: null,
     requestTablet: false,
     tabletQuantity: '1',
     requestScreen: false,
@@ -1777,6 +1833,8 @@ export default function MerchantDashboard() {
         contactPerson: form.contactPerson,
         phone: form.phone,
         email: form.email,
+        latitude: form.latitude || null,
+        longitude: form.longitude || null,
         requestTablet: !!form.requestTablet,
         tabletQuantity: form.requestTablet ? parseInt(form.tabletQuantity, 10) : 0,
         requestScreen: !!form.requestScreen,
@@ -1804,6 +1862,8 @@ export default function MerchantDashboard() {
         contactPerson: '',
         phone: '',
         email: '',
+        latitude: null,
+        longitude: null,
         requestTablet: false,
         tabletQuantity: '1',
         requestScreen: false,
@@ -2502,6 +2562,8 @@ export default function MerchantDashboard() {
       contactPerson: appToEdit.contactPerson || '',
       phone: appToEdit.phone || '',
       email: appToEdit.email || '',
+      latitude: appToEdit.latitude || null,
+      longitude: appToEdit.longitude || null,
       adMode: appToEdit.adMode || 'open',
       allowOpenAds: appToEdit.allowOpenAds !== undefined ? appToEdit.allowOpenAds : true
     });
@@ -3249,6 +3311,17 @@ export default function MerchantDashboard() {
                     </select>
                   </div>
                 </div>
+
+                {/* Storefront GPS & Map Verification */}
+                <LocationPicker
+                  latitude={form.latitude}
+                  longitude={form.longitude}
+                  onChange={({ latitude, longitude }) => setForm(prev => ({ ...prev, latitude, longitude }))}
+                  onDetectGps={handleDetectGps}
+                  isDetectingGps={detectingGps}
+                  addressHint={`${form.doorNo} ${form.street}, ${form.city}`}
+                  title="Storefront GPS & Map Placement"
+                />
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
@@ -5602,6 +5675,17 @@ export default function MerchantDashboard() {
                   </select>
                 </div>
               </div>
+
+              {/* Storefront GPS & Map Verification */}
+              <LocationPicker
+                latitude={editAppForm.latitude}
+                longitude={editAppForm.longitude}
+                onChange={({ latitude, longitude }) => setEditAppForm(prev => ({ ...prev, latitude, longitude }))}
+                onDetectGps={handleEditDetectGps}
+                isDetectingGps={editDetectingGps}
+                addressHint={`${editAppForm.doorNo} ${editAppForm.street}, ${editAppForm.city}`}
+                title="Storefront GPS & Map Placement"
+              />
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>

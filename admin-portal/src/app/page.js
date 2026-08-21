@@ -56,7 +56,9 @@ import {
   Layers,
   Play,
   Tablet,
-  Activity
+  Activity,
+  ExternalLink,
+  Navigation
 } from 'lucide-react';
 import { config } from '@/config';
 
@@ -1508,14 +1510,15 @@ export default function AdminPortal() {
     if (!searchQuery) return true;
     const query = searchQuery.trim().toLowerCase();
     return (
-      h._id.toLowerCase().includes(query) ||
-      h.outletName.toLowerCase().includes(query) ||
-      h.contactPerson.toLowerCase().includes(query) ||
+      (h._id?.toString() || '').toLowerCase().includes(query) ||
+      (h.venueId || '').toLowerCase().includes(query) ||
+      (h.outletName || '').toLowerCase().includes(query) ||
+      (h.contactPerson || '').toLowerCase().includes(query) ||
       (h.userId?.name || '').toLowerCase().includes(query) ||
-      h.phone.includes(query) ||
+      (h.phone || '').includes(query) ||
       (h.email || '').toLowerCase().includes(query) ||
-      h.city.toLowerCase().includes(query) ||
-      h.state.toLowerCase().includes(query)
+      (h.city || '').toLowerCase().includes(query) ||
+      (h.state || '').toLowerCase().includes(query)
     );
   });
 
@@ -1532,14 +1535,15 @@ export default function AdminPortal() {
     if (!searchQuery) return true;
     const query = searchQuery.trim().toLowerCase();
     return (
-      h._id.toLowerCase().includes(query) ||
-      h.outletName.toLowerCase().includes(query) ||
-      h.contactPerson.toLowerCase().includes(query) ||
+      (h._id?.toString() || '').toLowerCase().includes(query) ||
+      (h.venueId || '').toLowerCase().includes(query) ||
+      (h.outletName || '').toLowerCase().includes(query) ||
+      (h.contactPerson || '').toLowerCase().includes(query) ||
       (h.userId?.name || '').toLowerCase().includes(query) ||
-      h.phone.includes(query) ||
+      (h.phone || '').includes(query) ||
       (h.email || '').toLowerCase().includes(query) ||
-      h.city.toLowerCase().includes(query) ||
-      h.state.toLowerCase().includes(query)
+      (h.city || '').toLowerCase().includes(query) ||
+      (h.state || '').toLowerCase().includes(query)
     );
   });
 
@@ -1619,7 +1623,7 @@ export default function AdminPortal() {
                   placeholder="admin@digiads.com or +91..."
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  className="w-full bg-background/50 border border-border rounded-xl pl-10 pr-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                  className="w-full bg-card border border-border/80 rounded-xl pl-10 pr-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground shadow-sm transition-all"
                 />
               </div>
             </div>
@@ -1636,7 +1640,7 @@ export default function AdminPortal() {
                   placeholder="••••••••••••"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-background/50 border border-border rounded-xl pl-10 pr-10 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                  className="w-full bg-card border border-border/80 rounded-xl pl-10 pr-10 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground shadow-sm transition-all"
                 />
                 <button
                   type="button"
@@ -1658,7 +1662,7 @@ export default function AdminPortal() {
           </form>
 
           <div className="mt-8 pt-6 border-t border-border/50 text-center flex justify-between items-center text-[10px] text-muted-foreground font-medium">
-            <span>Powered by DigiAds Engine</span>
+            <span>DigiAds By AibotInk</span>
             <button onClick={toggleTheme} className="hover:text-foreground flex items-center gap-1 cursor-pointer">
               {theme === 'dark' ? <Sun className="w-3 h-3 text-amber-500" /> : <Moon className="w-3 h-3 text-blue-500" />}
               <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
@@ -3727,11 +3731,10 @@ export default function AdminPortal() {
                     <button
                       type="button"
                       onClick={() => setPlatformAdsSubTab('fallback')}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                        platformAdsSubTab === 'fallback'
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${platformAdsSubTab === 'fallback'
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                        }`}
                     >
                       <Tv className="w-3.5 h-3.5" />
                       <span>Global Fallback Ads ({platformAds.filter(a => a.type === 'fallback').length})</span>
@@ -3740,11 +3743,10 @@ export default function AdminPortal() {
                     <button
                       type="button"
                       onClick={() => setPlatformAdsSubTab('platform')}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                        platformAdsSubTab === 'platform'
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${platformAdsSubTab === 'platform'
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                        }`}
                     >
                       <Megaphone className="w-3.5 h-3.5" />
                       <span>Targeted Platform Ads ({platformAds.filter(a => a.type === 'platform').length})</span>
@@ -3888,11 +3890,10 @@ export default function AdminPortal() {
 
                                   {/* Format */}
                                   <td className="p-4">
-                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                                      isVideo
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isVideo
                                         ? 'bg-purple-500/10 text-purple-500 border-purple-500/20'
                                         : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                                    }`}>
+                                      }`}>
                                       {isVideo ? '🎬 Video' : '🖼️ Image'}
                                     </span>
                                   </td>
@@ -3962,11 +3963,10 @@ export default function AdminPortal() {
                                     <button
                                       type="button"
                                       onClick={() => handleTogglePlatformAdActive(ad)}
-                                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm ${
-                                        ad.isActive
+                                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm ${ad.isActive
                                           ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/25'
                                           : 'bg-muted text-muted-foreground border-border hover:text-foreground'
-                                      }`}
+                                        }`}
                                     >
                                       {ad.isActive ? '● Active' : '○ Inactive'}
                                     </button>
@@ -4315,13 +4315,33 @@ export default function AdminPortal() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="p-4 bg-background/40 rounded-2xl border border-border/40 space-y-2">
-                  <span className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-primary" /> Full Address & Location
-                  </span>
-                  <p className="text-foreground font-semibold">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-primary" /> Full Address & Location
+                    </span>
+                    {selectedHostApp.latitude && selectedHostApp.longitude && (
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedHostApp.latitude},${selectedHostApp.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1"
+                      >
+                        <span>View Map</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-foreground font-semibold text-xs leading-relaxed">
                     {selectedHostApp.doorNo}, {selectedHostApp.street}<br />
                     {selectedHostApp.city}, {selectedHostApp.state} - <span className="font-mono text-primary">{selectedHostApp.zipCode}</span>
                   </p>
+                  {selectedHostApp.latitude && selectedHostApp.longitude ? (
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-[10px] font-mono text-sky-600 dark:text-sky-400">
+                      <span>📍 GPS: {Number(selectedHostApp.latitude).toFixed(4)}, {Number(selectedHostApp.longitude).toFixed(4)}</span>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-muted-foreground italic">GPS: Auto-geocoding upon approval</div>
+                  )}
                 </div>
 
                 <div className="p-4 bg-background/40 rounded-2xl border border-border/40 space-y-2">
@@ -5743,11 +5763,10 @@ export default function AdminPortal() {
                   <button
                     type="button"
                     onClick={() => setCreatePlatformAdForm({ ...createPlatformAdForm, type: 'fallback' })}
-                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
-                      createPlatformAdForm.type === 'fallback'
+                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${createPlatformAdForm.type === 'fallback'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-md'
                         : 'bg-background text-muted-foreground border-input hover:text-foreground'
-                    }`}
+                      }`}
                   >
                     <Tv className="w-3.5 h-3.5" />
                     <span>Global Fallback Ad</span>
@@ -5756,11 +5775,10 @@ export default function AdminPortal() {
                   <button
                     type="button"
                     onClick={() => setCreatePlatformAdForm({ ...createPlatformAdForm, type: 'platform' })}
-                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
-                      createPlatformAdForm.type === 'platform'
+                    className={`py-2.5 px-3 rounded-xl font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${createPlatformAdForm.type === 'platform'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
                         : 'bg-background text-muted-foreground border-input hover:text-foreground'
-                    }`}
+                      }`}
                   >
                     <Megaphone className="w-3.5 h-3.5" />
                     <span>Targeted Platform Ad</span>
@@ -5845,11 +5863,10 @@ export default function AdminPortal() {
                         return (
                           <label
                             key={venue._id}
-                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all ${
-                              isSelected
+                            className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-all ${isSelected
                                 ? 'bg-primary/10 border-primary/40 text-foreground font-bold'
                                 : 'bg-background border-border/50 text-muted-foreground hover:bg-muted/30'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center space-x-2 truncate">
                               <input
@@ -5953,7 +5970,7 @@ export default function AdminPortal() {
                             });
                           }
                         };
-                        video.onerror = () => {};
+                        video.onerror = () => { };
                         video.src = URL.createObjectURL(selected);
                       }
                     }

@@ -233,7 +233,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
   void _initGrpc() {
     _channel = ClientChannel(
-      widget.serverHost,
+      cleanGrpcHost(widget.serverHost),
       port: 4201,
       options: const ChannelOptions(
         credentials: ChannelCredentials.insecure(),
@@ -272,7 +272,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
     try {
       final host = widget.serverHost;
-      final wsUrl = 'ws://$host:4200/ws/device?token=${widget.token}';
+      final wsUrl = buildWsUrl(host, path: '/ws/device?token=${widget.token}');
       debugPrint('[WS] Connecting to $wsUrl');
       
       final newSocket = await WebSocket.connect(wsUrl).timeout(const Duration(seconds: 10));

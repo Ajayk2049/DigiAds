@@ -38,6 +38,7 @@ class DeviceSetupScreen extends StatefulWidget {
 
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   late final TextEditingController _serverHostController;
+  late final TextEditingController _serverPortController;
   late final TextEditingController _deviceIdController;
   late final TextEditingController _passwordController;
   late final TextEditingController _confirmPasswordController;
@@ -104,9 +105,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _serverHostController = TextEditingController(
-      text: widget.isReRun ? (widget.initialServerHost ?? '') : '',
-    );
+    String rawHost = widget.isReRun ? (widget.initialServerHost ?? '') : '';
+    String defaultPort = '4000';
+    if (rawHost.contains(':')) {
+      final parts = rawHost.split(':');
+      rawHost = parts[0];
+      if (parts.length > 1 && parts[1].isNotEmpty) {
+        defaultPort = parts[1];
+      }
+    }
+    _serverHostController = TextEditingController(text: rawHost);
+    _serverPortController = TextEditingController(text: defaultPort);
     _deviceIdController = TextEditingController(
       text: widget.isReRun ? (widget.initialDeviceId ?? '') : '',
     );
@@ -124,6 +133,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   @override
   void dispose() {
     _serverHostController.dispose();
+    _serverPortController.dispose();
     _deviceIdController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -133,6 +143,8 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
 
   Future<void> _testConnection() async {
     final host = _serverHostController.text.trim();
+    final portStr = _serverPortController.text.trim();
+    final port = int.tryParse(portStr) ?? 4000;
     if (host.isEmpty) {
       setState(() {
         _connStatus = _ConnStatus.fail;
@@ -140,30 +152,36 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
       });
       return;
     }
+    final effectiveHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
     setState(() {
       _connStatus = _ConnStatus.testing;
-      _connMessage = 'Testing connection to http://$host:4200 ...';
+      _connMessage = 'Testing connection to $effectiveHost ...';
     });
     try {
-      final url = Uri.parse('http://$host:4200/api/v1/health');
+      final url = Uri.parse(buildServerUrl(effectiveHost, defaultPort: port, path: '/api/v1/health'));
       final resp = await http.get(url).timeout(const Duration(seconds: 5));
       if (!mounted) return;
-      if (resp.statusCode == 200 || resp.statusCode == 404) {
-        setState(() {
-          _connStatus = _ConnStatus.ok;
-          _connMessage = 'Server reachable (HTTP ${resp.statusCode}).';
-        });
-      } else {
-        setState(() {
-          _connStatus = _ConnStatus.fail;
-          _connMessage = 'Server responded with HTTP ${resp.statusCode}.';
-        });
+      if (resp.statusCode == 200) {
+        try {
+          final data = jsonDecode(resp.body);
+          if (data['status'] == 'ok' || data['success'] == true || data['database'] != null) {
+            setState(() {
+              _connStatus = _ConnStatus.ok;
+              _connMessage = 'Connected: Server online & database connected.';
+            });
+            return;
+          }
+        } catch (_) {}
       }
+      setState(() {
+        _connStatus = _ConnStatus.fail;
+        _connMessage = 'Server responded with HTTP ${resp.statusCode} (Not DigiAds API).';
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _connStatus = _ConnStatus.fail;
-        _connMessage = 'Cannot reach $host:4200 — ${_shortError(e)}';
+        _connMessage = 'Cannot reach $effectiveHost — ${_shortError(e)}';
       });
     }
   }
@@ -185,13 +203,16 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
       _loading = true;
     });
 
-    final serverHost = _serverHostController.text.trim();
+    final host = _serverHostController.text.trim();
+    final portStr = _serverPortController.text.trim();
+    final port = int.tryParse(portStr) ?? 4000;
+    final serverHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
     final deviceId = _deviceIdController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
     final tableNumber = _tableNumberController.text.trim();
 
-    if (serverHost.isEmpty || deviceId.isEmpty || password.isEmpty || confirmPassword.isEmpty || tableNumber.isEmpty) {
+    if (host.isEmpty || deviceId.isEmpty || password.isEmpty || confirmPassword.isEmpty || tableNumber.isEmpty) {
       if (!mounted) return;
       setState(() {
         _error = 'All fields are required';
@@ -224,7 +245,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
         await prefs.setString('hardware_id', hardwareId);
       }
 
-      final url = Uri.parse('http://$serverHost:4200/api/v1/auth/device/activate');
+      final url = Uri.parse(buildServerUrl(serverHost, defaultPort: port, path: '/api/v1/auth/device/activate'));
       final response = await http
           .post(url,
               headers: {'Content-Type': 'application/json'},
@@ -352,23 +373,54 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  TextField(
-                    controller: _serverHostController,
-                    decoration: InputDecoration(
-                      labelText: "Server Host / IP",
-                      hintText: "e.g. 192.168.1.100 or 10.0.2.2",
-                      helperText: "Enter local server IP address",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      prefixIcon: const Icon(Icons.lan_outlined),
-                    ),
-                    onChanged: (_) {
-                      if (_connStatus != _ConnStatus.idle) {
-                        setState(() {
-                          _connStatus = _ConnStatus.idle;
-                          _connMessage = '';
-                        });
-                      }
-                    },
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 7,
+                        child: TextField(
+                          controller: _serverHostController,
+                          decoration: InputDecoration(
+                            labelText: "Server Host / IP",
+                            hintText: "e.g. 192.168.1.100 or api.digiads.space",
+                            helperText: "Enter server IP address or domain",
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            prefixIcon: const Icon(Icons.lan_outlined),
+                          ),
+                          onChanged: (_) {
+                            if (_connStatus != _ConnStatus.idle) {
+                              setState(() {
+                                _connStatus = _ConnStatus.idle;
+                                _connMessage = '';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: _serverPortController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: "Port",
+                            hintText: "4000",
+                            helperText: "Default 4000",
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            prefixIcon: const Icon(Icons.numbers_outlined),
+                          ),
+                          onChanged: (_) {
+                            if (_connStatus != _ConnStatus.idle) {
+                              setState(() {
+                                _connStatus = _ConnStatus.idle;
+                                _connMessage = '';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Row(

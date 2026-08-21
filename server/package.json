@@ -8,7 +8,8 @@
     "dev:local": "nodemon server.js --env-file=config/.env.local",
     "prod": "node server.js --env-file=config/.env.prod",
     "reset-db": "node reset_database.js --env-file=config/.env.dev",
-    "reset-db:prod": "node reset_database.js --env-file=config/.env.prod"
+    "reset-db:prod": "node reset_database.js --env-file=config/.env.prod",
+    "backfill:venues": "node scripts/backfillVenueCoordinates.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

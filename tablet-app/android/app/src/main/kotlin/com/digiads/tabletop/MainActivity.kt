@@ -392,17 +392,23 @@ class MainActivity : FlutterActivity() {
 
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
+                "playVideo" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    activeVideoView?.playVideo(path)
+                    result.success(null)
+                }
                 "setPlaylist" -> {
                     val paths = call.argument<List<String>>("paths") ?: emptyList()
                     val index = call.argument<Int>("currentIndex") ?: 0
-                    activeVideoView?.setPlaylist(paths, index)
+                    val targetPath = paths.getOrNull(index) ?: paths.firstOrNull() ?: ""
+                    activeVideoView?.playVideo(targetPath)
                     result.success(null)
                 }
                 "play" -> {
                     activeVideoView?.play()
                     result.success(null)
                 }
-                "pause" -> {
+                "pause", "stopVideo" -> {
                     activeVideoView?.pause()
                     result.success(null)
                 }
@@ -637,8 +643,7 @@ class NativeVideoView(
     private var playerView: androidx.media3.ui.PlayerView? = null
     private val handler = Handler(Looper.getMainLooper())
 
-    private var playlist: List<String> = emptyList()
-    private var currentIndex = 0
+    private var currentVideoPath: String? = null
     private var isPlaying = true
     private var disposed = false
     private var attached = false
@@ -650,9 +655,9 @@ class NativeVideoView(
 
         setBackgroundColor(Color.BLACK)
 
-        playlist = (creationParams?.get("paths") as? List<String>) ?: emptyList()
-        val initialIndex = (creationParams?.get("initialIndex") as? Int) ?: 0
-        currentIndex = if (initialIndex >= 0 && initialIndex < playlist.size) initialIndex else 0
+        val initialPath = (creationParams?.get("path") as? String)
+            ?: (creationParams?.get("paths") as? List<*>)?.firstOrNull() as? String
+        currentVideoPath = initialPath
 
         if (MainActivity.safeMode) {
             Log.w(TAG, "Safe Mode — native video surface suppressed for recovery.")
@@ -676,7 +681,7 @@ class NativeVideoView(
             val pv = androidx.media3.ui.PlayerView(context).apply {
                 layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
                 useController = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setPlayer(player)
             }
             playerView = pv
@@ -685,13 +690,12 @@ class NativeVideoView(
             player.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                        val currentIdx = player.currentMediaItemIndex
                         val durationMs = player.duration
                         val durationSec = if (durationMs > 0) (durationMs / 1000).toInt() else 0
                         methodChannel?.invokeMethod(
                             "onVideoComplete",
                             mapOf(
-                                "path" to playlist.getOrNull(currentIdx),
+                                "path" to currentVideoPath,
                                 "duration" to durationSec
                             )
                         )
@@ -702,66 +706,50 @@ class NativeVideoView(
                     Log.w(TAG, "ExoPlayer playback error: ${error.message}")
                     methodChannel?.invokeMethod(
                         "onVideoError",
-                        mapOf("path" to playlist.getOrNull(player.currentMediaItemIndex), "error" to error.message)
+                        mapOf("path" to currentVideoPath, "error" to error.message)
                     )
-                    // Auto advance on corrupt file
-                    if (player.hasNextMediaItem()) {
-                        player.seekToNextMediaItem()
-                        player.prepare()
-                        player.play()
-                    }
                 }
             })
 
-            updatePlayerPlaylist(currentIndex)
+            currentVideoPath?.let { path ->
+                if (path.isNotEmpty()) {
+                    playVideo(path)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "ExoPlayer initialization failed: ${e.message}")
         }
     }
 
-    private fun updatePlayerPlaylist(startIndex: Int = 0) {
+    override fun getView(): View = this
+
+    fun playVideo(path: String) {
+        if (disposed) return
+        currentVideoPath = path
+
         val player = exoPlayer ?: return
-        if (playlist.isEmpty()) {
+        if (path.isEmpty()) {
             player.stop()
             player.clearMediaItems()
             return
         }
 
-        val mediaItems = playlist.map { path ->
+        try {
             val uri = Uri.parse(path)
-            if (uri.scheme.isNullOrEmpty()) {
+            val mediaItem = if (uri.scheme.isNullOrEmpty()) {
                 androidx.media3.common.MediaItem.fromUri(Uri.fromFile(java.io.File(path)))
             } else {
                 androidx.media3.common.MediaItem.fromUri(uri)
             }
-        }
 
-        player.setMediaItems(mediaItems, startIndex, 0L)
-        player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
-        player.prepare()
-        if (isPlaying) {
-            player.play()
-        }
-    }
-
-    override fun getView(): View = this
-
-    fun setPlaylist(paths: List<String>, initialIndex: Int = 0) {
-        if (disposed) return
-        val oldSource = playlist.getOrNull(currentIndex)
-        playlist = paths
-
-        if (playlist.isEmpty()) {
-            exoPlayer?.stop()
-            exoPlayer?.clearMediaItems()
-            return
-        }
-
-        val newIndex = if (oldSource != null) playlist.indexOf(oldSource) else -1
-        currentIndex = if (newIndex >= 0) newIndex else (if (initialIndex >= 0 && initialIndex < playlist.size) initialIndex else 0)
-
-        if (attached) {
-            updatePlayerPlaylist(currentIndex)
+            player.setMediaItem(mediaItem, 0L)
+            player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+            player.prepare()
+            if (isPlaying) {
+                player.play()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "playVideo failed for $path: ${e.message}")
         }
     }
 
@@ -780,6 +768,12 @@ class NativeVideoView(
     fun pause() {
         isPlaying = false
         exoPlayer?.pause()
+    }
+
+    fun stopVideo() {
+        currentVideoPath = null
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
     }
 
     override fun dispose() {
