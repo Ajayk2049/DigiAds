@@ -119,7 +119,7 @@ class ReleaseController {
     try {
       const releases = await AppRelease.find().sort({ createdAt: -1 });
       const devices = await Device.find({}, 'deviceId deviceType lastKnownAppVersion lastKnownVersionCode status lastHeartbeat');
-      
+
       const releaseCounts = {};
       devices.forEach(d => {
         if (d.lastKnownVersionCode) {
@@ -218,11 +218,11 @@ class ReleaseController {
           for (const [dId, socket] of global.deviceSockets.entries()) {
             try {
               socket.send(JSON.stringify({ event: 'release_cancelled', releaseId }));
-            } catch (_) {}
+            } catch (_) { }
           }
         }
         // Trigger 15d+ auto-cleanup evaluation
-        this.cleanupOldRevokedReleases().catch(() => {});
+        this.cleanupOldRevokedReleases().catch(() => { });
       }
 
       return reply.send({ success: true, release });

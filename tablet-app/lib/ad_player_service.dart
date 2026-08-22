@@ -47,6 +47,7 @@ class AdPlayerService {
 
   void startLoop(List<String> playlist) {
     if (_disposed) return;
+    _isPaused = false;  // Starting a new loop always clears paused state
     _playlist = List.from(playlist);
     _pendingPlaylist = null;
     _currentIndex = 0;
@@ -228,13 +229,44 @@ class AdPlayerService {
 
   String _extractCampaignId(String src) {
     if (src.isEmpty) return '';
+    if (src.startsWith('static__') || src.startsWith('img__')) {
+      final parts = src.split('__');
+      if (parts.length >= 2) {
+        final rawId = parts[1];
+        if (rawId.startsWith('VENUE_AD_')) {
+          final sub = rawId.substring('VENUE_AD_'.length).split('_').first;
+          return 'VENUE_AD_$sub';
+        }
+        if (rawId.startsWith('PAD_')) {
+          final sub = rawId.substring('PAD_'.length).split('_').first;
+          return 'PAD_$sub';
+        }
+        if (rawId.startsWith('FALLBACK_')) {
+          final sub = rawId.substring('FALLBACK_'.length).split('_').first;
+          return 'FALLBACK_$sub';
+        }
+        return rawId.split('_').first;
+      }
+    }
+
     final filename = src.split('/').last.split('\\').last;
-    if (filename.startsWith('img_')) {
-      final parts = filename.split('_');
-      if (parts.length >= 3) return '${parts[1]}_${parts[2]}';
+    if (filename.startsWith('ad_VENUE_AD_')) {
+      final sub = filename.substring('ad_VENUE_AD_'.length).split('_').first;
+      return 'VENUE_AD_$sub';
+    }
+    if (filename.startsWith('ad_PAD_')) {
+      final sub = filename.substring('ad_PAD_'.length).split('_').first;
+      return 'PAD_$sub';
+    }
+    if (filename.startsWith('ad_FALLBACK_')) {
+      final sub = filename.substring('ad_FALLBACK_'.length).split('_').first;
+      return 'FALLBACK_$sub';
     }
     if (filename.startsWith('ad_')) {
-      return filename.replaceAll('ad_', '').split('.').first;
+      final afterPrefix = filename.substring(3);
+      final idx = afterPrefix.lastIndexOf('.');
+      final withoutExt = idx != -1 ? afterPrefix.substring(0, idx) : afterPrefix;
+      return withoutExt.split('_').first;
     }
     return filename;
   }

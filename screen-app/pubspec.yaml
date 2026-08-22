@@ -1,6 +1,6 @@
 name: landscape_ad_screen_app
 description: "A Flutter landscape non-touch screen for playing ad loops."
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

@@ -1029,6 +1029,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       try {
         final controller = VideoPlayerController.file(file);
         await controller.initialize();
+        await controller.setVolume(0.0);
         if (!mounted) {
           controller.dispose();
           return;

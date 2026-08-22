@@ -675,7 +675,13 @@ class NativeVideoView(
         attached = true
 
         try {
-            val player = androidx.media3.exoplayer.ExoPlayer.Builder(context).build()
+            val player = androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                volume = 0f
+                trackSelectionParameters = trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true)
+                    .build()
+            }
             exoPlayer = player
 
             val pv = androidx.media3.ui.PlayerView(context).apply {
@@ -726,6 +732,7 @@ class NativeVideoView(
     fun playVideo(path: String) {
         if (disposed) return
         currentVideoPath = path
+        isPlaying = true  // playVideo is an explicit "play this" command — always resume
 
         val player = exoPlayer ?: return
         if (path.isEmpty()) {
@@ -742,12 +749,12 @@ class NativeVideoView(
                 androidx.media3.common.MediaItem.fromUri(uri)
             }
 
+            player.volume = 0f
             player.setMediaItem(mediaItem, 0L)
+            player.seekToDefaultPosition()
             player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
             player.prepare()
-            if (isPlaying) {
-                player.play()
-            }
+            player.play()
         } catch (e: Exception) {
             Log.e(TAG, "playVideo failed for $path: ${e.message}")
         }

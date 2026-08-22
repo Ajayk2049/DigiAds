@@ -637,11 +637,41 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   String _getBookingId(String path) {
     if (path.startsWith('static__') || path.startsWith('img__')) {
       final parts = path.split('__');
-      if (parts.length >= 2) return parts[1].split('_').first;
+      if (parts.length >= 2) {
+        final rawId = parts[1];
+        if (rawId.startsWith('VENUE_AD_')) {
+          final sub = rawId.substring('VENUE_AD_'.length).split('_').first;
+          return 'VENUE_AD_$sub';
+        }
+        if (rawId.startsWith('PAD_')) {
+          final sub = rawId.substring('PAD_'.length).split('_').first;
+          return 'PAD_$sub';
+        }
+        if (rawId.startsWith('FALLBACK_')) {
+          final sub = rawId.substring('FALLBACK_'.length).split('_').first;
+          return 'FALLBACK_$sub';
+        }
+        return rawId.split('_').first;
+      }
     } else {
       final fileName = path.split('/').last.split('\\').last;
+      if (fileName.startsWith('ad_VENUE_AD_')) {
+        final sub = fileName.substring('ad_VENUE_AD_'.length).split('_').first;
+        return 'VENUE_AD_$sub';
+      }
+      if (fileName.startsWith('ad_PAD_')) {
+        final sub = fileName.substring('ad_PAD_'.length).split('_').first;
+        return 'PAD_$sub';
+      }
+      if (fileName.startsWith('ad_FALLBACK_')) {
+        final sub = fileName.substring('ad_FALLBACK_'.length).split('_').first;
+        return 'FALLBACK_$sub';
+      }
       if (fileName.startsWith('ad_')) {
-        return fileName.replaceAll('ad_', '').split('.').first;
+        final afterPrefix = fileName.substring(3);
+        final idx = afterPrefix.lastIndexOf('.');
+        final withoutExt = idx != -1 ? afterPrefix.substring(0, idx) : afterPrefix;
+        return withoutExt.split('_').first;
       }
     }
     return '';
@@ -656,6 +686,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     for (final path in master) {
       final bookingId = _getBookingId(path);
       if (bookingId.isEmpty) {
+        eligible.add(path);
+        continue;
+      }
+
+      // In-venue promos, platform house ads, and fallback ads are always continuous (zero cooldown)
+      if (bookingId.startsWith('VENUE_AD') ||
+          bookingId.startsWith('PAD') ||
+          bookingId.startsWith('FALLBACK')) {
         eligible.add(path);
         continue;
       }
@@ -765,19 +803,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   void _trackAdImpression(String adSource, [int durationSeconds = 0]) async {
-    String bookingId = 'unknown';
-    if (adSource.startsWith('static__') || adSource.startsWith('img__')) {
-      final parts = adSource.split('__');
-      if (parts.length >= 2) bookingId = parts[1].split('_').first;
-    } else {
-      final fileName = adSource.split('/').last.split('\\').last;
-      if (fileName.startsWith('ad_')) {
-        bookingId = fileName.replaceAll('ad_', '').split('.').first;
-      }
-    }
+    final bookingId = _getBookingId(adSource);
     
     // Update dynamic playback tracker (DO NOT call _rebuildAndApplyPlaylist here to prevent reentrancy loops)
-    if (bookingId != 'unknown' && bookingId.isNotEmpty) {
+    if (bookingId.isNotEmpty && bookingId != 'unknown') {
       _lastPlayedTimes[bookingId] = DateTime.now().millisecondsSinceEpoch;
       _saveLastPlayedTimes();
     }
@@ -1014,7 +1043,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
         if (prevOrderStatus == 'cancelled') {
           // If previous state was cancelled, just clear without Thank You popup
-          setState(() => _tableSession = null);
+          _returnToAds();
           return;
         }
 
@@ -1075,6 +1104,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               _returnToAds();
             }
           });
+        } else {
+          // No amount → return to ads immediately (no Thank You popup)
+          _returnToAds();
         }
       }
     } catch (e) {
