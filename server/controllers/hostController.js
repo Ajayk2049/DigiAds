@@ -5,6 +5,48 @@ const Order = require('../models/Order');
 const { generateUniqueCustomId } = require('../utils/idGenerator');
 const geocodeService = require('../services/geocodeService');
 
+const CITY_ALIASES = {
+  'bangalore': 'Bengaluru',
+  'bangalore urban': 'Bengaluru',
+  'bangalore rural': 'Bengaluru',
+  'bengaluru': 'Bengaluru',
+  'bombay': 'Mumbai',
+  'mumbai suburban': 'Mumbai',
+  'mumbai city': 'Mumbai',
+  'madras': 'Chennai',
+  'calcutta': 'Kolkata',
+  'gurgaon': 'Gurugram',
+  'pondicherry': 'Puducherry',
+  'cochin': 'Kochi',
+  'trivandrum': 'Thiruvananthapuram',
+  'mysore': 'Mysuru',
+  'mangalore': 'Mangaluru',
+  'belgaum': 'Belagavi',
+  'hubli': 'Hubballi',
+  'hubli-dharwad': 'Hubballi-Dharwad',
+  'baroda': 'Vadodara',
+  'calicut': 'Kozhikode',
+  'trichy': 'Tiruchirappalli',
+  'benaras': 'Varanasi',
+  'banaras': 'Varanasi',
+  'allahabad': 'Prayagraj',
+  'orissa': 'Odisha',
+  'simla': 'Shimla',
+  'waltair': 'Visakhapatnam',
+  'vizag': 'Visakhapatnam'
+};
+
+function normalizeCity(city) {
+  if (!city) return '';
+  const trimmed = city.trim();
+  const lower = trimmed.toLowerCase();
+  if (CITY_ALIASES[lower]) return CITY_ALIASES[lower];
+  return trimmed
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
 // Utility to push session update to device via WebSocket
 async function notifyDeviceSessionUpdate(order) {
   if (!order || !order.deviceId) return;
@@ -15,6 +57,7 @@ async function notifyDeviceSessionUpdate(order) {
     const billConfig = app?.billConfig || {};
     const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
     const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+    const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
     const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
     let subtotalCalc = 0;
@@ -35,13 +78,15 @@ async function notifyDeviceSessionUpdate(order) {
     let subtotalPaise = order.subtotalAmount || subtotalCalc;
     let cgstPaise = order.cgstAmount || 0;
     let sgstPaise = order.sgstAmount || 0;
+    let serviceTaxPaise = order.serviceTaxAmount || 0;
     let roundOffPaise = order.roundOffAmount || 0;
 
 
     if (!order.subtotalAmount && subtotalCalc > 0) {
-      cgstPaise = Math.round(subtotalCalc * (cgstPct / 100));
-      sgstPaise = Math.round(subtotalCalc * (sgstPct / 100));
-      const rawTotal = subtotalCalc + cgstPaise + sgstPaise;
+      cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalCalc * (cgstPct / 100));
+      sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalCalc * (sgstPct / 100));
+      serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalCalc * (serviceTaxPct / 100));
+      const rawTotal = subtotalCalc + cgstPaise + sgstPaise + serviceTaxPaise;
       let finalTotal = rawTotal;
       if (enableAutoRoundOff) {
         finalTotal = Math.ceil(rawTotal / 100) * 100;
@@ -54,7 +99,7 @@ async function notifyDeviceSessionUpdate(order) {
     }
 
     const gstPaise = cgstPaise + sgstPaise;
-    const finalAmountPaise = order.totalAmount || (subtotalPaise + gstPaise + roundOffPaise);
+    const finalAmountPaise = order.totalAmount || (subtotalPaise + gstPaise + serviceTaxPaise + roundOffPaise);
 
     const upiId = app?.upiId || '';
     const payeeName = app?.payeeName || '';
@@ -77,9 +122,11 @@ async function notifyDeviceSessionUpdate(order) {
       cgst: cgstPaise,
       sgst: sgstPaise,
       gst: gstPaise,
+      serviceTax: serviceTaxPaise,
       roundOff: roundOffPaise,
       cgstPercent: typeof order.cgstPercent === 'number' ? order.cgstPercent : cgstPct,
       sgstPercent: typeof order.sgstPercent === 'number' ? order.sgstPercent : sgstPct,
+      serviceTaxPercent: typeof order.serviceTaxPercent === 'number' ? order.serviceTaxPercent : serviceTaxPct,
       otherCharges: 0,
       upiUrl,
       orderStatus: order.orderStatus,
@@ -198,12 +245,14 @@ class HostController {
 
       const venueId = await generateUniqueCustomId(HostApplication, 'venueId', 'VEN_');
 
+      const normalizedCity = normalizeCity(city);
+
       // Auto-resolve geo-coordinates (client GPS or multi-tier OSM Nominatim geocoding)
       const resolvedGeo = await geocodeService.resolveCoordinates({
         latitude: req.body.latitude,
         longitude: req.body.longitude,
         street,
-        city,
+        city: normalizedCity,
         state,
         zipCode
       });
@@ -215,7 +264,7 @@ class HostController {
         outletDescription,
         doorNo,
         street,
-        city,
+        city: normalizedCity,
         state,
         zipCode,
         latitude: resolvedGeo.latitude,
@@ -336,11 +385,13 @@ class HostController {
         application.longitude = resolvedGeo.longitude;
       }
 
+      const normalizedCity = normalizeCity(city);
+
       application.outletName = outletName;
       application.outletDescription = outletDescription;
       application.doorNo = doorNo;
       application.street = street;
-      application.city = city;
+      application.city = normalizedCity;
       application.state = state;
       application.zipCode = zipCode;
       application.contactPerson = contactPerson;
@@ -397,6 +448,8 @@ class HostController {
           data: {
             items: [],
             categories: ['Starters', 'Main Course', 'Dessert', 'Beverages'],
+            shifts: ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
+            activeShift: 'Breakfast',
             hostApplicationId
           }
         });
@@ -409,6 +462,8 @@ class HostController {
           merchantId: menu.merchantId,
           items: menu.items,
           categories: menu.categories && menu.categories.length > 0 ? menu.categories : ['Starters', 'Main Course', 'Dessert', 'Beverages'],
+          shifts: menu.shifts && menu.shifts.length > 0 ? menu.shifts : ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
+          activeShift: menu.activeShift || 'Breakfast',
           defaultGst: menu.defaultGst || 0,
           defaultOtherCharges: menu.defaultOtherCharges || 0,
           defaultOtherChargesType: menu.defaultOtherChargesType || 'percentage',
@@ -430,6 +485,8 @@ class HostController {
       hostApplicationId, 
       items, 
       categories, 
+      shifts,
+      activeShift,
       defaultGst, 
       defaultOtherCharges, 
       defaultOtherChargesType 
@@ -476,17 +533,26 @@ class HostController {
         }
       }
 
+      const updateData = { 
+        merchantId: req.user.uid, 
+        items, 
+        categories, 
+        defaultGst: defaultGst !== undefined ? Number(defaultGst) : undefined,
+        defaultOtherCharges: defaultOtherCharges !== undefined ? Number(defaultOtherCharges) : undefined,
+        defaultOtherChargesType: defaultOtherChargesType || undefined,
+        updatedAt: Date.now() 
+      };
+
+      if (Array.isArray(shifts) && shifts.length > 0) {
+        updateData.shifts = shifts;
+      }
+      if (activeShift) {
+        updateData.activeShift = activeShift;
+      }
+
       const menu = await Menu.findOneAndUpdate(
         { hostApplicationId },
-        { 
-          merchantId: req.user.uid, 
-          items, 
-          categories, 
-          defaultGst: defaultGst !== undefined ? Number(defaultGst) : undefined,
-          defaultOtherCharges: defaultOtherCharges !== undefined ? Number(defaultOtherCharges) : undefined,
-          defaultOtherChargesType: defaultOtherChargesType || undefined,
-          updatedAt: Date.now() 
-        },
+        updateData,
         { upsert: true, new: true }
       );
 
@@ -497,7 +563,7 @@ class HostController {
         for (const device of devices) {
           const socket = global.deviceSockets.get(device.deviceId);
           if (socket) {
-            socket.send(JSON.stringify({ event: 'reload_menu' }));
+            socket.send(JSON.stringify({ event: 'reload_menu', activeShift: menu.activeShift }));
             console.log(`[WS] Sent reload_menu signal to Device ${device.deviceId}`);
           }
         }
@@ -511,6 +577,56 @@ class HostController {
     } catch (error) {
       console.error('updateMenu Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to update menu' });
+    }
+  }
+
+  /**
+   * Switch live active menu shift
+   */
+  async switchShift(req, res) {
+    const { hostApplicationId, activeShift } = req.body || {};
+
+    if (!hostApplicationId || !activeShift) {
+      return res.status(400).send({ success: false, message: 'hostApplicationId and activeShift are required' });
+    }
+
+    try {
+      const app = await HostApplication.findOne({ _id: hostApplicationId, userId: req.user.uid });
+      if (!app) {
+        return res.status(403).send({ success: false, message: 'Access denied: Host application does not belong to you' });
+      }
+
+      const menu = await Menu.findOneAndUpdate(
+        { hostApplicationId },
+        { activeShift, updatedAt: Date.now() },
+        { new: true }
+      );
+
+      if (!menu) {
+        return res.status(404).send({ success: false, message: 'Menu not found for this venue' });
+      }
+
+      // Broadcast reload_menu with new active shift to connected tablets
+      if (global.deviceSockets) {
+        const Device = require('../models/Device');
+        const devices = await Device.find({ hostApplicationId });
+        for (const device of devices) {
+          const socket = global.deviceSockets.get(device.deviceId);
+          if (socket) {
+            socket.send(JSON.stringify({ event: 'reload_menu', activeShift }));
+            console.log(`[WS] Sent switch shift reload_menu signal to Device ${device.deviceId} (${activeShift})`);
+          }
+        }
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: `Live menu successfully switched to ${activeShift}`,
+        data: { activeShift: menu.activeShift }
+      });
+    } catch (error) {
+      console.error('switchShift Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to switch menu shift' });
     }
   }
 
@@ -1011,39 +1127,34 @@ class HostController {
         // Freeze immutable order billing snapshot fields
         order.subtotalAmount = subtotalPaise;
 
-        if (order.isGstExempt) {
-          order.cgstAmount = 0;
-          order.sgstAmount = 0;
-          order.roundOffAmount = 0;
-          order.cgstPercent = 0;
-          order.sgstPercent = 0;
-          order.totalAmount = subtotalPaise;
-        } else {
-          const billConfig = app.billConfig || {};
-          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+        const billConfig = app.billConfig || {};
+        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
+        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
-          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+        const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
+        const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
+        const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
+        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
 
-          let finalAmountPaise = rawTotalPaise;
-          let roundOffPaise = 0;
-          if (enableAutoRoundOff) {
-            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-            roundOffPaise = finalAmountPaise - rawTotalPaise;
-          }
-
-          order.cgstAmount = cgstPaise;
-          order.sgstAmount = sgstPaise;
-          order.roundOffAmount = roundOffPaise;
-          order.cgstPercent = cgstPct;
-          order.sgstPercent = sgstPct;
-          order.enableAutoRoundOff = enableAutoRoundOff;
-          order.billConfigSnapshot = billConfig;
-          order.totalAmount = finalAmountPaise;
+        let finalAmountPaise = rawTotalPaise;
+        let roundOffPaise = 0;
+        if (enableAutoRoundOff) {
+          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+          roundOffPaise = finalAmountPaise - rawTotalPaise;
         }
+
+        order.cgstAmount = cgstPaise;
+        order.sgstAmount = sgstPaise;
+        order.serviceTaxAmount = serviceTaxPaise;
+        order.roundOffAmount = roundOffPaise;
+        order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
+        order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
+        order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
+        order.enableAutoRoundOff = enableAutoRoundOff;
+        order.billConfigSnapshot = billConfig;
+        order.totalAmount = finalAmountPaise;
 
         order.tableStatus = 'close_table';
 
@@ -1110,15 +1221,17 @@ class HostController {
 
       const subtotalPaise = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
 
-      // Fetch venue billConfig to apply venue-specific CGST, SGST, and Auto Round-off
+      // Fetch venue billConfig to apply venue-specific CGST, SGST, Service Tax, and Auto Round-off
       const billConfig = app.billConfig || {};
       const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
       const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+      const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
       const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
       const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
       const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-      const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+      const serviceTaxPaise = Math.round(subtotalPaise * (serviceTaxPct / 100));
+      const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
 
       let finalAmountPaise = rawTotalPaise;
       let roundOffPaise = 0;
@@ -1143,9 +1256,13 @@ class HostController {
         subtotalAmount: subtotalPaise,
         cgstAmount: cgstPaise,
         sgstAmount: sgstPaise,
+        serviceTaxAmount: serviceTaxPaise,
         roundOffAmount: roundOffPaise,
         cgstPercent: cgstPct,
         sgstPercent: sgstPct,
+        serviceTaxPercent: serviceTaxPct,
+        isGstExempt: false,
+        isServiceTaxExempt: false,
         enableAutoRoundOff,
         billConfigSnapshot: billConfig,
         totalAmount: finalAmountPaise,
@@ -1195,37 +1312,32 @@ class HostController {
       }
       order.subtotalAmount = subtotalPaise;
 
-      if (isExempt) {
-        order.cgstAmount = 0;
-        order.sgstAmount = 0;
-        order.cgstPercent = 0;
-        order.sgstPercent = 0;
-        order.roundOffAmount = 0;
-        order.totalAmount = subtotalPaise;
-      } else {
-        const billConfig = order.billConfigSnapshot || app.billConfig || {};
-        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+      const billConfig = order.billConfigSnapshot || app.billConfig || {};
+      const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+      const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+      const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
+      const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
-        const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-        const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+      const cgstPaise = isExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
+      const sgstPaise = isExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
+      const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
+      const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
 
-        let finalAmountPaise = rawTotalPaise;
-        let roundOffPaise = 0;
-        if (enableAutoRoundOff) {
-          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-          roundOffPaise = finalAmountPaise - rawTotalPaise;
-        }
-
-        order.cgstAmount = cgstPaise;
-        order.sgstAmount = sgstPaise;
-        order.roundOffAmount = roundOffPaise;
-        order.cgstPercent = cgstPct;
-        order.sgstPercent = sgstPct;
-        order.totalAmount = finalAmountPaise;
+      let finalAmountPaise = rawTotalPaise;
+      let roundOffPaise = 0;
+      if (enableAutoRoundOff) {
+        finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+        roundOffPaise = finalAmountPaise - rawTotalPaise;
       }
+
+      order.cgstAmount = cgstPaise;
+      order.sgstAmount = sgstPaise;
+      order.serviceTaxAmount = serviceTaxPaise;
+      order.roundOffAmount = roundOffPaise;
+      order.cgstPercent = isExempt ? 0 : cgstPct;
+      order.sgstPercent = isExempt ? 0 : sgstPct;
+      order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
+      order.totalAmount = finalAmountPaise;
 
       await order.save();
       notifyDeviceSessionUpdate(order);
@@ -1238,6 +1350,72 @@ class HostController {
     } catch (error) {
       console.error('toggleGstExemption Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to update order GST: ' + error.message });
+    }
+  }
+
+  /**
+   * Admin toggles Service Tax exemption on an active order (Remove/Restore Service Tax)
+   */
+  async toggleServiceTaxExemption(req, res) {
+    const { orderId, removeServiceTax } = req.body || {};
+    if (!orderId) {
+      return res.status(400).send({ success: false, message: 'orderId is required' });
+    }
+
+    try {
+      const order = await Order.findOne({ orderId });
+      if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
+
+      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
+      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+
+      const isExempt = Boolean(removeServiceTax);
+      order.isServiceTaxExempt = isExempt;
+
+      let subtotalPaise = 0;
+      for (const item of order.items || []) {
+        subtotalPaise += (item.price || 0) * (item.quantity || 1);
+      }
+      order.subtotalAmount = subtotalPaise;
+
+      const billConfig = order.billConfigSnapshot || app.billConfig || {};
+      const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+      const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+      const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
+      const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+      const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
+      const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
+      const serviceTaxPaise = isExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
+      const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
+
+      let finalAmountPaise = rawTotalPaise;
+      let roundOffPaise = 0;
+      if (enableAutoRoundOff) {
+        finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+        roundOffPaise = finalAmountPaise - rawTotalPaise;
+      }
+
+      order.cgstAmount = cgstPaise;
+      order.sgstAmount = sgstPaise;
+      order.serviceTaxAmount = serviceTaxPaise;
+      order.roundOffAmount = roundOffPaise;
+      order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
+      order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
+      order.serviceTaxPercent = isExempt ? 0 : serviceTaxPct;
+      order.totalAmount = finalAmountPaise;
+
+      await order.save();
+      notifyDeviceSessionUpdate(order);
+
+      return res.status(200).send({
+        success: true,
+        message: isExempt ? 'Service Tax removed from order' : 'Service Tax restored on order',
+        data: order
+      });
+    } catch (error) {
+      console.error('toggleServiceTaxExemption Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to update Service Tax: ' + error.message });
     }
   }
 

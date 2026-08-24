@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { MapPin, Navigation, Maximize2, X, Check, Loader2, Sparkles, HelpCircle } from 'lucide-react';
+import useModalDismiss from '@/hooks/useModalDismiss';
 
 export default function LocationPicker({
   latitude,
@@ -16,6 +17,8 @@ export default function LocationPicker({
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [tempCoords, setTempCoords] = useState({ lat: latitude, lng: longitude });
+
+  useModalDismiss(showModal, () => setShowModal(false), 'location-picker-modal');
 
   // References for Desktop Embedded Map
   const inlineMapContainerRef = useRef(null);

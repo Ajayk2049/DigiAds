@@ -360,12 +360,16 @@ class AdSyncService {
         await prefs.setString(kLastSyncTimeKey, DateTime.now().toIso8601String());
         
         final Map<String, int> frequencies = {};
+        final Map<String, int> durations = {};
         for (final ad in serverAds) {
           final bookingId = ad['bookingId'] as String? ?? 'unknown';
           final freqMin = ad['frequencyMinutes'] as int? ?? 0;
+          final durSec = ad['durationSeconds'] as int? ?? 10;
           frequencies[bookingId] = freqMin;
+          durations[bookingId] = durSec;
         }
         await prefs.setString('ad_frequencies_map', jsonEncode(frequencies));
+        await prefs.setString('ad_durations_map', jsonEncode(durations));
 
         // 4. Cleanup deleted ads from disk
         await _cleanupOldFiles(activeFileNames);

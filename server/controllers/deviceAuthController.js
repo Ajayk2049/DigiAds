@@ -130,6 +130,20 @@ class DeviceAuthController {
 
       promoQuery.transcodeStatus = { $ne: 'processing' };
 
+      // Fetch Universal In-Venue Promo Durations from SystemSetting
+      const SystemSetting = require('../models/SystemSetting');
+      let universalImageDuration = 10;
+      try {
+        const promoDurationsSetting = await SystemSetting.findOne({ key: 'venue_promo_durations' });
+        const openDuration = promoDurationsSetting?.value?.openDurationSeconds ?? 10;
+        const closedDuration = promoDurationsSetting?.value?.closedDurationSeconds ?? 15;
+        const isClosedVenue = hostApp.allowOpenAds === false || hostApp.adMode === 'closed';
+        universalImageDuration = isClosedVenue ? closedDuration : openDuration;
+      } catch (err) {
+        console.error('[deviceAuthController] Failed to fetch promo durations setting:', err.message);
+        universalImageDuration = (hostApp.allowOpenAds === false || hostApp.adMode === 'closed') ? 15 : 10;
+      }
+
       const venuePromos = await VenuePromo.find(promoQuery).sort({ slotType: 1, slotIndex: 1 });
       const promoAds = venuePromos.map(p => {
         const resolvedUrl = resolveMediaUrl(p.mediaUrl, req.headers.host);
@@ -138,7 +152,7 @@ class DeviceAuthController {
           mediaUrl: resolvedUrl,
           mediaUrls: [resolvedUrl],
           frequencyMinutes: 0,
-          durationSeconds: p.mediaType === 'video' ? 30 : 15,
+          durationSeconds: p.mediaType === 'video' ? 30 : universalImageDuration,
           title: p.title || 'Venue Special',
           mediaType: p.mediaType === 'video' ? 'video' : 'static',
           isVenuePromo: true
@@ -160,6 +174,17 @@ class DeviceAuthController {
           expiryDate.setDate(expiryDate.getDate() + b.adDurationDays);
           return expiryDate >= now;
         });
+
+        // Fetch Universal Commercial Advertiser Image Duration from SystemSetting
+        let baseAdvertiserImageDuration = 8;
+        try {
+          const advSetting = await SystemSetting.findOne({ key: 'advertiser_image_duration' });
+          if (advSetting?.value?.durationSeconds) {
+            baseAdvertiserImageDuration = Number(advSetting.value.durationSeconds) || 8;
+          }
+        } catch (err) {
+          console.error('[deviceAuthController] Failed to fetch advertiser image duration setting:', err.message);
+        }
 
         thirdPartyAds = activeBookings.map(b => {
           let frequencyMinutes = 0;
@@ -185,7 +210,7 @@ class DeviceAuthController {
           const firstUrl = resolvedUrls[0] || '';
           const isVideo = firstUrl.endsWith('.mp4') || firstUrl.endsWith('.webm');
           const isImageAd = b.mediaType === 'image' || !isVideo;
-          const imageDuration = resolvedUrls.length >= 2 ? 16 : 8;
+          const imageDuration = resolvedUrls.length >= 2 ? (baseAdvertiserImageDuration * 2) : baseAdvertiserImageDuration;
 
           return {
             bookingId: b.bookingId,

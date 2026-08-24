@@ -30,6 +30,7 @@ import {
   XCircle,
   Trash2,
   X,
+  Menu as MenuIcon,
   createIcons,
   ListVideo,
   IndianRupee,
@@ -41,6 +42,7 @@ import {
   ShieldCheck,
   AlertTriangle
 } from 'lucide-react';
+import useModalDismiss from '@/hooks/useModalDismiss';
 import { config } from '@/config';
 
 const API_BASE = config.apiUrl;
@@ -80,6 +82,7 @@ export default function AdvertiserDashboard() {
   const [name, setName] = useState('');
   const [roles, setRoles] = useState([]);
   const [activeTab, setActiveTab] = useState('bookings');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Toast notification system
   const [toasts, setToasts] = useState([]);
@@ -272,6 +275,13 @@ export default function AdvertiserDashboard() {
 
   // Bookings list
   const [bookings, setBookings] = useState([]);
+
+  // Universal Modal Dismissal (Desktop Esc key & Mobile back gesture)
+  useModalDismiss(showAnalyticsModal, () => setShowAnalyticsModal(false), 'analytics-modal');
+  useModalDismiss(showMediaModal, () => setShowMediaModal(false), 'media-preview-modal');
+  useModalDismiss(Boolean(previewVideoUrl), () => setPreviewVideoUrl(''), 'video-preview-modal');
+  useModalDismiss(Boolean(videoResolutionWarning), () => setVideoResolutionWarning(null), 'resolution-advisory-modal');
+  useModalDismiss(mobileMenuOpen, () => setMobileMenuOpen(false), 'mobile-nav-drawer');
 
   // Handle Theme
   useEffect(() => {
@@ -1019,13 +1029,14 @@ export default function AdvertiserDashboard() {
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col transition-all duration-300">
 
       {/* Top Header Navbar - Universal styled shadcn preset */}
-      <header className="border-b border-border/40 bg-card px-5 sm:px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-30">
-        <div className="flex items-center space-x-3">
-          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-8 h-8 object-contain shrink-0" />
-          <span className="font-outfit text-md font-bold text-foreground brandLogo">Advertiser Portal</span>
+      <header className="border-b border-border/40 bg-card px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0" />
+          <span className="font-outfit text-sm sm:text-md font-bold text-foreground brandLogo truncate">Advertiser Portal</span>
         </div>
 
-        <nav className="flex space-x-1.5 md:space-x-2">
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex space-x-1.5 md:space-x-2">
           <button
             onClick={() => {
               if (activeUploadBooking) {
@@ -1076,16 +1087,29 @@ export default function AdvertiserDashboard() {
           </button>
         </nav>
 
-        <div className="flex items-center space-x-2 md:space-x-3">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Desktop Theme toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer flex items-center justify-center shadow-sm"
+            className="hidden md:flex p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer items-center justify-center shadow-sm"
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500 fill-current" /> : <Moon className="w-4 h-4 text-indigo-500 fill-current" />}
           </button>
 
-          {/* User profile dropdown on the rightmost side */}
+          {/* Mobile Hamburger Menu button on the left of user action dropdown */}
+          <button
+            onClick={() => {
+              setMobileMenuOpen(!mobileMenuOpen);
+              setUserMenuOpen(false);
+            }}
+            className="md:hidden p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer flex items-center justify-center shadow-sm"
+            aria-label="Toggle mobile menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4 text-foreground" /> : <MenuIcon className="w-4 h-4 text-foreground" />}
+          </button>
+
+          {/* User profile dropdown on the rightmost side (outside) */}
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -1138,6 +1162,80 @@ export default function AdvertiserDashboard() {
           </div>
         </div>
       </header>
+
+      {/* Mobile Navigation Dropdown Panel */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-border/40 bg-card/95 backdrop-blur-md px-4 py-3 space-y-1.5 shadow-md sticky top-[57px] z-20 animate-fade-in">
+          <button
+            onClick={() => {
+              if (activeUploadBooking) {
+                showToast('info', 'Please upload media creative for your confirmed booking first.');
+                return;
+              }
+              setActiveTab('bookings');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'bookings'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <ListVideo className={`w-4 h-4 ${activeTab === 'bookings' ? 'text-primary-foreground' : 'text-primary'}`} />
+            <span>My Campaigns</span>
+          </button>
+          <button
+            onClick={() => {
+              if (activeUploadBooking) {
+                showToast('info', 'Please upload media creative for your confirmed booking first.');
+                return;
+              }
+              setActiveTab('rates');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'rates'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <IndianRupee className={`w-4 h-4 ${activeTab === 'rates' ? 'text-primary-foreground' : 'text-primary'}`} />
+            <span>Ad Rates</span>
+          </button>
+          <button
+            onClick={() => {
+              if (activeUploadBooking) {
+                showToast('info', 'Please upload media creative for your confirmed booking first.');
+                return;
+              }
+              setActiveTab('new-booking');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'new-booking'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            <Plus className={`w-4 h-4 ${activeTab === 'new-booking' ? 'text-primary-foreground' : 'text-primary'}`} />
+            <span>Book Ad Spot</span>
+          </button>
+
+          {/* Theme Toggle in Mobile Drawer */}
+          <div className="pt-2 mt-2 border-t border-border/40 flex items-center justify-between px-3 py-1.5">
+            <span className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+              {theme === 'dark' ? <Moon className="w-3.5 h-3.5 text-indigo-500" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+              Appearance
+            </span>
+            <button
+              onClick={toggleTheme}
+              className="px-2.5 py-1 text-[11px] font-bold bg-muted hover:bg-muted/80 text-foreground border border-border rounded-lg transition-all"
+            >
+              {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification Container */}
       <div className="fixed top-4 right-4 z-50 flex flex-col space-y-2 w-80 max-w-[calc(100vw-2rem)]">

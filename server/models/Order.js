@@ -65,6 +65,10 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0 // in paise
   },
+  serviceTaxAmount: {
+    type: Number,
+    default: 0 // in paise
+  },
   roundOffAmount: {
     type: Number,
     default: 0 // in paise (always >= 0 ceiling round off in favor of venue)
@@ -77,6 +81,10 @@ const OrderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  serviceTaxPercent: {
+    type: Number,
+    default: 0
+  },
   enableAutoRoundOff: {
     type: Boolean,
     default: true
@@ -86,6 +94,10 @@ const OrderSchema = new mongoose.Schema({
     default: null
   },
   isGstExempt: {
+    type: Boolean,
+    default: false
+  },
+  isServiceTaxExempt: {
     type: Boolean,
     default: false
   },

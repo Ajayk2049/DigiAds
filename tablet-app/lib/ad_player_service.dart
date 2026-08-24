@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
 
 class AdPlayerState {
@@ -25,6 +27,7 @@ class AdPlayerService {
 
   AdPlayerService({this.onImpression}) {
     _channel.setMethodCallHandler(_handleMethodCall);
+    _loadDurations();
   }
 
   static const MethodChannel _channel = MethodChannel('com.digiads.tabletop/native_video');
@@ -37,6 +40,73 @@ class AdPlayerService {
   Timer? _videoWatchdogTimer;
   bool _isPaused = false;
   bool _disposed = false;
+  Map<String, int> _durations = {};
+
+  Future<void> _loadDurations() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('ad_durations_map');
+      if (raw != null) {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        _durations = decoded.map((k, v) => MapEntry(k, (v as num).toInt()));
+      }
+    } catch (e) {
+      debugPrint('[AD_PLAYER] Error loading ad durations: $e');
+    }
+  }
+
+  void updateDurations(Map<String, int> durations) {
+    _durations = Map.from(durations);
+  }
+
+  String _extractBookingId(String source) {
+    if (source.startsWith('img__') || source.startsWith('static__')) {
+      final parts = source.split('__');
+      if (parts.length >= 2) {
+        final rawId = parts[1];
+        if (rawId.startsWith('VENUE_AD_')) {
+          final sub = rawId.substring('VENUE_AD_'.length).split('_').first;
+          return 'VENUE_AD_$sub';
+        }
+        if (rawId.startsWith('PAD_')) {
+          final sub = rawId.substring('PAD_'.length).split('_').first;
+          return 'PAD_$sub';
+        }
+        if (rawId.startsWith('FALLBACK_')) {
+          final sub = rawId.substring('FALLBACK_'.length).split('_').first;
+          return 'FALLBACK_$sub';
+        }
+        return rawId.split('_').first;
+      }
+    }
+    final fileName = source.split('/').last.split('\\').last;
+    if (fileName.startsWith('ad_VENUE_AD_')) {
+      final sub = fileName.substring('ad_VENUE_AD_'.length).split('_').first;
+      return 'VENUE_AD_$sub';
+    }
+    if (fileName.startsWith('ad_PAD_')) {
+      final sub = fileName.substring('ad_PAD_'.length).split('_').first;
+      return 'PAD_$sub';
+    }
+    if (fileName.startsWith('ad_FALLBACK_')) {
+      final sub = fileName.substring('ad_FALLBACK_'.length).split('_').first;
+      return 'FALLBACK_$sub';
+    }
+    if (fileName.startsWith('ad_')) {
+      final withoutAd = fileName.substring(3);
+      final firstUnderscore = withoutAd.indexOf('_');
+      return firstUnderscore > 0 ? withoutAd.substring(0, firstUnderscore) : withoutAd.split('.').first;
+    }
+    return '';
+  }
+
+  int _getAdDuration(String source) {
+    final bookingId = _extractBookingId(source);
+    if (bookingId.isNotEmpty && _durations.containsKey(bookingId)) {
+      return _durations[bookingId]!;
+    }
+    return kStaticAdDisplayDuration.inSeconds;
+  }
 
   List<String> get activeFilePaths {
     if (_playlist.isEmpty) return [];
@@ -51,7 +121,9 @@ class AdPlayerService {
     _playlist = List.from(playlist);
     _pendingPlaylist = null;
     _currentIndex = 0;
-    _playCurrent();
+    _loadDurations().then((_) {
+      if (!_disposed && !_isPaused) _playCurrent();
+    });
   }
 
   void updatePlaylist(List<String> newPlaylist) {
@@ -66,6 +138,9 @@ class AdPlayerService {
       _emitState();
       return;
     }
+
+    // Refresh cached durations alongside playlist update
+    _loadDurations();
 
     // If currently idle or no ads playing, apply immediately
     if (_playlist.isEmpty || _isPaused) {
@@ -92,6 +167,7 @@ class AdPlayerService {
   void resume() {
     if (_disposed) return;
     _isPaused = false;
+    _loadDurations();
     if (_pendingPlaylist != null) {
       _playlist = List.from(_pendingPlaylist!);
       _pendingPlaylist = null;
@@ -127,9 +203,10 @@ class AdPlayerService {
       _staticTimer?.cancel();
       _videoWatchdogTimer?.cancel();
       _channel.invokeMethod('pause');
-      onImpression?.call(source, kStaticAdDisplayDuration.inSeconds);
+      final durationSec = _getAdDuration(source);
+      onImpression?.call(source, durationSec);
       _emitState();
-      _staticTimer = Timer(kStaticAdDisplayDuration, () {
+      _staticTimer = Timer(Duration(seconds: durationSec), () {
         if (!_disposed && !_isPaused) _advance();
       });
       return;
@@ -188,8 +265,9 @@ class AdPlayerService {
     if (_playlist.length <= 1) {
       final source = _currentSource;
       if (source.startsWith('static__') || source.startsWith('img__')) {
-        onImpression?.call(source, kStaticAdDisplayDuration.inSeconds);
-        _staticTimer = Timer(kStaticAdDisplayDuration, () {
+        final durationSec = _getAdDuration(source);
+        onImpression?.call(source, durationSec);
+        _staticTimer = Timer(Duration(seconds: durationSec), () {
           if (!_disposed && !_isPaused) _advance();
         });
       } else {

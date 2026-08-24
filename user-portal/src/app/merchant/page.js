@@ -22,6 +22,7 @@ import {
   Megaphone,
   RefreshCw,
   X,
+  Menu as MenuIcon,
   Pencil,
   ChevronDown,
   ChevronUp,
@@ -48,11 +49,13 @@ import {
   Loader2,
   MapPin,
   Navigation,
-  Compass
+  Compass,
+  Sparkles
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import LocationPicker from '@/components/LocationPicker';
+import useModalDismiss from '@/hooks/useModalDismiss';
 
 import { config } from '@/config';
 
@@ -175,6 +178,48 @@ const normalizeAndMatchState = (apiState) => {
   return "";
 };
 
+const CITY_ALIASES = {
+  'bangalore': 'Bengaluru',
+  'bangalore urban': 'Bengaluru',
+  'bangalore rural': 'Bengaluru',
+  'bengaluru': 'Bengaluru',
+  'bombay': 'Mumbai',
+  'mumbai suburban': 'Mumbai',
+  'mumbai city': 'Mumbai',
+  'madras': 'Chennai',
+  'calcutta': 'Kolkata',
+  'gurgaon': 'Gurugram',
+  'pondicherry': 'Puducherry',
+  'cochin': 'Kochi',
+  'trivandrum': 'Thiruvananthapuram',
+  'mysore': 'Mysuru',
+  'mangalore': 'Mangaluru',
+  'belgaum': 'Belagavi',
+  'hubli': 'Hubballi',
+  'hubli-dharwad': 'Hubballi-Dharwad',
+  'baroda': 'Vadodara',
+  'calicut': 'Kozhikode',
+  'trichy': 'Tiruchirappalli',
+  'benaras': 'Varanasi',
+  'banaras': 'Varanasi',
+  'allahabad': 'Prayagraj',
+  'orissa': 'Odisha',
+  'simla': 'Shimla',
+  'waltair': 'Visakhapatnam',
+  'vizag': 'Visakhapatnam'
+};
+
+const normalizeCity = (city) => {
+  if (!city) return '';
+  const trimmed = city.trim();
+  const lower = trimmed.toLowerCase();
+  if (CITY_ALIASES[lower]) return CITY_ALIASES[lower];
+  return trimmed
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export default function MerchantDashboard() {
   const router = useRouter();
 
@@ -184,6 +229,7 @@ export default function MerchantDashboard() {
   const [name, setName] = useState('');
   const [roles, setRoles] = useState([]);
   const [activeTab, setActiveTab] = useState('applications');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [toast, setToast] = useState(null);
@@ -306,6 +352,7 @@ export default function MerchantDashboard() {
     showCustomerDetail: true,
     cgstPercent: 2.5,
     sgstPercent: 2.5,
+    serviceTaxPercent: 0,
     enableAutoRoundOff: true,
     thankYouMessage: 'Thank You & Visit Again !',
     showThankYouMessage: true,
@@ -422,6 +469,7 @@ export default function MerchantDashboard() {
         'Subtotal (₹)',
         'CGST (₹)',
         'SGST (₹)',
+        'Service Tax (₹)',
         'Round Off (₹)',
         'Grand Total (₹)'
       ];
@@ -446,13 +494,15 @@ export default function MerchantDashboard() {
       const billCfg = currentVenueApp?.billConfig || activeBillConfig || billForm || {};
       const cgstPct = typeof billCfg.cgstPercent === 'number' ? billCfg.cgstPercent : 2.5;
       const sgstPct = typeof billCfg.sgstPercent === 'number' ? billCfg.sgstPercent : 2.5;
-      const totalTaxPct = cgstPct + sgstPct;
+      const serviceTaxPct = typeof billCfg.serviceTaxPercent === 'number' ? billCfg.serviceTaxPercent : 0;
+      const totalTaxPct = cgstPct + sgstPct + serviceTaxPct;
       const enableAutoRoundOff = billCfg.enableAutoRoundOff !== false;
 
       // Data Rows
       let totalSubtotalSum = 0;
       let totalCgstSum = 0;
       let totalSgstSum = 0;
+      let totalServiceTaxSum = 0;
       let totalRoundOffSum = 0;
       let totalGrandTotalSum = 0;
 
@@ -468,6 +518,7 @@ export default function MerchantDashboard() {
         let subtotal = 0;
         let cgst = 0;
         let sgst = 0;
+        let serviceTax = 0;
         let roundOff = 0;
         let grandTotal = (ord.totalAmount || 0) / 100;
 
@@ -475,6 +526,7 @@ export default function MerchantDashboard() {
           subtotal = ord.subtotalAmount / 100;
           cgst = (ord.cgstAmount || 0) / 100;
           sgst = (ord.sgstAmount || 0) / 100;
+          serviceTax = (ord.serviceTaxAmount || 0) / 100;
           roundOff = (ord.roundOffAmount || 0) / 100;
         } else {
           // Legacy orders fallback: calculate items subtotal & venue tax rates
@@ -486,10 +538,12 @@ export default function MerchantDashboard() {
 
           const effectiveCgstPct = typeof ord.cgstPercent === 'number' ? ord.cgstPercent : cgstPct;
           const effectiveSgstPct = typeof ord.sgstPercent === 'number' ? ord.sgstPercent : sgstPct;
+          const effectiveServiceTaxPct = typeof ord.serviceTaxPercent === 'number' ? ord.serviceTaxPercent : serviceTaxPct;
 
-          cgst = subtotal * (effectiveCgstPct / 100);
-          sgst = subtotal * (effectiveSgstPct / 100);
-          const rawTotal = subtotal + cgst + sgst;
+          cgst = ord.isGstExempt ? 0 : subtotal * (effectiveCgstPct / 100);
+          sgst = ord.isGstExempt ? 0 : subtotal * (effectiveSgstPct / 100);
+          serviceTax = ord.isServiceTaxExempt ? 0 : subtotal * (effectiveServiceTaxPct / 100);
+          const rawTotal = subtotal + cgst + sgst + serviceTax;
 
           if (grandTotal > 0) {
             roundOff = Math.max(0, grandTotal - rawTotal);
@@ -502,6 +556,7 @@ export default function MerchantDashboard() {
         totalSubtotalSum += subtotal;
         totalCgstSum += cgst;
         totalSgstSum += sgst;
+        totalServiceTaxSum += serviceTax;
         totalRoundOffSum += roundOff;
         totalGrandTotalSum += grandTotal;
 
@@ -516,6 +571,7 @@ export default function MerchantDashboard() {
           subtotal,
           cgst,
           sgst,
+          serviceTax,
           roundOff,
           grandTotal
         ];
@@ -556,6 +612,7 @@ export default function MerchantDashboard() {
         totalSubtotalSum,
         totalCgstSum,
         totalSgstSum,
+        totalServiceTaxSum,
         totalRoundOffSum,
         totalGrandTotalSum
       ];
@@ -587,6 +644,7 @@ export default function MerchantDashboard() {
         { width: 14 }, // Subtotal
         { width: 12 }, // CGST
         { width: 12 }, // SGST
+        { width: 14 }, // Service Tax
         { width: 14 }, // Round Off
         { width: 16 }  // Grand Total
       ];
@@ -757,6 +815,16 @@ export default function MerchantDashboard() {
   const [menuCategories, setMenuCategories] = useState(['Starters', 'Main Course', 'Dessert', 'Beverages']);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Shift-Based Menu States
+  const [menuShifts, setMenuShifts] = useState(['Breakfast', 'Lunch', 'Snacks', 'Dinner']);
+  const [activeShift, setActiveShift] = useState('Breakfast');
+  const [selectedMenuShift, setSelectedMenuShift] = useState('Breakfast');
+  const [takeoutActiveShift, setTakeoutActiveShift] = useState('Breakfast');
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [newShiftName, setNewShiftName] = useState('');
+  const [switchingShift, setSwitchingShift] = useState(false);
+
   const [activeOrderVenueTab, setActiveOrderVenueTab] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('activeOrderVenueTab') || '';
@@ -774,6 +842,20 @@ export default function MerchantDashboard() {
     if (cat.includes('beverag') || cat.includes('drink')) return 'bg-pink-500';
     return 'bg-muted-foreground';
   };
+
+  // Universal Modal Dismissal (Desktop Esc key & Mobile back gesture)
+  useModalDismiss(showGetMoreDevicesModal, () => setShowGetMoreDevicesModal(false), 'get-devices');
+  useModalDismiss(showEditApplicationModal, () => setShowEditApplicationModal(false), 'edit-venue');
+  useModalDismiss(showGlobalTaxesModal, () => setShowGlobalTaxesModal(false), 'global-taxes');
+  useModalDismiss(showConfigureBillModal, () => setShowConfigureBillModal(false), 'configure-bill');
+  useModalDismiss(showExportModal, () => setShowExportModal(false), 'export-modal');
+  useModalDismiss(showPrintBillModal, () => setShowPrintBillModal(false), 'print-bill');
+  useModalDismiss(showTakeoutModal, () => setShowTakeoutModal(false), 'takeout-modal');
+  useModalDismiss(showModeChangeModal, () => setShowModeChangeModal(false), 'mode-change');
+  useModalDismiss(isMenuModalOpen, () => setIsMenuModalOpen(false), 'menu-item-modal');
+  useModalDismiss(isCategoryModalOpen, () => setIsCategoryModalOpen(false), 'category-modal');
+  useModalDismiss(isShiftModalOpen, () => setIsShiftModalOpen(false), 'manage-shifts');
+  useModalDismiss(mobileMenuOpen, () => setMobileMenuOpen(false), 'mobile-nav-drawer');
 
   // Orders tab states (WebSocket)
   const [orders, setOrders] = useState([]);
@@ -959,6 +1041,7 @@ export default function MerchantDashboard() {
   useEffect(() => {
     if (selectedOutletId) {
       fetchBillConfig(selectedOutletId);
+      fetchMenu(selectedOutletId);
     }
   }, [selectedOutletId]);
 
@@ -988,6 +1071,7 @@ export default function MerchantDashboard() {
           showCustomerDetail: configData.showCustomerDetail !== undefined ? configData.showCustomerDetail : true,
           cgstPercent: configData.cgstPercent !== undefined ? configData.cgstPercent : 2.5,
           sgstPercent: configData.sgstPercent !== undefined ? configData.sgstPercent : 2.5,
+          serviceTaxPercent: configData.serviceTaxPercent !== undefined ? configData.serviceTaxPercent : 0,
           enableAutoRoundOff: configData.enableAutoRoundOff !== undefined ? configData.enableAutoRoundOff : true,
           thankYouMessage: configData.thankYouMessage || 'Thank You & Visit Again !',
           showThankYouMessage: configData.showThankYouMessage !== undefined ? configData.showThankYouMessage : true,
@@ -1023,7 +1107,8 @@ export default function MerchantDashboard() {
     const payload = {
       ...billForm,
       cgstPercent: parseTaxRate(billForm.cgstPercent),
-      sgstPercent: parseTaxRate(billForm.sgstPercent)
+      sgstPercent: parseTaxRate(billForm.sgstPercent),
+      serviceTaxPercent: parseTaxRate(billForm.serviceTaxPercent)
     };
 
     try {
@@ -1527,6 +1612,17 @@ export default function MerchantDashboard() {
     }
   };
 
+  const toggleServiceTaxExemption = async (orderId, removeServiceTax) => {
+    try {
+      await axios.post(`${API_BASE}/host/orders/toggle-service-tax`, { orderId, removeServiceTax }, { headers: { Authorization: `Bearer ${token}` } });
+      fetchLiveOrders(token);
+      showToast(removeServiceTax ? 'Service Tax removed from order' : 'Service Tax restored on order', 'success');
+    } catch (err) {
+      console.error('toggleServiceTaxExemption error:', err);
+      showToast('Failed to update Service Tax', 'error');
+    }
+  };
+
   const handleVerifyPasswordSubmit = async (e) => {
     e.preventDefault();
     if (!confirmPasswordInput.trim()) {
@@ -1664,43 +1760,8 @@ export default function MerchantDashboard() {
     }, 0);
   };
 
-  // Fetch menu
-  const fetchMenu = async (authToken, outletId) => {
-    if (!outletId) return;
-    try {
-      const res = await axios.get(`${API_BASE}/host/menu`, {
-        params: { hostApplicationId: outletId },
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
-      const items = res.data.data.items || [];
-      const categories = res.data.data.categories || ['Starters', 'Main Course', 'Dessert', 'Beverages'];
-      const defaultGst = res.data.data.defaultGst || 0;
-      const defaultOtherCharges = res.data.data.defaultOtherCharges || 0;
-      const defaultOtherChargesType = res.data.data.defaultOtherChargesType || 'percentage';
-
-      setMenuItems(items);
-      setMenuCategories(categories);
-      setMenuDefaultGst(defaultGst);
-      setMenuDefaultOtherCharges(defaultOtherCharges);
-      setMenuDefaultOtherChargesType(defaultOtherChargesType);
-
-      originalMenuRef.current = JSON.stringify({
-        items,
-        categories,
-        defaultGst,
-        defaultOtherCharges,
-        defaultOtherChargesType
-      });
-    } catch (err) {
-      console.error(err);
-      setMenuItems([]);
-      originalMenuRef.current = null;
-    }
-  };
-
   useEffect(() => {
     if (token && selectedOutletId) {
-      fetchMenu(token, selectedOutletId);
       fetchPaymentConfig(token, selectedOutletId);
     }
   }, [token, selectedOutletId]);
@@ -1765,11 +1826,12 @@ export default function MerchantDashboard() {
               const { State, District } = postOffices[0];
               // Match returned state with INDIAN_STATES using robust normalization
               const matchedState = normalizeAndMatchState(State);
+              const normalizedCity = normalizeCity(District || '');
 
               setForm(prev => ({
                 ...prev,
                 state: matchedState,
-                city: District || prev.city
+                city: normalizedCity || prev.city
               }));
               setZipError('');
             } else {
@@ -1876,6 +1938,38 @@ export default function MerchantDashboard() {
     }
   };
 
+  const fetchMenu = async (appId) => {
+    const currentToken = token || localStorage.getItem('token');
+    if (!currentToken || !appId) return;
+    try {
+      const res = await axios.get(`${API_BASE}/host/menu?hostApplicationId=${appId}`, {
+        headers: { Authorization: `Bearer ${currentToken}` }
+      });
+      if (res.data?.success && res.data?.data) {
+        const menuData = res.data.data;
+        setMenuItems(menuData.items || []);
+        if (menuData.categories && menuData.categories.length > 0) {
+          setMenuCategories(menuData.categories);
+        }
+        if (menuData.shifts && menuData.shifts.length > 0) {
+          setMenuShifts(menuData.shifts);
+        }
+        if (menuData.activeShift) {
+          setActiveShift(menuData.activeShift);
+          setSelectedMenuShift((prev) => prev || menuData.activeShift);
+          setTakeoutActiveShift((prev) => prev || menuData.activeShift);
+        }
+        if (menuData.defaultGst !== undefined) setMenuDefaultGst(menuData.defaultGst);
+        if (menuData.defaultOtherCharges !== undefined) setMenuDefaultOtherCharges(menuData.defaultOtherCharges);
+        if (menuData.defaultOtherChargesType) setMenuDefaultOtherChargesType(menuData.defaultOtherChargesType);
+
+        originalMenuRef.current = JSON.stringify(menuData.items || []);
+      }
+    } catch (err) {
+      console.error('fetchMenu error:', err.message);
+    }
+  };
+
   // Save restaurant menu items
   const handleSaveMenu = async () => {
     if (!selectedOutletId) {
@@ -1888,6 +1982,8 @@ export default function MerchantDashboard() {
         hostApplicationId: selectedOutletId,
         items: menuItems,
         categories: menuCategories,
+        shifts: menuShifts,
+        activeShift: activeShift,
         defaultGst: menuDefaultGst,
         defaultOtherCharges: menuDefaultOtherCharges,
         defaultOtherChargesType: menuDefaultOtherChargesType
@@ -1895,13 +1991,7 @@ export default function MerchantDashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      originalMenuRef.current = JSON.stringify({
-        items: menuItems,
-        categories: menuCategories,
-        defaultGst: menuDefaultGst,
-        defaultOtherCharges: menuDefaultOtherCharges,
-        defaultOtherChargesType: menuDefaultOtherChargesType
-      });
+      originalMenuRef.current = JSON.stringify(menuItems);
       // Force update state trigger
       setMenuItems([...menuItems]);
 
@@ -1921,6 +2011,8 @@ export default function MerchantDashboard() {
         hostApplicationId: selectedOutletId,
         items: menuItems,
         categories: updatedCategories,
+        shifts: menuShifts,
+        activeShift: activeShift,
         defaultGst: menuDefaultGst,
         defaultOtherCharges: menuDefaultOtherCharges,
         defaultOtherChargesType: menuDefaultOtherChargesType
@@ -1932,6 +2024,8 @@ export default function MerchantDashboard() {
       originalMenuRef.current = JSON.stringify({
         items: menuItems,
         categories: updatedCategories,
+        shifts: menuShifts,
+        activeShift: activeShift,
         defaultGst: menuDefaultGst,
         defaultOtherCharges: menuDefaultOtherCharges,
         defaultOtherChargesType: menuDefaultOtherChargesType
@@ -1941,6 +2035,82 @@ export default function MerchantDashboard() {
       showToast('Menu categories updated successfully!', 'success');
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save menu categories.', 'error');
+    }
+  };
+
+  const handleSaveShifts = async (updatedShifts) => {
+    if (!selectedOutletId) {
+      showToast('Please select an approved outlet first.', 'error');
+      return;
+    }
+    try {
+      await axios.post(`${API_BASE}/host/menu`, {
+        hostApplicationId: selectedOutletId,
+        items: menuItems,
+        categories: menuCategories,
+        shifts: updatedShifts,
+        activeShift: activeShift,
+        defaultGst: menuDefaultGst,
+        defaultOtherCharges: menuDefaultOtherCharges,
+        defaultOtherChargesType: menuDefaultOtherChargesType
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMenuShifts(updatedShifts);
+      if (!updatedShifts.includes(selectedMenuShift)) {
+        setSelectedMenuShift(updatedShifts[0] || 'Breakfast');
+      }
+      if (!updatedShifts.includes(takeoutActiveShift)) {
+        setTakeoutActiveShift(updatedShifts[0] || 'Breakfast');
+      }
+
+      originalMenuRef.current = JSON.stringify({
+        items: menuItems,
+        categories: menuCategories,
+        shifts: updatedShifts,
+        activeShift: activeShift,
+        defaultGst: menuDefaultGst,
+        defaultOtherCharges: menuDefaultOtherCharges,
+        defaultOtherChargesType: menuDefaultOtherChargesType
+      });
+      showToast('Menu shifts updated successfully!', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to save menu shifts.', 'error');
+    }
+  };
+
+  const handleAddShift = () => {
+    const trimmed = newShiftName.trim();
+    if (!trimmed) return;
+    if (menuShifts.map(s => s.toLowerCase()).includes(trimmed.toLowerCase())) {
+      showToast('A shift with this name already exists.', 'error');
+      return;
+    }
+    const updated = [...menuShifts, trimmed];
+    handleSaveShifts(updated);
+    setNewShiftName('');
+  };
+
+  const handleSwitchShift = async (targetShift) => {
+    const shiftToActivate = targetShift || selectedMenuShift;
+    if (!selectedOutletId || !shiftToActivate) return;
+    setSwitchingShift(true);
+    try {
+      const res = await axios.post(`${API_BASE}/host/menu/switch-shift`, {
+        hostApplicationId: selectedOutletId,
+        activeShift: shiftToActivate
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data?.success) {
+        setActiveShift(shiftToActivate);
+        showToast(`🚀 Live tablet menu switched to ${shiftToActivate}!`, 'success');
+      }
+    } catch (err) {
+      console.error('handleSwitchShift error:', err);
+      showToast(err.response?.data?.message || 'Failed to switch menu shift.', 'error');
+    } finally {
+      setSwitchingShift(false);
     }
   };
 
@@ -2321,6 +2491,8 @@ export default function MerchantDashboard() {
       imageUrl: '',
       isVeg: true,
       isPopular: false,
+      isAllShifts: false,
+      shifts: [selectedMenuShift || activeShift || 'Breakfast'],
       gst: (menuDefaultGst || 0).toString(),
       otherCharges: (menuDefaultOtherCharges || 0).toString(),
       otherChargesType: menuDefaultOtherChargesType || 'percentage'
@@ -2341,6 +2513,8 @@ export default function MerchantDashboard() {
       imageUrl: item.imageUrl || '',
       isVeg: item.isVeg !== false,
       isPopular: item.isPopular || false,
+      isAllShifts: item.isAllShifts === true,
+      shifts: Array.isArray(item.shifts) && item.shifts.length > 0 ? item.shifts : [selectedMenuShift || activeShift || 'Breakfast'],
       gst: item.gst !== undefined && item.gst !== null ? item.gst.toString() : (menuDefaultGst || 0).toString(),
       otherCharges: item.otherCharges !== undefined && item.otherCharges !== null ? item.otherCharges.toString() : (menuDefaultOtherCharges || 0).toString(),
       otherChargesType: (item.otherCharges !== undefined && item.otherCharges !== null) ? (item.otherChargesType || 'percentage') : (menuDefaultOtherChargesType || 'percentage')
@@ -2376,6 +2550,8 @@ export default function MerchantDashboard() {
         imageUrl: modalForm.imageUrl,
         isVeg: modalForm.isVeg,
         isPopular: modalForm.isPopular,
+        isAllShifts: modalForm.isAllShifts === true,
+        shifts: modalForm.isAllShifts ? [] : (modalForm.shifts && modalForm.shifts.length > 0 ? modalForm.shifts : [selectedMenuShift || activeShift || 'Breakfast']),
         gst: null,
         otherCharges: null,
         otherChargesType: 'percentage'
@@ -2394,6 +2570,8 @@ export default function MerchantDashboard() {
         imageUrl: modalForm.imageUrl,
         isVeg: modalForm.isVeg,
         isPopular: modalForm.isPopular,
+        isAllShifts: modalForm.isAllShifts === true,
+        shifts: modalForm.isAllShifts ? [] : (modalForm.shifts && modalForm.shifts.length > 0 ? modalForm.shifts : [selectedMenuShift || activeShift || 'Breakfast']),
         gst: null,
         otherCharges: null,
         otherChargesType: 'percentage'
@@ -2537,14 +2715,7 @@ export default function MerchantDashboard() {
 
   const hasMenuChanges = () => {
     if (!originalMenuRef.current) return false;
-    const currentMenu = {
-      items: menuItems,
-      categories: menuCategories,
-      defaultGst: menuDefaultGst,
-      defaultOtherCharges: menuDefaultOtherCharges,
-      defaultOtherChargesType: menuDefaultOtherChargesType
-    };
-    return JSON.stringify(currentMenu) !== originalMenuRef.current;
+    return JSON.stringify(menuItems) !== originalMenuRef.current;
   };
 
   const openEditApplicationModal = (targetApp) => {
@@ -2598,11 +2769,12 @@ export default function MerchantDashboard() {
             if (postOffices && postOffices.length > 0) {
               const { State, District } = postOffices[0];
               const matchedState = normalizeAndMatchState(State);
+              const normalizedCity = normalizeCity(District || '');
 
               setEditAppForm(prev => ({
                 ...prev,
                 state: matchedState,
-                city: District || prev.city
+                city: normalizedCity || prev.city
               }));
               setEditAppZipError('');
             } else {
@@ -2691,13 +2863,14 @@ export default function MerchantDashboard() {
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col transition-all duration-300">
 
       {/* Top Header Navbar - Universal styled shadcn preset */}
-      <header className="border-b border-border/40 bg-card px-5 sm:px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-30">
-        <div className="flex items-center space-x-3">
-          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-8 h-8 object-contain shrink-0" />
-          <span className="font-outfit text-md font-bold text-foreground brandLogo">Merchant Portal</span>
+      <header className="border-b border-border/40 bg-card px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0" />
+          <span className="font-outfit text-sm sm:text-md font-bold text-foreground brandLogo truncate">Merchant Portal</span>
         </div>
 
-        <nav className="flex space-x-1.5 md:space-x-2">
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex space-x-1.5 md:space-x-2">
           {applications.length === 0 && !hasApprovedVenue && (
             <button
               onClick={() => setActiveTab('applications')}
@@ -2790,17 +2963,29 @@ export default function MerchantDashboard() {
           )}
         </nav>
 
-        <div className="flex items-center space-x-2 md:space-x-3">
-          {/* Role Actions */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Desktop Theme toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer flex items-center justify-center shadow-sm"
+            className="hidden md:flex p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer items-center justify-center shadow-sm"
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500 " /> : <Moon className="w-4 h-4 text-indigo-500 " />}
           </button>
 
-          {/* User profile dropdown on the rightmost side */}
+          {/* Mobile Hamburger Menu button on the left of user action dropdown */}
+          <button
+            onClick={() => {
+              setMobileMenuOpen(!mobileMenuOpen);
+              setUserMenuOpen(false);
+            }}
+            className="md:hidden p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer flex items-center justify-center shadow-sm"
+            aria-label="Toggle mobile menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4 text-foreground" /> : <MenuIcon className="w-4 h-4 text-foreground" />}
+          </button>
+
+          {/* User profile dropdown on the rightmost side (outside) */}
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -2855,7 +3040,7 @@ export default function MerchantDashboard() {
                       }}
                       className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
                     >
-                      <Pencil className="w-4 h-4 text-amber-500" />
+                      <Pencil className="w-4 h-4 text-blue-500" />
                       <span>Edit Venue Details</span>
                     </button>
 
@@ -2909,8 +3094,146 @@ export default function MerchantDashboard() {
         </div>
       </header>
 
+      {/* Mobile Navigation Dropdown Panel */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-border/40 bg-card/95 backdrop-blur-md px-4 py-3 space-y-1.5 shadow-md sticky top-[57px] z-20 animate-fade-in">
+          {applications.length === 0 && !hasApprovedVenue && (
+            <button
+              onClick={() => {
+                setActiveTab('applications');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'applications'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              <Form className={`w-4 h-4 ${activeTab === 'applications' ? 'text-primary-foreground' : 'text-primary'}`} />
+              <span>Host Applications</span>
+            </button>
+          )}
+          {applications.length > 0 && !hasApprovedVenue && (
+            <button
+              onClick={() => {
+                setActiveTab('my-applications');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'my-applications'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              <Form className={`w-4 h-4 ${activeTab === 'my-applications' ? 'text-primary-foreground' : 'text-primary'}`} />
+              <span>Your Applications</span>
+            </button>
+          )}
+          {hasApprovedVenue && (
+            <>
+              <button
+                onClick={() => {
+                  setActiveTab('dashboard');
+                  fetchVenueAnalytics(token, analyticsDays);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'dashboard'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                <LayoutDashboard className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-primary-foreground' : 'text-primary'}`} />
+                <span>Dashboard</span>
+              </button>
+              {applications.some(app => app.status === 'approved' && app.requestTablet) && (
+                <>
+                  <button
+                    onClick={() => {
+                      setActiveTab('menu');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeTab === 'menu'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <UtensilsCrossed className={`w-4 h-4 ${activeTab === 'menu' ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <span>Menu Manager</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('promos');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeTab === 'promos'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <Megaphone className={`w-4 h-4 ${activeTab === 'promos' ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <span>Venue Promos</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('orders');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeTab === 'orders'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Salad className={`w-4 h-4 ${activeTab === 'orders' ? 'text-primary-foreground' : 'text-primary'}`} />
+                      <span>Live Orders</span>
+                    </div>
+                    {orders.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black shadow-sm">
+                        {orders.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('payment');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      activeTab === 'payment'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <CreditCard className={`w-4 h-4 ${activeTab === 'payment' ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <span>Payment History</span>
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Theme Toggle in Mobile Drawer */}
+          <div className="pt-2 mt-2 border-t border-border/40 flex items-center justify-between px-3 py-1.5">
+            <span className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+              {theme === 'dark' ? <Moon className="w-3.5 h-3.5 text-indigo-500" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+              Appearance
+            </span>
+            <button
+              onClick={toggleTheme}
+              className="px-2.5 py-1 text-[11px] font-bold bg-muted hover:bg-muted/80 text-foreground border border-border rounded-lg transition-all"
+            >
+              {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Pane */}
-      <main className="flex-1 p-5 sm:p-6 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 overflow-y-auto max-w-7xl mx-auto w-full">
         {error && (
           <div className="mb-8 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold">
             {error}
@@ -3285,30 +3608,29 @@ export default function MerchantDashboard() {
                       <p className="text-[10px] text-destructive font-semibold mt-1.5 ml-1">{zipError}</p>
                     )}
                   </div>
-                  <div>
+                  <div className="relative">
                     <input
                       type="text"
-                      required
-                      placeholder="City"
+                      readOnly
+                      placeholder="City (Auto-filled)"
                       value={form.city}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                      className="w-full bg-muted/40 border border-input rounded-xl pl-4 pr-9 py-3 text-xs font-semibold text-foreground focus:outline-none cursor-not-allowed select-none transition-all placeholder:text-muted-foreground/70"
                     />
+                    <span className="absolute right-3 top-3.5 text-muted-foreground/60" title="Auto-filled from PIN Code">
+                      <Lock className="w-3.5 h-3.5" />
+                    </span>
                   </div>
-                  <div>
-                    <select
-                      required
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      placeholder="State (Auto-filled)"
                       value={form.state}
-                      onChange={(e) => setForm({ ...form, state: e.target.value })}
-                      className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all cursor-pointer"
-                    >
-                      <option value="" disabled>Select State</option>
-                      {INDIAN_STATES.map((state) => (
-                        <option key={state} value={state} className="bg-background text-foreground">
-                          {state}
-                        </option>
-                      ))}
-                    </select>
+                      className="w-full bg-muted/40 border border-input rounded-xl pl-4 pr-9 py-3 text-xs font-semibold text-foreground focus:outline-none cursor-not-allowed select-none transition-all placeholder:text-muted-foreground/70"
+                    />
+                    <span className="absolute right-3 top-3.5 text-muted-foreground/60" title="Auto-filled from PIN Code">
+                      <Lock className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
 
@@ -3695,31 +4017,94 @@ export default function MerchantDashboard() {
         {/* 2. Menu Manager Tab */}
         {activeTab === 'menu' && (
           <div className="animate-fade-in">
-            <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
               <div>
-                <h1 className="font-outfit text-2xl font-black text-foreground mb-2">Food Items Catalog</h1>
-                <p className="text-muted-foreground text-xs font-semibold">Design the digital ordering catalog displayed on the tabletop tablets.</p>
+                <h1 className="font-outfit text-2xl font-black text-foreground mb-1">Food Items Catalog</h1>
+                <p className="text-muted-foreground text-xs font-semibold">Design and manage shifting digital ordering menus displayed on tabletop tablets.</p>
               </div>
               {approvedOutlets.length > 0 && (
-                <div className="flex space-x-4">
+                <div className="flex items-center flex-wrap gap-2.5">
+                  {/* Shift Selector Dropdown */}
+                  <div className="flex items-center space-x-2 bg-card border border-border/40 px-3 py-1.5 rounded-xl shadow-sm">
+                    <Clock className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">Shift:</span>
+                    <select
+                      value={selectedMenuShift}
+                      onChange={(e) => setSelectedMenuShift(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                    >
+                      {menuShifts.map((shift) => (
+                        <option key={shift} value={shift} className="bg-card text-foreground">
+                          {shift} {shift === activeShift ? '● (Active)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Switch Active Live Shift Action Button */}
+                  {selectedMenuShift === activeShift ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="bg-muted text-muted-foreground border border-border/40 font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 cursor-not-allowed opacity-80 shadow-sm"
+                      title="This shift is currently live on all customer tablet kiosks"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>● Active Live Shift</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchShift(selectedMenuShift)}
+                      disabled={switchingShift}
+                      className="bg-[#0069a8] hover:bg-[#005a91] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md cursor-pointer flex items-center space-x-1.5"
+                    >
+                      {switchingShift ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Switching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          <span>Switch to {selectedMenuShift} Menu</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Manage Shifts */}
+                  <button
+                    onClick={() => setIsShiftModalOpen(true)}
+                    className="bg-card hover:bg-muted border border-border/40 text-foreground font-semibold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span>Manage Shifts</span>
+                  </button>
+
+                  {/* Manage Categories */}
                   <button
                     onClick={() => setIsCategoryModalOpen(true)}
-                    className="bg-card hover:bg-muted border border-border/40 text-foreground font-semibold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                    className="bg-card hover:bg-muted border border-border/40 text-foreground font-semibold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
                   >
-                    <Settings className="w-4 h-4" />
+                    <Settings className="w-4 h-4 text-muted-foreground" />
                     <span>Manage Categories</span>
                   </button>
+
+                  {/* Add Item */}
                   <button
                     onClick={addMenuItem}
-                    className="bg-card hover:bg-muted border border-border/40 text-foreground font-semibold text-xs px-4 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                    className="bg-card hover:bg-muted border border-border/40 text-foreground font-semibold text-xs px-3.5 py-2.5 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Item</span>
                   </button>
+
+                  {/* Save Menu */}
                   <button
                     onClick={handleSaveMenu}
                     disabled={!hasMenuChanges()}
-                    className="bg-primary hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none text-primary-foreground font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-md cursor-pointer glow-hover"
+                    className="bg-primary hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none text-primary-foreground font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md cursor-pointer glow-hover"
                   >
                     Save Menu
                   </button>
@@ -3729,10 +4114,17 @@ export default function MerchantDashboard() {
 
             {approvedOutlets.length > 0 ? (
               <>
-
                 <div className="space-y-12">
                   {menuCategories.map((category) => {
-                    const items = menuItems.filter(item => (item.category || '').toLowerCase() === category.toLowerCase());
+                    const items = menuItems.filter(item => {
+                      const matchesCat = (item.category || '').toLowerCase() === category.toLowerCase();
+                      if (!matchesCat) return false;
+                      if (item.isAllShifts === true) return true;
+                      if (Array.isArray(item.shifts) && item.shifts.length > 0) {
+                        return item.shifts.includes(selectedMenuShift);
+                      }
+                      return true;
+                    });
                     return (
                       <div key={category} className="space-y-4">
                         <div className="flex items-center space-x-3 bg-muted/20 dark:bg-muted/5 border border-border/40 px-4 py-3 rounded-xl shadow-sm">
@@ -3884,6 +4276,11 @@ export default function MerchantDashboard() {
                       <span>+ Pickup Order</span>
                     </button>
 
+                    <div className="flex items-center space-x-1.5 text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-xl shrink-0">
+                      <Clock className="w-3.5 h-3.5 text-primary" />
+                      <span>Active Menu: {activeShift}</span>
+                    </div>
+
                     <div className="flex items-center space-x-2 text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl shrink-0">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -3979,6 +4376,7 @@ export default function MerchantDashboard() {
                                   <div className="text-sm font-black font-mono text-foreground">
                                     ₹{(ord.totalAmount / 100).toFixed(2)}
                                   </div>
+                                  {/* GST Exemption Button */}
                                   {ord.isGstExempt ? (
                                     <div className="flex items-center space-x-1">
                                       <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
@@ -4002,6 +4400,34 @@ export default function MerchantDashboard() {
                                     >
                                       <span>Remove GST</span>
                                     </button>
+                                  )}
+
+                                  {/* Service Tax Exemption Button */}
+                                  {(ord.serviceTaxPercent > 0 || ord.serviceTaxAmount > 0 || ord.isServiceTaxExempt || (activeBillConfig?.serviceTaxPercent > 0)) && (
+                                    ord.isServiceTaxExempt ? (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+                                          No Serv Tax
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleServiceTaxExemption(ord.orderId, false)}
+                                          className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline cursor-pointer"
+                                          title="Restore Service Tax calculation"
+                                        >
+                                          Restore
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleServiceTaxExemption(ord.orderId, true)}
+                                        className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
+                                        title="Remove Service Tax from order"
+                                      >
+                                        <span>Remove Serv Tax</span>
+                                      </button>
+                                    )
                                   )}
                                 </div>
                               </td>
@@ -4911,6 +5337,63 @@ export default function MerchantDashboard() {
                     <span>Feature in Popular Section</span>
                   </label>
                 </div>
+
+                {/* Shift Assignment Section */}
+                <div className="space-y-2 pt-2 border-t border-border/40">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="modalItemAllShifts"
+                      checked={modalForm.isAllShifts === true}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setModalForm(prev => ({
+                          ...prev,
+                          isAllShifts: checked,
+                          shifts: checked ? [] : (prev.shifts && prev.shifts.length > 0 ? prev.shifts : [selectedMenuShift || activeShift || 'Breakfast'])
+                        }));
+                      }}
+                      className="w-4 h-4 rounded accent-primary cursor-pointer border border-input"
+                    />
+                    <label htmlFor="modalItemAllShifts" className="text-xs font-bold text-foreground cursor-pointer uppercase select-none flex items-center space-x-1">
+                      <Clock className="w-3.5 h-3.5 text-primary inline mr-1" />
+                      <span>Available in All Shifts (All-Day)</span>
+                    </label>
+                  </div>
+
+                  {!modalForm.isAllShifts && (
+                    <div className="pl-6 space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase block">Select Specific Shifts:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {menuShifts.map((shift) => {
+                          const isSelected = Array.isArray(modalForm.shifts) && modalForm.shifts.includes(shift);
+                          return (
+                            <button
+                              key={shift}
+                              type="button"
+                              onClick={() => {
+                                setModalForm(prev => {
+                                  const currentShifts = Array.isArray(prev.shifts) ? [...prev.shifts] : [];
+                                  const nextShifts = currentShifts.includes(shift)
+                                    ? currentShifts.filter(s => s !== shift)
+                                    : [...currentShifts, shift];
+                                  return { ...prev, shifts: nextShifts.length > 0 ? nextShifts : [shift] };
+                                });
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                  : 'bg-muted/30 border-border/40 text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {isSelected ? '✓ ' : '+ '}{shift}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Right Column - Image Upload & Food Preference */}
@@ -5168,6 +5651,109 @@ export default function MerchantDashboard() {
                 onClick={() => {
                   setIsCategoryModalOpen(false);
                   setNewCategoryName('');
+                }}
+                className="px-5 py-2 border border-border/40 hover:bg-muted text-foreground font-bold rounded-xl transition-all text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shift Management Modal */}
+      {isShiftModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in exclude-uppercase">
+          <div className="w-full max-w-md bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-6">
+            <button
+              onClick={() => {
+                setIsShiftModalOpen(false);
+                setNewShiftName('');
+              }}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center space-x-3 border-b border-border/40 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-outfit text-md font-bold tracking-tight">Manage Menu Shifts</h3>
+                <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Configure shifts (e.g. Breakfast, Lunch, Snacks, Dinner).</p>
+              </div>
+            </div>
+
+            {/* List of Shifts */}
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {menuShifts.map((shift, idx) => {
+                const isLive = shift === activeShift;
+                return (
+                  <div key={shift} className="flex justify-between items-center p-2.5 rounded-xl bg-muted/20 border border-border/20 text-xs font-bold">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[11px] font-mono text-muted-foreground">#{idx + 1}</span>
+                      <span className="text-foreground">{shift}</span>
+                      {isLive && (
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500 text-white shadow-sm">
+                          ● Live
+                        </span>
+                      )}
+                    </div>
+                    {!isLive && (
+                      <button
+                        onClick={() => {
+                          if (menuShifts.length <= 1) {
+                            showToast('You must keep at least 1 menu shift.', 'error');
+                            return;
+                          }
+                          if (window.confirm(`Are you sure you want to delete "${shift}" shift? Items assigned to this shift will remain in database.`)) {
+                            const updated = menuShifts.filter(s => s !== shift);
+                            handleSaveShifts(updated);
+                          }
+                        }}
+                        className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
+                        title={`Delete shift ${shift}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add new shift form */}
+            <div className="space-y-3 pt-2 border-t border-border/40">
+              <span className="text-[10px] font-black uppercase text-muted-foreground">Add New Shift</span>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  placeholder="Shift Name (e.g. Late Night)"
+                  value={newShiftName}
+                  onChange={(e) => setNewShiftName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddShift();
+                    }
+                  }}
+                  className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                />
+                <button
+                  onClick={handleAddShift}
+                  className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-4 rounded-xl text-xs flex items-center justify-center cursor-pointer transition-all shadow-sm"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => {
+                  setIsShiftModalOpen(false);
+                  setNewShiftName('');
                 }}
                 className="px-5 py-2 border border-border/40 hover:bg-muted text-foreground font-bold rounded-xl transition-all text-xs cursor-pointer"
               >
@@ -5647,32 +6233,35 @@ export default function MerchantDashboard() {
                     <p className="text-[10px] text-destructive font-semibold mt-1.5 ml-1">{editAppZipError}</p>
                   )}
                 </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">City</label>
+                <div className="relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">City</label>
+                    <span className="text-[9px] text-muted-foreground font-bold flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> Auto-filled
+                    </span>
+                  </div>
                   <input
                     type="text"
-                    required
-                    placeholder="City"
+                    readOnly
+                    placeholder="City (Auto-filled from PIN)"
                     value={editAppForm.city}
-                    onChange={(e) => setEditAppForm({ ...editAppForm, city: e.target.value })}
-                    className="w-full bg-background border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                    className="w-full bg-muted/40 border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none cursor-not-allowed select-none transition-all"
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">State</label>
-                  <select
-                    required
+                <div className="relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">State</label>
+                    <span className="text-[9px] text-muted-foreground font-bold flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" /> Auto-filled
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    placeholder="State (Auto-filled from PIN)"
                     value={editAppForm.state}
-                    onChange={(e) => setEditAppForm({ ...editAppForm, state: e.target.value })}
-                    className="w-full bg-background border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all cursor-pointer"
-                  >
-                    <option value="" disabled>Select State</option>
-                    {INDIAN_STATES.map((state) => (
-                      <option key={state} value={state} className="bg-background text-foreground">
-                        {state}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-full bg-muted/40 border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none cursor-not-allowed select-none transition-all"
+                  />
                 </div>
               </div>
 
@@ -5807,10 +6396,12 @@ export default function MerchantDashboard() {
           let subtotal = 0;
           let cgstAmt = 0;
           let sgstAmt = 0;
+          let serviceTaxAmt = 0;
           let roundOffDiff = 0;
           let roundedTotal = 0;
           let cgstRate = 0;
           let sgstRate = 0;
+          let serviceTaxRate = 0;
 
           if (order && typeof order.subtotalAmount === 'number' && order.subtotalAmount > 0) {
             // Priority 1: Frozen order billing snapshot fields from actual transaction time
@@ -5822,17 +6413,26 @@ export default function MerchantDashboard() {
               sgstAmt = 0;
               cgstRate = 0;
               sgstRate = 0;
-              roundOffDiff = 0;
             } else {
               cgstAmt = (order.cgstAmount || 0) / 100;
               sgstAmt = (order.sgstAmount || 0) / 100;
-              roundOffDiff = (order.roundOffAmount || 0) / 100;
 
               if (subtotal > 0) {
                 cgstRate = typeof order.cgstPercent === 'number' ? order.cgstPercent : Number(((cgstAmt / subtotal) * 100).toFixed(2));
                 sgstRate = typeof order.sgstPercent === 'number' ? order.sgstPercent : Number(((sgstAmt / subtotal) * 100).toFixed(2));
               }
             }
+
+            if (order.isServiceTaxExempt) {
+              serviceTaxAmt = 0;
+              serviceTaxRate = 0;
+            } else {
+              serviceTaxAmt = (order.serviceTaxAmount || 0) / 100;
+              if (subtotal > 0) {
+                serviceTaxRate = typeof order.serviceTaxPercent === 'number' ? order.serviceTaxPercent : Number(((serviceTaxAmt / subtotal) * 100).toFixed(2));
+              }
+            }
+            roundOffDiff = (order.roundOffAmount || 0) / 100;
           } else if (order && order.totalAmount) {
             // Priority 2: Historic DB order created prior to subtotalAmount snapshot field
             const subtotalPaise = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -5841,13 +6441,16 @@ export default function MerchantDashboard() {
 
             const frozenCgstPct = order.billConfigSnapshot?.cgstPercent ?? order.cgstPercent;
             const frozenSgstPct = order.billConfigSnapshot?.sgstPercent ?? order.sgstPercent;
+            const frozenServiceTaxPct = order.billConfigSnapshot?.serviceTaxPercent ?? order.serviceTaxPercent;
 
-            if (typeof frozenCgstPct === 'number' || typeof frozenSgstPct === 'number') {
+            if (typeof frozenCgstPct === 'number' || typeof frozenSgstPct === 'number' || typeof frozenServiceTaxPct === 'number') {
               cgstRate = frozenCgstPct || 0;
               sgstRate = frozenSgstPct || 0;
+              serviceTaxRate = frozenServiceTaxPct || 0;
               cgstAmt = subtotal * (cgstRate / 100);
               sgstAmt = subtotal * (sgstRate / 100);
-              const rawTotal = subtotal + cgstAmt + sgstAmt;
+              serviceTaxAmt = subtotal * (serviceTaxRate / 100);
+              const rawTotal = subtotal + cgstAmt + sgstAmt + serviceTaxAmt;
               // Round-off CANNOT exceed 0.99
               const calcDiff = roundedTotal - rawTotal;
               roundOffDiff = (calcDiff >= 0 && calcDiff < 1.00) ? Math.round(calcDiff * 100) / 100 : 0;
@@ -5857,16 +6460,20 @@ export default function MerchantDashboard() {
               if (diff <= 0) {
                 cgstRate = 0;
                 sgstRate = 0;
+                serviceTaxRate = 0;
                 cgstAmt = 0;
                 sgstAmt = 0;
+                serviceTaxAmt = 0;
                 roundOffDiff = 0;
               } else {
                 // Read venue config rates or fallback to 2.5% CGST + 2.5% SGST
                 cgstRate = typeof config?.cgstPercent === 'number' ? config.cgstPercent : 2.5;
                 sgstRate = typeof config?.sgstPercent === 'number' ? config.sgstPercent : 2.5;
+                serviceTaxRate = typeof config?.serviceTaxPercent === 'number' ? config.serviceTaxPercent : 0;
                 cgstAmt = subtotal * (cgstRate / 100);
                 sgstAmt = subtotal * (sgstRate / 100);
-                const rawTotal = subtotal + cgstAmt + sgstAmt;
+                serviceTaxAmt = subtotal * (serviceTaxRate / 100);
+                const rawTotal = subtotal + cgstAmt + sgstAmt + serviceTaxAmt;
                 const calcDiff = roundedTotal - rawTotal;
                 // Round-off CANNOT exceed 0.99
                 roundOffDiff = (calcDiff >= 0 && calcDiff < 1.00) ? Math.round(calcDiff * 100) / 100 : 0;
@@ -5880,10 +6487,12 @@ export default function MerchantDashboard() {
             subtotal = subtotalPaise / 100;
             cgstRate = Math.max(0, typeof config?.cgstPercent === 'number' ? config.cgstPercent : (parseFloat(config?.cgstPercent) || 0));
             sgstRate = Math.max(0, typeof config?.sgstPercent === 'number' ? config.sgstPercent : (parseFloat(config?.sgstPercent) || 0));
+            serviceTaxRate = Math.max(0, typeof config?.serviceTaxPercent === 'number' ? config.serviceTaxPercent : (parseFloat(config?.serviceTaxPercent) || 0));
             cgstAmt = Math.max(0, subtotal * (cgstRate / 100));
             sgstAmt = Math.max(0, subtotal * (sgstRate / 100));
+            serviceTaxAmt = Math.max(0, subtotal * (serviceTaxRate / 100));
             const totalGstAmt = Math.max(0, cgstAmt + sgstAmt);
-            const rawTotal = subtotal + totalGstAmt;
+            const rawTotal = subtotal + totalGstAmt + serviceTaxAmt;
 
             roundedTotal = config?.enableAutoRoundOff !== false ? Math.ceil(rawTotal) : rawTotal;
             roundOffDiff = roundedTotal - rawTotal;
@@ -6018,6 +6627,12 @@ export default function MerchantDashboard() {
                       </div>
                     )}
                   </>
+                )}
+                {serviceTaxAmt > 0 && (
+                  <div className="flex justify-between text-gray-800">
+                    <span>SERVICE TAX ({serviceTaxRate}%):</span>
+                    <span>{serviceTaxAmt.toFixed(2)}</span>
+                  </div>
                 )}
                 {config?.enableAutoRoundOff !== false && absRoundOff >= 0.001 && (
                   <div className="flex justify-between text-gray-800">
@@ -6273,7 +6888,7 @@ export default function MerchantDashboard() {
                   <h4 className="font-outfit text-xs font-black uppercase tracking-wider text-primary border-b border-border/40 pb-2">
                     3. Taxes & Calculation Rules
                   </h4>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] text-muted-foreground font-bold uppercase">CGST (%)</label>
                       <input
@@ -6320,6 +6935,32 @@ export default function MerchantDashboard() {
                         onBlur={() => {
                           if (billForm.sgstPercent === '' || isNaN(parseFloat(billForm.sgstPercent)) || parseFloat(billForm.sgstPercent) < 0) {
                             setBillForm(prev => ({ ...prev, sgstPercent: 0 }));
+                          }
+                        }}
+                        placeholder="0"
+                        className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground font-bold uppercase">Service Tax (%)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={billForm.serviceTaxPercent !== undefined && billForm.serviceTaxPercent !== null ? billForm.serviceTaxPercent : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setBillForm(prev => ({ ...prev, serviceTaxPercent: '' }));
+                            return;
+                          }
+                          const cleaned = val.replace(/[^0-9.]/g, '');
+                          const parts = cleaned.split('.');
+                          const validVal = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+                          setBillForm(prev => ({ ...prev, serviceTaxPercent: validVal }));
+                        }}
+                        onBlur={() => {
+                          if (billForm.serviceTaxPercent === '' || isNaN(parseFloat(billForm.serviceTaxPercent)) || parseFloat(billForm.serviceTaxPercent) < 0) {
+                            setBillForm(prev => ({ ...prev, serviceTaxPercent: 0 }));
                           }
                         }}
                         placeholder="0"
@@ -6820,6 +7461,31 @@ export default function MerchantDashboard() {
             <div className="grid lg:grid-cols-12 gap-6">
               {/* Left Column: Menu Categories & Items */}
               <div className="lg:col-span-7 space-y-4">
+                {/* Takeout Shift Switcher Pills */}
+                <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none border-b border-border/30">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase shrink-0 mr-1 flex items-center space-x-1">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    <span>Shift:</span>
+                  </span>
+                  {menuShifts.map((shift) => (
+                    <button
+                      key={shift}
+                      type="button"
+                      onClick={() => setTakeoutActiveShift(shift)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1.5 ${
+                        takeoutActiveShift === shift
+                          ? 'bg-[#0069a8] text-white shadow-sm ring-1 ring-[#0069a8]'
+                          : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <span>{shift}</span>
+                      {shift === activeShift && (
+                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500 text-white">Live</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Category Pills */}
                 <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
                   {menuCategories.map((cat) => (
@@ -6840,7 +7506,16 @@ export default function MerchantDashboard() {
                 {/* Items List - Simplified Compact Rows */}
                 <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
                   {menuItems
-                    .filter(i => (i.category || '').toLowerCase() === takeoutActiveCategory.toLowerCase())
+                    .filter(i => {
+                      const matchesCat = (i.category || '').toLowerCase() === takeoutActiveCategory.toLowerCase();
+                      if (!matchesCat) return false;
+                      if (i.isAvailable === false) return false;
+                      if (i.isAllShifts === true) return true;
+                      if (Array.isArray(i.shifts) && i.shifts.length > 0) {
+                        return i.shifts.includes(takeoutActiveShift);
+                      }
+                      return true;
+                    })
                     .map((item) => {
                       const cartEntry = takeoutCart.find(c => (c.item.itemId || c.item._id) === (item.itemId || item._id));
                       const qty = cartEntry ? cartEntry.quantity : 0;
@@ -6940,9 +7615,11 @@ export default function MerchantDashboard() {
                       const subtotalRs = subtotalPaise / 100;
                       const cgstPct = typeof activeVenueBillConfig.cgstPercent === 'number' ? activeVenueBillConfig.cgstPercent : 2.5;
                       const sgstPct = typeof activeVenueBillConfig.sgstPercent === 'number' ? activeVenueBillConfig.sgstPercent : 2.5;
+                      const serviceTaxPct = typeof activeVenueBillConfig.serviceTaxPercent === 'number' ? activeVenueBillConfig.serviceTaxPercent : 0;
                       const gstRate = cgstPct + sgstPct;
                       const gstRs = subtotalRs * (gstRate / 100);
-                      const rawTotal = subtotalRs + gstRs;
+                      const serviceTaxRs = subtotalRs * (serviceTaxPct / 100);
+                      const rawTotal = subtotalRs + gstRs + serviceTaxRs;
                       const finalTotalRs = activeVenueBillConfig.enableAutoRoundOff !== false ? Math.ceil(rawTotal) : rawTotal;
 
                       return (
@@ -6955,6 +7632,12 @@ export default function MerchantDashboard() {
                             <div className="flex justify-between font-semibold text-muted-foreground">
                               <span>GST ({gstRate.toFixed(1)}%):</span>
                               <span className="font-mono">₹{gstRs.toFixed(2)}</span>
+                            </div>
+                          )}
+                          {serviceTaxPct > 0 && (
+                            <div className="flex justify-between font-semibold text-muted-foreground">
+                              <span>Service Tax ({serviceTaxPct}%):</span>
+                              <span className="font-mono">₹{serviceTaxRs.toFixed(2)}</span>
                             </div>
                           )}
                           <div className="flex justify-between font-black text-sm text-foreground pt-1 border-t border-border/40">

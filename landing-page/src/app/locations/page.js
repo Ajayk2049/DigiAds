@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { config } from '@/config';
+import useModalDismiss from '@/hooks/useModalDismiss';
 
 export default function LocationsPage() {
   const [venues, setVenues] = useState([]);
@@ -33,6 +34,9 @@ export default function LocationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [bookingModalVenue, setBookingModalVenue] = useState(null);
+
+  // Universal Modal Dismissal (Desktop Esc key & Mobile back gesture)
+  useModalDismiss(Boolean(bookingModalVenue), () => setBookingModalVenue(null), 'locations-booking-modal');
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);

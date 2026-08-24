@@ -1544,7 +1544,157 @@ class AdminController {
       return res.status(500).send({ success: false, message: 'Failed to delete platform ad: ' + error.message });
     }
   }
+
+  /**
+   * Fetch Universal In-Venue Promo Image Display Durations
+   */
+  async getPromoDurations(req, res) {
+    const SystemSetting = require('../models/SystemSetting');
+    try {
+      const setting = await SystemSetting.findOne({ key: 'venue_promo_durations' });
+      const openDurationSeconds = setting?.value?.openDurationSeconds ?? 10;
+      const closedDurationSeconds = setting?.value?.closedDurationSeconds ?? 15;
+
+      return res.status(200).send({
+        success: true,
+        data: {
+          openDurationSeconds: Math.max(10, Math.min(30, Number(openDurationSeconds) || 10)),
+          closedDurationSeconds: Math.max(10, Math.min(30, Number(closedDurationSeconds) || 15))
+        }
+      });
+    } catch (error) {
+      console.error('getPromoDurations Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to fetch promo durations: ' + error.message });
+    }
+  }
+
+  /**
+   * Update Universal In-Venue Promo Image Display Durations
+   */
+  async updatePromoDurations(req, res) {
+    const SystemSetting = require('../models/SystemSetting');
+    try {
+      const { openDurationSeconds, closedDurationSeconds } = req.body || {};
+
+      const openSec = parseInt(openDurationSeconds, 10);
+      const closedSec = parseInt(closedDurationSeconds, 10);
+
+      if (isNaN(openSec) || openSec < 10 || openSec > 30) {
+        return res.status(400).send({
+          success: false,
+          message: 'Open Ads Network image duration must be between 10 and 30 seconds.'
+        });
+      }
+
+      if (isNaN(closedSec) || closedSec < 10 || closedSec > 30) {
+        return res.status(400).send({
+          success: false,
+          message: 'Closed Private Promo image duration must be between 10 and 30 seconds.'
+        });
+      }
+
+      const updated = await SystemSetting.findOneAndUpdate(
+        { key: 'venue_promo_durations' },
+        {
+          key: 'venue_promo_durations',
+          value: {
+            openDurationSeconds: openSec,
+            closedDurationSeconds: closedSec
+          },
+          description: 'Universal in-venue image promo display duration (seconds) by venue network type (Open vs Closed)'
+        },
+        { upsert: true, new: true }
+      );
+
+      // Broadcast WebSocket reload signal to all connected devices so they pull updated playlist timings
+      if (global.deviceSockets) {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'promo_durations_updated' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: 'Universal in-venue promo durations updated successfully!',
+        data: updated.value
+      });
+    } catch (error) {
+      console.error('updatePromoDurations Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to update promo durations: ' + error.message });
+    }
+  }
+
+  /**
+   * Fetch Universal Commercial Advertiser Image Ad Display Duration
+   */
+  async getAdvertiserImageDuration(req, res) {
+    const SystemSetting = require('../models/SystemSetting');
+    try {
+      const setting = await SystemSetting.findOne({ key: 'advertiser_image_duration' });
+      const durationSeconds = setting?.value?.durationSeconds ?? 8;
+
+      return res.status(200).send({
+        success: true,
+        data: {
+          durationSeconds: Math.max(5, Math.min(30, Number(durationSeconds) || 8))
+        }
+      });
+    } catch (error) {
+      console.error('getAdvertiserImageDuration Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to fetch advertiser image duration: ' + error.message });
+    }
+  }
+
+  /**
+   * Update Universal Commercial Advertiser Image Ad Display Duration
+   */
+  async updateAdvertiserImageDuration(req, res) {
+    const SystemSetting = require('../models/SystemSetting');
+    try {
+      const { durationSeconds } = req.body || {};
+      const durationSec = parseInt(durationSeconds, 10);
+
+      if (isNaN(durationSec) || durationSec < 5 || durationSec > 30) {
+        return res.status(400).send({
+          success: false,
+          message: 'Commercial advertiser image duration must be between 5 and 30 seconds.'
+        });
+      }
+
+      const updated = await SystemSetting.findOneAndUpdate(
+        { key: 'advertiser_image_duration' },
+        {
+          key: 'advertiser_image_duration',
+          value: {
+            durationSeconds: durationSec
+          },
+          description: 'Universal commercial advertiser single-image ad display duration (seconds)'
+        },
+        { upsert: true, new: true }
+      );
+
+      // Broadcast WebSocket reload signal to all connected devices so they pull updated playlist timings
+      if (global.deviceSockets) {
+        const payload = JSON.stringify({ event: 'reload_ads', reason: 'advertiser_duration_updated' });
+        for (const [deviceId, socket] of global.deviceSockets.entries()) {
+          try { socket.send(payload); } catch (e) {}
+        }
+      }
+
+      return res.status(200).send({
+        success: true,
+        message: 'Commercial advertiser image duration updated successfully!',
+        data: updated.value
+      });
+    } catch (error) {
+      console.error('updateAdvertiserImageDuration Error:', error.message);
+      return res.status(500).send({ success: false, message: 'Failed to update advertiser image duration: ' + error.message });
+    }
+  }
 }
 
 module.exports = new AdminController();
+
+
 

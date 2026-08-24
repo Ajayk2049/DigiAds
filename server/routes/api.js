@@ -69,6 +69,7 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.put('/host/applications/:applicationId', hostController.updateApplication.bind(hostController));
     merchantRoutes.get('/host/menu', hostController.getMenu.bind(hostController));
     merchantRoutes.post('/host/menu', hostController.updateMenu.bind(hostController));
+    merchantRoutes.post('/host/menu/switch-shift', hostController.switchShift.bind(hostController));
     merchantRoutes.post('/host/menu/upload-image', { bodyLimit: 5242880 }, hostController.uploadImage.bind(hostController));
     merchantRoutes.get('/host/devices', hostController.getMyDevices.bind(hostController));
     merchantRoutes.put('/host/payment-config', hostController.savePaymentConfig.bind(hostController));
@@ -81,6 +82,7 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/orders/payment-received', hostController.markPaymentReceived.bind(hostController));
     merchantRoutes.post('/host/orders/takeout', hostController.createTakeoutOrder.bind(hostController));
     merchantRoutes.post('/host/orders/toggle-gst', hostController.toggleGstExemption.bind(hostController));
+    merchantRoutes.post('/host/orders/toggle-service-tax', hostController.toggleServiceTaxExemption.bind(hostController));
     merchantRoutes.post('/host/orders/service-waiter', hostController.serviceWaiter.bind(hostController));
     merchantRoutes.post('/host/request-more-devices', hostController.requestMoreDevices.bind(hostController));
     merchantRoutes.post('/host/verify-password', hostController.verifyPassword.bind(hostController));
@@ -163,6 +165,14 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.post('/admin/platform-ads', adminController.createPlatformAd.bind(adminController));
     adminRoutes.patch('/admin/platform-ads/:id', adminController.updatePlatformAd.bind(adminController));
     adminRoutes.delete('/admin/platform-ads/:id', adminController.deletePlatformAd.bind(adminController));
+
+    // Admin Universal In-Venue Promo Durations
+    adminRoutes.get('/admin/settings/promo-durations', adminController.getPromoDurations.bind(adminController));
+    adminRoutes.post('/admin/settings/promo-durations', adminController.updatePromoDurations.bind(adminController));
+
+    // Admin Commercial Advertiser Image Ad Duration
+    adminRoutes.get('/admin/settings/advertiser-image-duration', adminController.getAdvertiserImageDuration.bind(adminController));
+    adminRoutes.post('/admin/settings/advertiser-image-duration', adminController.updateAdvertiserImageDuration.bind(adminController));
 
     // Admin Release Management
     adminRoutes.get('/admin/releases', releaseController.listReleases.bind(releaseController));

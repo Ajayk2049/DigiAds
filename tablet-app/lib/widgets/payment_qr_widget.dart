@@ -18,10 +18,12 @@ class PaymentQrWidget extends StatelessWidget {
   final int? cgstPaise;
   final int? sgstPaise;
   final int? gstPaise;
+  final int? serviceTaxPaise;
   final int? otherChargesPaise;
   final int? roundOffPaise;
   final double? cgstPercent;
   final double? sgstPercent;
+  final double? serviceTaxPercent;
 
   const PaymentQrWidget({
     super.key,
@@ -35,10 +37,12 @@ class PaymentQrWidget extends StatelessWidget {
     this.cgstPaise,
     this.sgstPaise,
     this.gstPaise,
+    this.serviceTaxPaise,
     this.otherChargesPaise,
     this.roundOffPaise,
     this.cgstPercent,
     this.sgstPercent,
+    this.serviceTaxPercent,
   });
 
   String _formatTaxLabel(String taxType, double? pct, int? taxPaise) {
@@ -123,7 +127,7 @@ class PaymentQrWidget extends StatelessWidget {
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.black.withValues(alpha: 0.3),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -192,7 +196,7 @@ class PaymentQrWidget extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: Colors.white10),
                         ),
@@ -247,6 +251,8 @@ class PaymentQrWidget extends StatelessWidget {
                               _buildBreakdownRow(_formatTaxLabel('SGST', sgstPercent, sgstPaise), sgstPaise!),
                             if ((cgstPaise == null || cgstPaise == 0) && (sgstPaise == null || sgstPaise == 0) && gstPaise != null && gstPaise! > 0)
                               _buildBreakdownRow('GST', gstPaise!),
+                            if (serviceTaxPaise != null && serviceTaxPaise! > 0)
+                              _buildBreakdownRow(_formatTaxLabel('Service Tax', serviceTaxPercent, serviceTaxPaise), serviceTaxPaise!),
                             if (roundOffPaise != null && roundOffPaise! > 0)
                               _buildBreakdownRow('Round Off', roundOffPaise!),
                             const Padding(
@@ -262,7 +268,7 @@ class PaymentQrWidget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Text(

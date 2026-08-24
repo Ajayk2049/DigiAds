@@ -52,6 +52,14 @@ const MenuItemSchema = new mongoose.Schema({
     type: String,
     enum: ['percentage', 'rupees'],
     default: 'percentage'
+  },
+  shifts: {
+    type: [String],
+    default: []
+  },
+  isAllShifts: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -68,6 +76,14 @@ const MenuSchema = new mongoose.Schema({
     required: true,
     unique: true,
     index: true
+  },
+  activeShift: {
+    type: String,
+    default: 'Breakfast'
+  },
+  shifts: {
+    type: [String],
+    default: ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
   },
   items: [MenuItemSchema],
   categories: {

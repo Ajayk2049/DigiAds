@@ -64,6 +64,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   bool _showCart = false;
   bool _kioskReady = false;
   bool _isOnline = true;
+  bool _pendingMenuReload = false;
   String _outletName = '';
   String _selectedCategory = 'Popular';
   late String _tableNumber;
@@ -353,7 +354,13 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               _processTableSession(jsonEncode(payload));
             } else if (event == 'reload_menu') {
               debugPrint('[WS] Menu update reload request received');
-              _fetchMenu();
+              final isInteracting = !_isIdle || _cart.value.isNotEmpty || _tableSession != null;
+              if (isInteracting) {
+                debugPrint('[WS] Customer is actively interacting / ordering. Deferring menu reload...');
+                _pendingMenuReload = true;
+              } else {
+                _fetchMenu();
+              }
             } else if (event == 'reload_ads') {
               debugPrint('[WS] Ad update reload request received from server');
               _adSync.syncNow();
@@ -378,6 +385,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                       _tableSession = null;
                       _showOrderDetailsModal = false;
                     });
+                    if (_pendingMenuReload && (_isIdle || _cart.value.isEmpty)) {
+                      _pendingMenuReload = false;
+                      _fetchMenu();
+                    }
                   }
                 }
               });
@@ -933,6 +944,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           } else {
             _adPlayer.resume();
           }
+          if (_pendingMenuReload) {
+            _pendingMenuReload = false;
+            _fetchMenu();
+          }
         }
       });
     }
@@ -1316,10 +1331,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           cgstPaise: _tableSession!['cgst'] as int?,
           sgstPaise: _tableSession!['sgst'] as int?,
           gstPaise: _tableSession!['gst'] as int?,
+          serviceTaxPaise: _tableSession!['serviceTax'] as int?,
           otherChargesPaise: _tableSession!['otherCharges'] as int?,
           roundOffPaise: _tableSession!['roundOff'] as int?,
           cgstPercent: (_tableSession!['cgstPercent'] as num?)?.toDouble(),
           sgstPercent: (_tableSession!['sgstPercent'] as num?)?.toDouble(),
+          serviceTaxPercent: (_tableSession!['serviceTaxPercent'] as num?)?.toDouble(),
         );
       }
 
@@ -2068,7 +2085,19 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
         final amountPaise = _tableSession!['amount'] as int? ?? 0;
         final orderId = _tableSession!['orderId'] as String? ?? '';
-        final amountFormatted = (amountPaise / 100).toStringAsFixed(2);
+        final rawItems = _tableSession!['items'] as List<dynamic>? ?? [];
+        int rawSubtotalPaise = _tableSession!['subtotal'] as int? ?? 0;
+        if (rawSubtotalPaise <= 0) {
+          for (final item in rawItems) {
+            if (item is Map) {
+              final p = item['price'] as int? ?? 0;
+              final q = item['quantity'] as int? ?? 1;
+              rawSubtotalPaise += (p * q);
+            }
+          }
+        }
+        final displayPaise = rawSubtotalPaise > 0 ? rawSubtotalPaise : amountPaise;
+        final displayFormatted = (displayPaise / 100).toStringAsFixed(2);
         final bool isCancelled = orderStatus == 'cancelled';
 
         IconData iconData;
@@ -2186,7 +2215,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                amountPaise > 0 ? 'Total: ₹$amountFormatted' : 'Order Placed',
+                                displayPaise > 0 ? 'Total: ₹$displayFormatted' : 'Order Placed',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w900,
                                   fontSize: 15,

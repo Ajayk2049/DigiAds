@@ -60,6 +60,7 @@ import {
   ExternalLink,
   Navigation
 } from 'lucide-react';
+import useModalDismiss from '@/hooks/useModalDismiss';
 import { config } from '@/config';
 
 const API_BASE = config.apiUrl;
@@ -316,6 +317,120 @@ export default function AdminPortal() {
       showNotification(err.response?.data?.message || 'Failed to update quotas.', 'error');
     }
   };
+
+  // Universal In-Venue Promo Durations Modal States
+  const [isPromoDurationsModalOpen, setIsPromoDurationsModalOpen] = useState(false);
+  const [activePromoDurationTab, setActivePromoDurationTab] = useState('open'); // 'open' | 'closed'
+  const [promoDurations, setPromoDurations] = useState({
+    openDurationSeconds: 10,
+    closedDurationSeconds: 15
+  });
+  const [isSavingPromoDurations, setIsSavingPromoDurations] = useState(false);
+
+  const fetchPromoDurations = async (authToken = token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/settings/promo-durations`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.data?.success && res.data?.data) {
+        setPromoDurations({
+          openDurationSeconds: Math.max(10, Math.min(30, Number(res.data.data.openDurationSeconds) || 10)),
+          closedDurationSeconds: Math.max(10, Math.min(30, Number(res.data.data.closedDurationSeconds) || 15))
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch promo durations:', err);
+    }
+  };
+
+  const handleSavePromoDurations = async () => {
+    setIsSavingPromoDurations(true);
+    try {
+      const payload = {
+        openDurationSeconds: Math.max(10, Math.min(30, Number(promoDurations.openDurationSeconds) || 10)),
+        closedDurationSeconds: Math.max(10, Math.min(30, Number(promoDurations.closedDurationSeconds) || 15))
+      };
+      const res = await axios.post(`${API_BASE}/admin/settings/promo-durations`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data?.success) {
+        showNotification(res.data.message || 'Universal in-venue promo durations updated successfully!', 'success');
+        setPromoDurations(payload);
+        setIsPromoDurationsModalOpen(false);
+      } else {
+        showNotification(res.data?.message || 'Failed to save durations.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification(err.response?.data?.message || 'Failed to save promo durations.', 'error');
+    } finally {
+      setIsSavingPromoDurations(false);
+    }
+  };
+
+  // Commercial Advertiser Image Duration Modal States
+  const [isCommercialImageDurationModalOpen, setIsCommercialImageDurationModalOpen] = useState(false);
+  const [commercialImageDuration, setCommercialImageDuration] = useState(8);
+  const [isSavingCommercialDuration, setIsSavingCommercialDuration] = useState(false);
+
+  const fetchAdvertiserImageDuration = async (authToken = token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/settings/advertiser-image-duration`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.data?.success && res.data?.data) {
+        setCommercialImageDuration(Math.max(5, Math.min(30, Number(res.data.data.durationSeconds) || 8)));
+      }
+    } catch (err) {
+      console.error('Failed to fetch advertiser image duration:', err);
+    }
+  };
+
+  const handleSaveCommercialImageDuration = async () => {
+    setIsSavingCommercialDuration(true);
+    try {
+      const durationSec = Math.max(5, Math.min(30, Number(commercialImageDuration) || 8));
+      const res = await axios.post(`${API_BASE}/admin/settings/advertiser-image-duration`, {
+        durationSeconds: durationSec
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data?.success) {
+        showNotification(res.data.message || 'Commercial advertiser image duration updated successfully!', 'success');
+        setCommercialImageDuration(durationSec);
+        setIsCommercialImageDurationModalOpen(false);
+      } else {
+        showNotification(res.data?.message || 'Failed to save duration.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification(err.response?.data?.message || 'Failed to save advertiser image duration.', 'error');
+    } finally {
+      setIsSavingCommercialDuration(false);
+    }
+  };
+
+  // Universal Modal Dismissal (Desktop Esc key & Mobile back gesture)
+  useModalDismiss(showDeviceReqModal, () => setShowDeviceReqModal(false), 'device-req-modal');
+  useModalDismiss(showVenueModal, () => setShowVenueModal(false), 'venue-details-modal');
+  useModalDismiss(showAdvertiserAdsModal, () => setShowAdvertiserAdsModal(false), 'advertiser-ads-modal');
+  useModalDismiss(showVideoModal, () => setShowVideoModal(false), 'video-moderation-modal');
+  useModalDismiss(showDetailsModal, () => setShowDetailsModal(false), 'campaign-details-modal');
+  useModalDismiss(showDenyModal, () => setShowDenyModal(false), 'deny-modal');
+  useModalDismiss(showDeployForm, () => setShowDeployForm(false), 'deploy-device-modal');
+  useModalDismiss(showReleaseModal, () => setShowReleaseModal(false), 'release-upload-modal');
+  useModalDismiss(showCreatePlatformAdModal, () => setShowCreatePlatformAdModal(false), 'create-platform-ad-modal');
+  useModalDismiss(Boolean(previewPlatformAd), () => setPreviewPlatformAd(null), 'preview-platform-ad-modal');
+  useModalDismiss(Boolean(deletingPlatformAdId), () => setDeletingPlatformAdId(''), 'delete-platform-ad-modal');
+  useModalDismiss(Boolean(editingUser), () => setEditingUser(null), 'edit-user-modal');
+  useModalDismiss(Boolean(deletingUser), () => setDeletingUser(null), 'delete-user-modal');
+  useModalDismiss(Boolean(platformAdResolutionWarning), () => setPlatformAdResolutionWarning(null), 'resolution-advisory-modal');
+  useModalDismiss(isQuotaModalOpen, () => setIsQuotaModalOpen(false), 'quota-modal');
+  useModalDismiss(isPromoDurationsModalOpen, () => setIsPromoDurationsModalOpen(false), 'promo-durations-modal');
+  useModalDismiss(isCommercialImageDurationModalOpen, () => setIsCommercialImageDurationModalOpen(false), 'commercial-duration-modal');
+  useModalDismiss(mobileMenuOpen, () => setMobileMenuOpen(false), 'admin-mobile-menu');
 
   const handleUploadRelease = async (e) => {
     e.preventDefault();
@@ -946,6 +1061,8 @@ export default function AdminPortal() {
       setModeChangeRequests(modeReqsRes.data.data || []);
       setReleases(releasesRes.data.releases || []);
       setPlatformAds(platformAdsRes.data.data || []);
+      fetchPromoDurations(authToken);
+      fetchAdvertiserImageDuration(authToken);
     } catch (err) {
       console.error(err);
       if (err.response?.status === 401) {
@@ -1153,14 +1270,46 @@ export default function AdminPortal() {
     }
   };
 
+  const handleLoginIdentifierChange = (val) => {
+    setLoginError('');
+    // If it starts looking like a phone number (just digits or spaces/dashes), apply 10-digit Indian phone constraints
+    if (!val.includes('@') && /^\d+$/.test(val.replace(/[\s-+]/g, ''))) {
+      const cleaned = val.replace(/\D/g, '');
+      if (cleaned.length > 10) return;
+      if (cleaned.length > 0 && !/^[6-9]/.test(cleaned)) return;
+      setLoginIdentifier(cleaned);
+    } else {
+      setLoginIdentifier(val);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setLoginLoading(true);
 
     try {
+      let finalIdentifier = loginIdentifier.trim();
+      if (!finalIdentifier) {
+        setLoginError('Please enter your email or 10-digit mobile number.');
+        setLoginLoading(false);
+        return;
+      }
+
+      if (finalIdentifier.includes('@')) {
+        finalIdentifier = finalIdentifier.toLowerCase();
+      } else {
+        const cleaned = finalIdentifier.replace(/\D/g, '');
+        if (cleaned.length !== 10) {
+          setLoginError('Mobile number must be exactly 10 digits.');
+          setLoginLoading(false);
+          return;
+        }
+        finalIdentifier = `+91${cleaned}`;
+      }
+
       const res = await axios.post(`${API_BASE}/auth/login`, {
-        identifier: loginIdentifier,
+        identifier: finalIdentifier,
         password: loginPassword
       });
 
@@ -1613,16 +1762,20 @@ export default function AdminPortal() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1.5">
-                Username or Phone
+                Email or 10-Digit Mobile Number
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-muted-foreground" />
+                {!loginIdentifier.includes('@') && /^\d+$/.test(loginIdentifier.replace(/[\s-+]/g, '')) ? (
+                  <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-primary" />
+                ) : (
+                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-muted-foreground" />
+                )}
                 <input
                   type="text"
                   required
-                  placeholder="admin@digiads.com or +91..."
+                  placeholder="admin@digiads.com or 9876543210"
                   value={loginIdentifier}
-                  onChange={(e) => setLoginIdentifier(e.target.value)}
+                  onChange={(e) => handleLoginIdentifierChange(e.target.value)}
                   className="w-full bg-card border border-border/80 rounded-xl pl-10 pr-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground shadow-sm transition-all"
                 />
               </div>
@@ -2734,9 +2887,21 @@ export default function AdminPortal() {
                     ))}
                   </div>
 
-                  <span className="text-xs text-muted-foreground font-semibold">
-                    Showing <span className="text-foreground font-bold">{approvedVenuesList.length}</span> venue outlets
-                  </span>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsPromoDurationsModalOpen(true)}
+                      className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-card hover:bg-muted/70 border border-border/80 text-xs font-bold text-foreground transition-all cursor-pointer shadow-sm hover:border-primary/50 group"
+                      title="Configure Universal In-Venue Promo Image Display Durations"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-primary group-hover:rotate-45 transition-transform" />
+                      <span>Promo Durations</span>
+                    </button>
+
+                    <span className="text-xs text-muted-foreground font-semibold">
+                      Showing <span className="text-foreground font-bold">{approvedVenuesList.length}</span> venue outlets
+                    </span>
+                  </div>
                 </div>
 
                 {/* Full-width Outlets Data Table */}
@@ -3590,18 +3755,32 @@ export default function AdminPortal() {
                   </form>
 
                   <div className="lg:col-span-7 space-y-4">
-                    <div className="bg-muted p-1 rounded-xl flex space-x-1 border border-border w-fit">
+                    <div className="flex justify-between items-center flex-wrap gap-3">
+                      <div className="bg-muted p-1 rounded-xl flex space-x-1 border border-border w-fit">
+                        <button
+                          type="button"
+                          onClick={() => setRateSubTab('tablet')}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${rateSubTab === 'tablet' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          Tablet Rates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRateSubTab('screen')}
+                          className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${rateSubTab === 'screen' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          Screen Rates
+                        </button>
+                      </div>
+
                       <button
-                        onClick={() => setRateSubTab('tablet')}
-                        className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${rateSubTab === 'tablet' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        type="button"
+                        onClick={() => setIsCommercialImageDurationModalOpen(true)}
+                        className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-card hover:bg-muted/70 border border-border text-xs font-bold text-foreground transition-all cursor-pointer shadow-sm hover:border-primary/50 group"
+                        title="Configure Commercial Advertiser Image Ad Display Duration"
                       >
-                        Tablet Rates
-                      </button>
-                      <button
-                        onClick={() => setRateSubTab('screen')}
-                        className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${rateSubTab === 'screen' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                      >
-                        Screen Rates
+                        <Clock className="w-3.5 h-3.5 text-primary group-hover:rotate-45 transition-transform" />
+                        <span>Image Ad Duration</span>
                       </button>
                     </div>
 
@@ -5382,6 +5561,459 @@ export default function AdminPortal() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Universal In-Venue Promo Image Durations Modal */}
+      {isPromoDurationsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border w-full max-w-lg rounded-[28px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center mb-4 border-b border-border/50 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20">
+                    Network Playback Timing
+                  </span>
+                  <h3 className="font-outfit text-base font-bold text-foreground mt-1">
+                    In-Venue Promo Image Durations
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPromoDurationsModalOpen(false)}
+                className="p-1.5 hover:bg-muted border border-border rounded-lg text-muted-foreground transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground font-semibold mb-4 leading-relaxed">
+              Configure universal image promo display durations for tablets and wall screens. Minimum <strong className="text-foreground">10 seconds</strong> and maximum <strong className="text-foreground">30 seconds</strong>.
+            </p>
+
+            {/* 2-Tab Navigation */}
+            <div className="flex bg-muted/50 p-1 rounded-xl border border-border/50 gap-1.5 mb-5">
+              <button
+                type="button"
+                onClick={() => setActivePromoDurationTab('open')}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  activePromoDurationTab === 'open'
+                    ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                }`}
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Open Ads Network ({hosts.filter(h => h.status === 'approved' && h.allowOpenAds !== false && h.adMode !== 'closed').length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivePromoDurationTab('closed')}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  activePromoDurationTab === 'closed'
+                    ? 'bg-primary text-primary-foreground shadow-md font-extrabold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Private Promos ({hosts.filter(h => h.status === 'approved' && (h.allowOpenAds === false || h.adMode === 'closed')).length})</span>
+              </button>
+            </div>
+
+            {/* Tab 1: Open Ads Network */}
+            {activePromoDurationTab === 'open' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-left">
+                  <div className="flex items-center space-x-2 text-blue-500 font-bold text-xs">
+                    <Unlock className="w-4 h-4" />
+                    <span>Open Ads Network Venues</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-semibold mt-1">
+                    Universal duration for venues sharing display rotation with commercial advertiser campaigns and platform ads.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-card border border-border/60 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <label className="text-xs font-bold text-foreground block">
+                        Open Venues Image Duration
+                      </label>
+                      <span className="text-[10px] text-muted-foreground font-semibold">
+                        Default: 10s (Allowed: 10s – 30s)
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1.5 bg-background border border-border/80 rounded-xl px-3 py-1.5 shadow-inner">
+                      <input
+                        type="number"
+                        min="10"
+                        max="30"
+                        value={promoDurations.openDurationSeconds}
+                        onChange={(e) => {
+                          const rawVal = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                          setPromoDurations(prev => ({
+                            ...prev,
+                            openDurationSeconds: rawVal === '' ? '' : Math.max(10, Math.min(30, rawVal))
+                          }));
+                        }}
+                        onBlur={() => {
+                          setPromoDurations(prev => ({
+                            ...prev,
+                            openDurationSeconds: Math.max(10, Math.min(30, Number(prev.openDurationSeconds) || 10))
+                          }));
+                        }}
+                        className="w-12 bg-transparent text-center font-outfit text-base font-black text-foreground focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-muted-foreground">sec</span>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div className="space-y-1.5 pt-1">
+                    <input
+                      type="range"
+                      min="10"
+                      max="30"
+                      step="1"
+                      value={promoDurations.openDurationSeconds || 10}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setPromoDurations(prev => ({ ...prev, openDurationSeconds: val }));
+                      }}
+                      className="w-full accent-primary cursor-pointer h-2 bg-muted rounded-lg"
+                    />
+                    <div className="flex justify-between text-[10px] font-bold text-muted-foreground px-0.5">
+                      <span>10s (Min & Default)</span>
+                      <span>20s</span>
+                      <span>30s (Max)</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div className="pt-2 border-t border-border/40">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-2">
+                      Quick Presets
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {[10, 15, 20, 25, 30].map(sec => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setPromoDurations(prev => ({ ...prev, openDurationSeconds: sec }))}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            Number(promoDurations.openDurationSeconds) === sec
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm font-extrabold'
+                              : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60'
+                          }`}
+                        >
+                          {sec}s {sec === 10 ? '(Default)' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Closed Private Promos */}
+            {activePromoDurationTab === 'closed' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-left">
+                  <div className="flex items-center space-x-2 text-purple-500 font-bold text-xs">
+                    <Lock className="w-4 h-4" />
+                    <span>Closed / Private Promo Venues</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-semibold mt-1">
+                    Universal duration for private venues running 100% in-house food promotions and restaurant branding without external ads.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-card border border-border/60 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <label className="text-xs font-bold text-foreground block">
+                        Private Venues Image Duration
+                      </label>
+                      <span className="text-[10px] text-muted-foreground font-semibold">
+                        Default: 15s (Allowed: 10s – 30s)
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1.5 bg-background border border-border/80 rounded-xl px-3 py-1.5 shadow-inner">
+                      <input
+                        type="number"
+                        min="10"
+                        max="30"
+                        value={promoDurations.closedDurationSeconds}
+                        onChange={(e) => {
+                          const rawVal = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                          setPromoDurations(prev => ({
+                            ...prev,
+                            closedDurationSeconds: rawVal === '' ? '' : Math.max(10, Math.min(30, rawVal))
+                          }));
+                        }}
+                        onBlur={() => {
+                          setPromoDurations(prev => ({
+                            ...prev,
+                            closedDurationSeconds: Math.max(10, Math.min(30, Number(prev.closedDurationSeconds) || 15))
+                          }));
+                        }}
+                        className="w-12 bg-transparent text-center font-outfit text-base font-black text-foreground focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-muted-foreground">sec</span>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div className="space-y-1.5 pt-1">
+                    <input
+                      type="range"
+                      min="10"
+                      max="30"
+                      step="1"
+                      value={promoDurations.closedDurationSeconds || 15}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setPromoDurations(prev => ({ ...prev, closedDurationSeconds: val }));
+                      }}
+                      className="w-full accent-primary cursor-pointer h-2 bg-muted rounded-lg"
+                    />
+                    <div className="flex justify-between text-[10px] font-bold text-muted-foreground px-0.5">
+                      <span>10s (Min)</span>
+                      <span>15s (Default)</span>
+                      <span>30s (Max)</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div className="pt-2 border-t border-border/40">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-2">
+                      Quick Presets
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {[10, 15, 20, 25, 30].map(sec => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setPromoDurations(prev => ({ ...prev, closedDurationSeconds: sec }))}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            Number(promoDurations.closedDurationSeconds) === sec
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm font-extrabold'
+                              : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60'
+                          }`}
+                        >
+                          {sec}s {sec === 15 ? '(Default)' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-border/50 flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setPromoDurations({ openDurationSeconds: 10, closedDurationSeconds: 15 })}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground hover:underline transition-all cursor-pointer"
+              >
+                Reset to Defaults (10s / 15s)
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPromoDurationsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-muted/40 hover:bg-muted text-foreground border border-border/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePromoDurations}
+                  disabled={isSavingPromoDurations}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all cursor-pointer shadow-md flex items-center space-x-2 disabled:opacity-50"
+                >
+                  {isSavingPromoDurations ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Durations</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commercial Advertiser Image Ad Duration Modal */}
+      {isCommercialImageDurationModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border w-full max-w-md rounded-[28px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center mb-4 border-b border-border/50 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase bg-emerald-500/10 text-emerald-500 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                    Advertiser Campaign Timing
+                  </span>
+                  <h3 className="font-outfit text-base font-bold text-foreground mt-1">
+                    Commercial Image Ad Duration
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCommercialImageDurationModalOpen(false)}
+                className="p-1.5 hover:bg-muted border border-border rounded-lg text-muted-foreground transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground font-semibold mb-4 leading-relaxed">
+              Configure universal display duration for commercial image campaigns booked through the Advertiser Portal. Range between <strong className="text-foreground">5s</strong> and <strong className="text-foreground">30s</strong>.
+            </p>
+
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-card border border-border/60 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <label className="text-xs font-bold text-foreground block">
+                      Base Single Image Duration
+                    </label>
+                    <span className="text-[10px] text-muted-foreground font-semibold">
+                      Default: 8s (Range: 5s – 30s)
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1.5 bg-background border border-border/80 rounded-xl px-3 py-1.5 shadow-inner">
+                    <input
+                      type="number"
+                      min="5"
+                      max="30"
+                      value={commercialImageDuration}
+                      onChange={(e) => {
+                        const rawVal = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                        setCommercialImageDuration(rawVal === '' ? '' : Math.max(5, Math.min(30, rawVal)));
+                      }}
+                      onBlur={() => {
+                        setCommercialImageDuration(Math.max(5, Math.min(30, Number(commercialImageDuration) || 8)));
+                      }}
+                      className="w-12 bg-transparent text-center font-outfit text-base font-black text-foreground focus:outline-none"
+                    />
+                    <span className="text-xs font-bold text-muted-foreground">sec</span>
+                  </div>
+                </div>
+
+                {/* Range Slider */}
+                <div className="space-y-1.5 pt-1">
+                  <input
+                    type="range"
+                    min="5"
+                    max="30"
+                    step="1"
+                    value={commercialImageDuration || 8}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setCommercialImageDuration(val);
+                    }}
+                    className="w-full accent-primary cursor-pointer h-2 bg-muted rounded-lg"
+                  />
+                  <div className="flex justify-between text-[10px] font-bold text-muted-foreground px-0.5">
+                    <span>5s (Min)</span>
+                    <span>8s (Default)</span>
+                    <span>30s (Max)</span>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="pt-2 border-t border-border/40">
+                  <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block mb-2">
+                    Quick Presets
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {[5, 8, 10, 12, 15, 20, 30].map(sec => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => setCommercialImageDuration(sec)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          Number(commercialImageDuration) === sec
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm font-extrabold'
+                            : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60'
+                        }`}
+                      >
+                        {sec}s {sec === 8 ? '(Default)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dual-Slide Carousel Information Card */}
+              <div className="p-3.5 rounded-2xl bg-muted/30 border border-border/60 text-left flex items-start space-x-2.5">
+                <Layers className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div className="text-[11px] text-muted-foreground font-semibold leading-relaxed">
+                  <strong className="text-foreground">Dual-Slide Carousel Timing:</strong> If an advertiser uploads 2 images, the ad will automatically display for <strong className="text-emerald-500">{Number(commercialImageDuration || 8) * 2}s</strong> ({commercialImageDuration || 8}s per slide).
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-border/50 flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setCommercialImageDuration(8)}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground hover:underline transition-all cursor-pointer"
+              >
+                Reset to Default (8s)
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCommercialImageDurationModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-muted/40 hover:bg-muted text-foreground border border-border/60 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCommercialImageDuration}
+                  disabled={isSavingCommercialDuration}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all cursor-pointer shadow-md flex items-center space-x-2 disabled:opacity-50"
+                >
+                  {isSavingCommercialDuration ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Duration</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

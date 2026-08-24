@@ -1025,17 +1025,32 @@ const menuServiceHandlers = {
       const outletName = app ? app.outletName : 'Aster & Ice';
 
       const menu = await Menu.findOne({ hostApplicationId });
-      const items = menu ? menu.items.map(item => ({
-        itemId: item.itemId,
-        name: item.name,
-        description: item.description || '',
-        price: parseInt(item.price, 10),
-        category: item.category,
-        isAvailable: item.isAvailable,
-        imageUrl: item.imageUrl || '',
-        isVeg: item.isVeg !== undefined ? item.isVeg : true,
-        isPopular: item.isPopular || false
-      })) : [];
+      const activeShift = menu?.activeShift || 'Breakfast';
+
+      const items = menu ? menu.items
+        .filter(item => {
+          // 1. Exclude unavailable items (Drop completely from tablet food menu)
+          if (item.isAvailable === false) return false;
+
+          // 2. Filter by active shift / all shifts
+          if (item.isAllShifts === true) return true;
+          if (Array.isArray(item.shifts) && item.shifts.length > 0) {
+            return item.shifts.includes(activeShift);
+          }
+          // Backward compatibility fallback: if item has no shifts array, include by default
+          return true;
+        })
+        .map(item => ({
+          itemId: item.itemId,
+          name: item.name,
+          description: item.description || '',
+          price: parseInt(item.price, 10),
+          category: item.category,
+          isAvailable: true,
+          imageUrl: item.imageUrl || '',
+          isVeg: item.isVeg !== undefined ? item.isVeg : true,
+          isPopular: item.isPopular || false
+        })) : [];
 
       callback(null, {
         success: true,
@@ -1117,37 +1132,33 @@ const orderServiceHandlers = {
         const billConfig = order.billConfigSnapshot || app.billConfig || {};
         const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
         const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
         const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
         const subtotalPaise = order.items.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 1)), 0);
 
-        if (order.isGstExempt) {
-          order.subtotalAmount = subtotalPaise;
-          order.cgstAmount = 0;
-          order.sgstAmount = 0;
-          order.roundOffAmount = 0;
-          order.totalAmount = subtotalPaise;
-        } else {
-          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+        const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
+        const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
+        const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
+        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
 
-          let finalAmountPaise = rawTotalPaise;
-          let roundOffPaise = 0;
-          if (enableAutoRoundOff) {
-            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-            roundOffPaise = finalAmountPaise - rawTotalPaise;
-          }
-
-          order.subtotalAmount = subtotalPaise;
-          order.cgstAmount = cgstPaise;
-          order.sgstAmount = sgstPaise;
-          order.roundOffAmount = roundOffPaise;
-          order.cgstPercent = cgstPct;
-          order.sgstPercent = sgstPct;
-          order.enableAutoRoundOff = enableAutoRoundOff;
-          order.totalAmount = finalAmountPaise;
+        let finalAmountPaise = rawTotalPaise;
+        let roundOffPaise = 0;
+        if (enableAutoRoundOff) {
+          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+          roundOffPaise = finalAmountPaise - rawTotalPaise;
         }
+
+        order.subtotalAmount = subtotalPaise;
+        order.cgstAmount = cgstPaise;
+        order.sgstAmount = sgstPaise;
+        order.serviceTaxAmount = serviceTaxPaise;
+        order.roundOffAmount = roundOffPaise;
+        order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
+        order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
+        order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
+        order.enableAutoRoundOff = enableAutoRoundOff;
+        order.totalAmount = finalAmountPaise;
 
         // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
         order.orderStatus = 'placed';
@@ -1161,12 +1172,14 @@ const orderServiceHandlers = {
         const billConfig = app.billConfig || {};
         const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
         const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
         const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
         const subtotalPaise = serverCalculatedTotal;
         const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
         const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise;
+        const serviceTaxPaise = Math.round(subtotalPaise * (serviceTaxPct / 100));
+        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
 
         let finalAmountPaise = rawTotalPaise;
         let roundOffPaise = 0;
@@ -1185,9 +1198,13 @@ const orderServiceHandlers = {
           subtotalAmount: subtotalPaise,
           cgstAmount: cgstPaise,
           sgstAmount: sgstPaise,
+          serviceTaxAmount: serviceTaxPaise,
           roundOffAmount: roundOffPaise,
           cgstPercent: cgstPct,
           sgstPercent: sgstPct,
+          serviceTaxPercent: serviceTaxPct,
+          isGstExempt: false,
+          isServiceTaxExempt: false,
           enableAutoRoundOff,
           billConfigSnapshot: billConfig,
           totalAmount: finalAmountPaise,
