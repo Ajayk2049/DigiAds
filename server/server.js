@@ -48,6 +48,40 @@ const merchantSockets = new Map();
 global.merchantSockets = merchantSockets;
 global.deviceSockets = new Map();
 global.adminSockets = new Map();
+global.pendingDeviceCommands = new Map();
+
+/**
+ * Universal broadcast to trigger ad refresh across both WebSocket tablets and gRPC wall screens
+ */
+global.notifyDevicesReloadAds = async (targetVenueId = null) => {
+  try {
+    // 1. WebSocket push broadcast (for interactive tablets)
+    if (global.deviceSockets) {
+      const payload = JSON.stringify({
+        event: targetVenueId ? 'reload_promos' : 'reload_ads',
+        reason: 'ads_updated',
+        ...(targetVenueId ? { hostApplicationId: targetVenueId.toString() } : {})
+      });
+      for (const [devId, socket] of global.deviceSockets.entries()) {
+        try { socket.send(payload); } catch (e) {}
+      }
+    }
+
+    // 2. gRPC Heartbeat command queue (for 24/7 wall screens)
+    if (global.pendingDeviceCommands) {
+      const Device = require('./models/Device');
+      const query = targetVenueId ? { hostApplicationId: targetVenueId } : {};
+      const devices = await Device.find(query).select('deviceId');
+      for (const dev of devices) {
+        if (dev.deviceId) {
+          global.pendingDeviceCommands.set(dev.deviceId, 'reload_ads');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[notifyDevicesReloadAds Error]:', err.message);
+  }
+};
 
 // ----------------------------------------------------
 // Fastify Setup (REST & WebSocket)
@@ -809,9 +843,16 @@ const deviceServiceHandlers = {
         }
       }
 
+      let command = 'normal';
+      if (global.pendingDeviceCommands && global.pendingDeviceCommands.has(deviceId)) {
+        command = global.pendingDeviceCommands.get(deviceId);
+        global.pendingDeviceCommands.delete(deviceId);
+        console.log(`\x1b[35m[gRPC Heartbeat]\x1b[0m Dispatched command "${command}" to device ${deviceId}`);
+      }
+
       callback(null, {
         success: true,
-        command: 'normal',
+        command,
         tableSessionJson
       });
     } catch (err) {

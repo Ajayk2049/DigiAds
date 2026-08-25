@@ -171,20 +171,32 @@ class VideoQueueService {
 
           ffmpegCommand
             .noAudio()                 // Strip audio stream for silent kiosk video playback
-            .renice(15)                // Low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
+            .renice(19)                // Maximum low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
             .videoFilters([
-              'scale=w=\'if(gt(iw,ih),min(1920,iw),min(720,iw))\':h=\'if(gt(iw,ih),min(1080,ih),min(1280,ih))\':force_original_aspect_ratio=decrease',
+              'scale=w=\'if(gt(iw,ih),min(1280,iw),min(720,iw))\':h=\'if(gt(iw,ih),min(720,ih),min(1280,ih))\':force_original_aspect_ratio=decrease',
               'scale=trunc(iw/16)*16:trunc(ih/16)*16'
-            ]) // Guarantees 720x1280 (9:16) for portrait tablets, 1920x1080 for landscape screens, and 16-pixel macroblock alignment
+            ]) // Normalizes landscape screens to max 1280x720 (720p) and tablets to 720x1280 with 16px macroblock alignment
             .outputOptions([
               '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
-              '-profile:v baseline',   // Android Baseline 3.1 compatibility
+              '-profile:v baseline',   // Android Baseline 3.1 compatibility (max 720p)
               '-level 3.1',
               '-pix_fmt yuv420p',
               '-crf 26',               // Optimal compression quality and minimal file size
               '-preset faster',
               '-movflags +faststart'   // Enables fast progressive playback
             ])
+            .on('start', (cmdLine) => {
+              // Enforce 40% CPU limit and idle I/O priority on Linux (VPS)
+              if (process.platform === 'linux' && ffmpegCommand.ffmpegProc?.pid) {
+                const { exec } = require('child_process');
+                const pid = ffmpegCommand.ffmpegProc.pid;
+                exec(`cpulimit -l 40 -p ${pid} -b`, (err) => {
+                  if (err) console.warn(`\x1b[33m[cpulimit Warning]\x1b[0m Failed to attach cpulimit: ${err.message}`);
+                  else console.log(`\x1b[35m[cpulimit]\x1b[0m Hard CPU cap of 40% attached to FFmpeg PID ${pid}`);
+                });
+                exec(`ionice -c 3 -p ${pid}`, () => {}); // Idle I/O class: prevents disk contention
+              }
+            })
             .on('end', () => resolve(true))
             .on('error', (err) => reject(err))
             .save(transcodeTempPath);
@@ -227,8 +239,11 @@ class VideoQueueService {
       });
     } else if (modelType === 'PlatformAd') {
       const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
-      await PlatformAd.findOneAndUpdate(
-        isMongoId ? { _id: rawRecordId } : { adId: recordIdStr },
+      const regexEscaped = uniqueFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      await PlatformAd.updateMany(
+        isMongoId 
+          ? { _id: rawRecordId } 
+          : { $or: [{ adId: recordIdStr }, { mediaUrl: { $regex: new RegExp(regexEscaped) } }, { mediaUrls: { $regex: new RegExp(regexEscaped) } }] },
         {
           mediaUrl: finalUrl,
           transcodeStatus: 'completed'
@@ -255,17 +270,21 @@ class VideoQueueService {
 
     console.log(`\x1b[32m[FFmpeg Worker]\x1b[0m Transcode completed successfully for ${modelType} (${recordIdStr}) -> ${relativeUrl}`);
 
-    // Broadcast WebSocket reload signal to connected kiosk devices
-    if (global.deviceSockets) {
-      if (modelType === 'PlatformAd') {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
-      } else if (job.hostApplicationId) {
-        const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
+    // Broadcast reload signals to both WebSocket kiosks and gRPC screen displays
+    if (typeof global.notifyDevicesReloadAds === 'function') {
+      global.notifyDevicesReloadAds(job.hostApplicationId);
+    } else {
+      if (global.deviceSockets) {
+        if (modelType === 'PlatformAd') {
+          const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
+          for (const [deviceId, socket] of global.deviceSockets.entries()) {
+            try { socket.send(payload); } catch (e) {}
+          }
+        } else if (job.hostApplicationId) {
+          const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
+          for (const [deviceId, socket] of global.deviceSockets.entries()) {
+            try { socket.send(payload); } catch (e) {}
+          }
         }
       }
     }

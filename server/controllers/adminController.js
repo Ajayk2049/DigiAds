@@ -1414,12 +1414,9 @@ class AdminController {
 
       await newAd.save();
 
-      // Broadcast WebSocket reload signal to all connected devices
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_created' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Broadcast reload signal to WebSocket tablets and gRPC wall screens
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds();
       }
 
       return res.status(201).send({
@@ -1472,12 +1469,9 @@ class AdminController {
 
       await ad.save();
 
-      // Broadcast WebSocket reload signal
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Broadcast reload signal
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds();
       }
 
       return res.status(200).send({
@@ -1527,12 +1521,9 @@ class AdminController {
 
       await PlatformAd.findByIdAndDelete(id);
 
-      // Broadcast WebSocket reload signal
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_deleted' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Broadcast reload signal
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds();
       }
 
       return res.status(200).send({
@@ -1606,12 +1597,9 @@ class AdminController {
         { upsert: true, new: true }
       );
 
-      // Broadcast WebSocket reload signal to all connected devices so they pull updated playlist timings
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'promo_durations_updated' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Broadcast reload signal to all connected devices so they pull updated playlist timings
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds();
       }
 
       return res.status(200).send({
@@ -1674,12 +1662,9 @@ class AdminController {
         { upsert: true, new: true }
       );
 
-      // Broadcast WebSocket reload signal to all connected devices so they pull updated playlist timings
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_ads', reason: 'advertiser_duration_updated' });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Broadcast reload signal to all connected devices so they pull updated playlist timings
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds();
       }
 
       return res.status(200).send({

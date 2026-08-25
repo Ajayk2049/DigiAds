@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:grpc/grpc.dart';
-import 'package:video_player/video_player.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'generated/device.pbgrpc.dart';
@@ -512,8 +511,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   List<String> _localPlaylist = []; // file paths or 'img__...' or 'static__...' strings
   int _currentAdIndex = 0;
 
-  // ---------- Single Video Controller & Timers (Low-RAM 60 FPS) ----------
-  VideoPlayerController? _videoController;
+  // ---------- Native ExoPlayer Channel & Timers ----------
+  static const MethodChannel _videoChannel = MethodChannel('com.digiads.screen/native_video');
   Timer? _staticAdTimer;
   Timer? _videoWatchdogTimer;
 
@@ -538,6 +537,17 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     // Limit memory image cache to 30MB for 1GB RAM budget Android 10 hardware
     PaintingBinding.instance.imageCache.maximumSizeBytes = 30 * 1024 * 1024;
+
+    _videoChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onVideoComplete') {
+        final dur = (call.arguments?['duration'] as int?) ?? 15;
+        _onNativeVideoComplete(dur);
+      } else if (call.method == 'onVideoError') {
+        print('[NATIVE_VIDEO] Error: ${call.arguments}');
+        _advanceToNextAd();
+      }
+    });
+
     _boot();
   }
 
@@ -860,12 +870,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       print('[PLAYER] New playlist is empty. Stopping playback.');
       _staticAdTimer?.cancel();
       _videoWatchdogTimer?.cancel();
-      if (_videoController != null) {
-        final old = _videoController;
-        _videoController = null;
-        old?.removeListener(_videoListener);
-        old?.dispose();
-      }
+      _videoChannel.invokeMethod('stopVideo');
       setState(() {
         _localPlaylist = [];
         _playerState = PlayerState.waiting;
@@ -971,14 +976,6 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _staticAdTimer?.cancel();
     _videoWatchdogTimer?.cancel();
 
-    // Clean up previous video controller immediately to free VPU decoder on 1GB RAM
-    if (_videoController != null) {
-      final old = _videoController;
-      _videoController = null;
-      old?.removeListener(_videoListener);
-      old?.dispose();
-    }
-
     if (_localPlaylist.isEmpty) {
       print('[PLAYER] Playlist is empty. Going to waiting state.');
       setState(() {
@@ -994,31 +991,26 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     print('[PLAYER] Playing ad index $_currentAdIndex: $adSource');
 
     if (adSource.startsWith('static__')) {
-      // Static text ad card — show for 8 seconds
+      // Static text ad card — stop video and show for 8 seconds
+      _videoChannel.invokeMethod('stopVideo');
       if (mounted) setState(() {});
       _staticAdTimer = Timer(const Duration(seconds: 8), () {
         _trackImpression(adSource, 8);
         _advanceToNextAd();
       });
     } else if (adSource.startsWith('img__')) {
-      // Image ad — show for designated duration
+      // Image ad — stop video to free VPU decoder and show image on top
+      _videoChannel.invokeMethod('stopVideo');
       final bookingId = _getBookingId(adSource);
       final durationSec = _adDurations[bookingId] ?? 10;
       print('[PLAYER] Showing image ad: $adSource for ${durationSec}s');
-      if (_localPlaylist.length <= 1) {
-        _staticAdTimer = Timer(Duration(seconds: durationSec), () {
-          _trackImpression(adSource, durationSec);
-          _advanceToNextAd();
-        });
-        return;
-      }
       if (mounted) setState(() {});
       _staticAdTimer = Timer(Duration(seconds: durationSec), () {
         _trackImpression(adSource, durationSec);
         _advanceToNextAd();
       });
     } else {
-      // Native Video ad — 60 FPS Hardware Decoded Texture
+      // Native AndroidX Media3 ExoPlayer SurfaceView ad (0% green lines, 100% exact pixels)
       final file = File(adSource);
       if (!file.existsSync() || file.lengthSync() < 1000) {
         print('[PLAYER] File missing or corrupt: $adSource. Skipping.');
@@ -1027,50 +1019,27 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       }
 
       try {
-        final controller = VideoPlayerController.file(file);
-        await controller.initialize();
-        await controller.setVolume(0.0);
-        if (!mounted) {
-          controller.dispose();
-          return;
-        }
-
-        _videoController = controller;
-        controller.addListener(_videoListener);
-        await controller.play();
-
+        _videoWatchdogTimer?.cancel();
+        _videoChannel.invokeMethod('playVideo', {'path': adSource});
         if (mounted) setState(() {});
 
-        // Safety watchdog: advance if video completes or stalls
-        final dur = controller.value.duration;
-        final timeout = dur > Duration.zero ? dur + const Duration(seconds: 4) : const Duration(seconds: 35);
-        _videoWatchdogTimer = Timer(timeout, () {
+        // Safety watchdog: advance if video completes or stalls (35s timeout)
+        _videoWatchdogTimer = Timer(const Duration(seconds: 35), () {
           print('[WATCHDOG] Video timer expired for $adSource');
-          _onVideoComplete();
+          _onNativeVideoComplete(30);
         });
       } catch (e) {
-        print('[PLAYER] Controller init error for $adSource: $e');
+        print('[PLAYER] Native video error for $adSource: $e');
         _advanceToNextAd();
       }
     }
   }
 
-  void _videoListener() {
-    final controller = _videoController;
-    if (controller == null || !mounted) return;
-    final pos = controller.value.position;
-    final dur = controller.value.duration;
-    if (dur > Duration.zero && pos >= dur) {
-      _onVideoComplete();
-    }
-  }
-
-  void _onVideoComplete() {
+  void _onNativeVideoComplete(int durationSec) {
     _videoWatchdogTimer?.cancel();
     if (_localPlaylist.isNotEmpty) {
       final adSource = _localPlaylist[_currentAdIndex % _localPlaylist.length];
-      final dur = _videoController?.value.duration.inSeconds ?? 0;
-      _trackImpression(adSource, dur);
+      _trackImpression(adSource, durationSec);
     }
     _advanceToNextAd();
   }
@@ -1231,11 +1200,9 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      if (_videoController != null && !_videoController!.value.isPlaying) {
-        _videoController!.play();
-      }
+      _videoChannel.invokeMethod('play');
     } else if (state == AppLifecycleState.paused) {
-      _videoController?.pause();
+      _videoChannel.invokeMethod('pause');
     }
   }
 
@@ -1246,12 +1213,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _syncTimer?.cancel();
     _staticAdTimer?.cancel();
     _videoWatchdogTimer?.cancel();
-    if (_videoController != null) {
-      final old = _videoController;
-      _videoController = null;
-      old?.removeListener(_videoListener);
-      old?.dispose();
-    }
+    _videoChannel.invokeMethod('stopVideo');
     _channel.shutdown();
     super.dispose();
   }
@@ -1446,102 +1408,106 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     final hasImage = adSource.startsWith('img__');
     final hasStatic = adSource.startsWith('static__');
 
-    if (hasImage) {
-      // Full-screen image ad with clean black containment (0% content crop)
-      final imagePath = adSource.substring(5);
-      final imageFile = File(imagePath);
-      return Container(
-        color: Colors.black,
-        width: double.infinity,
-        height: double.infinity,
-        child: imageFile.existsSync()
-            ? Image.file(
-                imageFile,
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: double.infinity,
-                gaplessPlayback: true,
-                cacheWidth: 1920,
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Icon(Icons.broken_image, size: 80, color: Colors.white24),
-                ),
-              )
-            : const Center(
-                child: Icon(Icons.image_not_supported, size: 80, color: Colors.white24),
-              ),
-      );
-    } else if (hasStatic) {
-      // Static text fallback card
-      String title = 'DigiAds Display';
-      String subtitle = '';
-      final parts = adSource.split('__');
-      if (parts.length >= 4) {
-        title = parts[2];
-        subtitle = parts[3];
-      }
-
-      return Container(
-        color: Colors.black,
-        width: double.infinity,
-        height: double.infinity,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.tv_rounded, size: 100, color: Colors.indigoAccent),
-              const SizedBox(height: 24),
-              Text(
-                'DIGIADS WALL SCREEN: ${widget.deviceId}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.indigoAccent,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
+    return Container(
+      color: Colors.black,
+      width: double.infinity,
+      height: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Persistent Native Video Surface (Never destroyed or rebuilt during playlist loops)
+          const RepaintBoundary(
+            child: IgnorePointer(
+              child: SizedBox.expand(
+                child: AndroidView(
+                  key: Key('persistent_native_screen_player'),
+                  viewType: 'com.digiads.screen/native_video',
+                  creationParamsCodec: StandardMessageCodec(),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 16, color: Color(0xFF94A3B8)),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      // Full-content aspect-ratio video player with pure black letterboxing (0% crop)
-      final isReady = _videoController != null && _videoController!.value.isInitialized;
-      if (isReady) {
-        final aspect = _videoController!.value.aspectRatio;
-        return Container(
-          color: Colors.black,
-          width: double.infinity,
-          height: double.infinity,
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: aspect > 0 ? aspect : 16 / 9,
-              child: VideoPlayer(_videoController!),
             ),
           ),
-        );
-      } else {
-        return Container(
-          color: Colors.black,
-          width: double.infinity,
-          height: double.infinity,
-          child: const Center(
-            child: CircularProgressIndicator(color: Colors.indigoAccent),
-          ),
-        );
-      }
+
+          // 2. Ultra-Light Single-Image Overlay (Only 1 image in RAM at a time)
+          if (hasImage)
+            _buildImageOverlay(adSource)
+          else if (hasStatic)
+            _buildStaticOverlay(adSource),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageOverlay(String adSource) {
+    final imagePath = adSource.substring(5);
+    final imageFile = File(imagePath);
+    return Container(
+      color: Colors.black,
+      width: double.infinity,
+      height: double.infinity,
+      child: imageFile.existsSync()
+          ? Image.file(
+              imageFile,
+              key: ValueKey(imagePath),
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+              cacheWidth: 1920,
+              errorBuilder: (context, error, stackTrace) => const Center(
+                child: Icon(Icons.broken_image, size: 80, color: Colors.white24),
+              ),
+            )
+          : const Center(
+              child: Icon(Icons.image_not_supported, size: 80, color: Colors.white24),
+            ),
+    );
+  }
+
+  Widget _buildStaticOverlay(String adSource) {
+    String title = 'DigiAds Display';
+    String subtitle = '';
+    final parts = adSource.split('__');
+    if (parts.length >= 4) {
+      title = parts[2];
+      subtitle = parts[3];
     }
+
+    return Container(
+      color: Colors.black,
+      width: double.infinity,
+      height: double.infinity,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.tv_rounded, size: 100, color: Colors.indigoAccent),
+            const SizedBox(height: 24),
+            Text(
+              'DIGIADS WALL SCREEN: ${widget.deviceId}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.indigoAccent,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 16, color: Color(0xFF94A3B8)),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

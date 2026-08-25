@@ -2012,12 +2012,9 @@ class HostController {
       hostApp.dailyScreenChangesRemaining = Math.max(0, hostApp.dailyScreenChangesRemaining - screenChangesConsumed);
       await hostApp.save();
 
-      // Emit WebSocket push signal to connected venue devices
-      if (global.deviceSockets) {
-        const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: hostApp._id.toString() });
-        for (const [deviceId, socket] of global.deviceSockets.entries()) {
-          try { socket.send(payload); } catch (e) {}
-        }
+      // Emit reload signal to connected venue devices (WebSockets + gRPC screens)
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        global.notifyDevicesReloadAds(hostApp._id);
       }
 
       return res.status(200).send({
