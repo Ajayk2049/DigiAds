@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -15,14 +18,18 @@ import 'generated/device.pbgrpc.dart';
 // ---------------------------------------------------------------------------
 enum PlayerState { booting, waiting, playing }
 
-String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+String buildServerUrl(String serverHost,
+    {int defaultPort = 4200, String path = ''}) {
   String host = serverHost.trim();
   if (host.isEmpty) return '';
 
   bool isHttps = host.startsWith('https://');
-  host = host.replaceFirst(RegExp(r'^https?:\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+  host = host
+      .replaceFirst(RegExp(r'^https?:\/\/'), '')
+      .replaceFirst(RegExp(r'\/.*$'), '');
 
-  final cleanPath = path.isEmpty ? '' : (path.startsWith('/') ? path : '/$path');
+  final cleanPath =
+      path.isEmpty ? '' : (path.startsWith('/') ? path : '/$path');
 
   if (host.contains(':')) {
     final scheme = isHttps ? 'https' : 'http';
@@ -44,7 +51,9 @@ String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = 
 String cleanGrpcHost(String serverHost) {
   String host = serverHost.trim();
   if (host.isEmpty) return '127.0.0.1';
-  host = host.replaceFirst(RegExp(r'^(https?|wss?):\/\/'), '').replaceFirst(RegExp(r'\/.*$'), '');
+  host = host
+      .replaceFirst(RegExp(r'^(https?|wss?):\/\/'), '')
+      .replaceFirst(RegExp(r'\/.*$'), '');
   if (host.contains(':')) {
     host = host.split(':').first;
   }
@@ -145,7 +154,8 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
     _hostApplicationId = widget.initialHostApplicationId;
   }
 
-  void _onActivate(String serverHost, String deviceId, String token, String hostApplicationId) {
+  void _onActivate(String serverHost, String deviceId, String token,
+      String hostApplicationId) {
     setState(() {
       _serverHost = serverHost;
       _deviceId = deviceId;
@@ -165,7 +175,8 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
 
     // Wipe cached ads from storage
     try {
-      final adsDir = Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
+      final adsDir =
+          Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
       if (await adsDir.exists()) {
         await adsDir.delete(recursive: true);
       }
@@ -245,7 +256,8 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
     }
     _serverHostController = TextEditingController(text: rawHost);
     _serverPortController = TextEditingController(text: defaultPort);
-    _deviceIdController = TextEditingController(text: widget.initialDeviceId ?? '');
+    _deviceIdController =
+        TextEditingController(text: widget.initialDeviceId ?? '');
   }
 
   @override
@@ -265,7 +277,9 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
     final host = _serverHostController.text.trim();
     final portStr = _serverPortController.text.trim();
     final port = int.tryParse(portStr) ?? 4000;
-    final serverHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
+    final serverHost = host.contains(':')
+        ? host
+        : (port == 80 || port == 443 ? host : '$host:$port');
     final deviceId = _deviceIdController.text.trim();
 
     if (host.isEmpty || deviceId.isEmpty) {
@@ -280,20 +294,24 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
       final prefs = await SharedPreferences.getInstance();
       String? hardwareId = prefs.getString('hardware_id');
       if (hardwareId == null) {
-        hardwareId = 'hw_scr_${DateTime.now().millisecondsSinceEpoch}_$deviceId';
+        hardwareId =
+            'hw_scr_${DateTime.now().millisecondsSinceEpoch}_$deviceId';
         await prefs.setString('hardware_id', hardwareId);
       }
 
-      final url = Uri.parse(buildServerUrl(serverHost, defaultPort: port, path: '/api/v1/auth/device/activate'));
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'deviceId': deviceId,
-          'hardwareId': hardwareId,
-          'deviceType': 'screen',
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final url = Uri.parse(buildServerUrl(serverHost,
+          defaultPort: port, path: '/api/v1/auth/device/activate'));
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'deviceId': deviceId,
+              'hardwareId': hardwareId,
+              'deviceType': 'screen',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
@@ -315,7 +333,8 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Connection failed: Ensure server is running and reachable at $serverHost';
+        _error =
+            'Connection failed: Ensure server is running and reachable at $serverHost';
         _loading = false;
       });
     }
@@ -336,19 +355,26 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.white12),
               boxShadow: const [
-                BoxShadow(color: Colors.black54, blurRadius: 30, offset: Offset(0, 10)),
+                BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 30,
+                    offset: Offset(0, 10)),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.tv_rounded, size: 64, color: Colors.indigoAccent),
+                const Icon(Icons.tv_rounded,
+                    size: 64, color: Colors.indigoAccent),
                 const SizedBox(height: 16),
                 const Text(
                   "DigiAds Screen Setup",
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -363,16 +389,21 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                     decoration: BoxDecoration(
                       color: Colors.redAccent.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      border:
+                          Border.all(color: Colors.redAccent.withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+                        const Icon(Icons.error_outline,
+                            color: Colors.redAccent, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             _error,
-                            style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600),
                           ),
                         ),
                       ],
@@ -387,13 +418,17 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                       flex: 7,
                       child: TextField(
                         controller: _serverHostController,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
                         decoration: InputDecoration(
                           labelText: "Server Host / IP Address",
                           hintText: "e.g. 192.168.1.100 or api.digiads.space",
-                          hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                          prefixIcon: const Icon(Icons.dns_rounded, color: Colors.indigoAccent),
+                          hintStyle: const TextStyle(
+                              color: Colors.white24, fontSize: 13),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          prefixIcon: const Icon(Icons.dns_rounded,
+                              color: Colors.indigoAccent),
                         ),
                       ),
                     ),
@@ -403,13 +438,17 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                       child: TextField(
                         controller: _serverPortController,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
                         decoration: InputDecoration(
                           labelText: "Port",
                           hintText: "4000",
-                          hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                          prefixIcon: const Icon(Icons.numbers_rounded, color: Colors.indigoAccent),
+                          hintStyle: const TextStyle(
+                              color: Colors.white24, fontSize: 13),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          prefixIcon: const Icon(Icons.numbers_rounded,
+                              color: Colors.indigoAccent),
                         ),
                       ),
                     ),
@@ -422,9 +461,12 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                   decoration: InputDecoration(
                     labelText: "Device ID",
                     hintText: "e.g. DEV_SCR_A1B2",
-                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                    prefixIcon: const Icon(Icons.tv_rounded, color: Colors.indigoAccent),
+                    hintStyle:
+                        const TextStyle(color: Colors.white24, fontSize: 13),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    prefixIcon: const Icon(Icons.tv_rounded,
+                        color: Colors.indigoAccent),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -437,9 +479,11 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             side: const BorderSide(color: Colors.white24),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
-                          child: const Text("Cancel", style: TextStyle(color: Colors.white70)),
+                          child: const Text("Cancel",
+                              style: TextStyle(color: Colors.white70)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -452,12 +496,19 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           backgroundColor: Colors.indigoAccent,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
                           elevation: 4,
                         ),
                         child: _loading
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text("Authorize & Bind Screen", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Text("Authorize & Bind Screen",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14)),
                       ),
                     ),
                   ],
@@ -496,7 +547,8 @@ class AdPlayerScreen extends StatefulWidget {
   State<AdPlayerScreen> createState() => _AdPlayerScreenState();
 }
 
-class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObserver {
+class _AdPlayerScreenState extends State<AdPlayerScreen>
+    with WidgetsBindingObserver {
   // gRPC
   late ClientChannel _channel;
   late DeviceServiceClient _deviceClient;
@@ -508,13 +560,23 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   String _statusMessage = 'Initializing...';
 
   // ---------- Playlist ----------
-  List<String> _localPlaylist = []; // file paths or 'img__...' or 'static__...' strings
+  List<String> _localPlaylist =
+      []; // file paths or 'img__...' or 'static__...' strings
   int _currentAdIndex = 0;
 
   // ---------- Native ExoPlayer Channel & Timers ----------
-  static const MethodChannel _videoChannel = MethodChannel('com.digiads.screen/native_video');
+  static const MethodChannel _videoChannel =
+      MethodChannel('com.digiads.screen/native_video');
   Timer? _staticAdTimer;
   Timer? _videoWatchdogTimer;
+  int _playbackGeneration = 0;
+  bool _isAdvancing = false;
+  bool _offline = false;
+  bool _hasCachedContent = false;
+  double _downloadProgress = 0;
+  String _downloadStatus = '';
+  List<String>? _pendingPlaylist;
+  List<String>? _pendingActiveFileNames;
 
   // ---------- Sync ----------
   bool _isSyncing = false;
@@ -540,11 +602,21 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
     _videoChannel.setMethodCallHandler((call) async {
       if (call.method == 'onVideoComplete') {
+        final callbackPath = call.arguments?['path'] as String?;
+        final currentPath = _localPlaylist.isNotEmpty
+            ? _localPlaylist[_currentAdIndex % _localPlaylist.length]
+            : null;
+        if (callbackPath != null && callbackPath != currentPath) return;
         final dur = (call.arguments?['duration'] as int?) ?? 15;
         _onNativeVideoComplete(dur);
       } else if (call.method == 'onVideoError') {
+        final callbackPath = call.arguments?['path'] as String?;
+        final currentPath = _localPlaylist.isNotEmpty
+            ? _localPlaylist[_currentAdIndex % _localPlaylist.length]
+            : null;
+        if (callbackPath != null && callbackPath != currentPath) return;
         print('[NATIVE_VIDEO] Error: ${call.arguments}');
-        _advanceToNextAd();
+        _advanceToNextAd(_playbackGeneration);
       }
     });
 
@@ -561,7 +633,21 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     await _ensureStorageReady();
 
     // 2. Load cached playlist and start playback immediately if available
-    await _loadCachedPlaylist();
+    await _loadCachedPlaylist(startPlayback: false);
+
+    // Cached content is allowed to play immediately. Only defer expensive
+    // network and background work during a cold start.
+    if (_hasCachedContent) {
+      await Future<void>.delayed(const Duration(seconds: 25));
+    }
+    if (!mounted) return;
+    if (_hasCachedContent && _localPlaylist.isNotEmpty) {
+      setState(() {
+        _playerState = PlayerState.playing;
+        _statusMessage = '';
+      });
+      _startPlaybackLoop();
+    }
 
     // 3. Init gRPC for heartbeat / telemetry
     _initGrpc();
@@ -570,7 +656,14 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _startHeartbeat();
 
     // 5. Initial sync with server in background
-    _attemptSync();
+    if (_hasCachedContent) {
+      _syncTimer?.cancel();
+      _syncTimer = Timer(const Duration(minutes: 3), () {
+        if (mounted) _attemptSync();
+      });
+    } else {
+      _attemptSync();
+    }
   }
 
   Future<void> _ensureStorageReady() async {
@@ -593,28 +686,32 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     print('[BOOT] Ads directory ready: $_adsDirectory');
   }
 
-  Future<void> _loadCachedPlaylist() async {
+  Future<void> _loadCachedPlaylist({bool startPlayback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getStringList('local_playlist');
 
     if (cached != null && cached.isNotEmpty) {
       final valid = cached.where((path) {
-        if (path.startsWith('static__') || path.startsWith('img__')) return true;
+        if (path.startsWith('static__') || path.startsWith('img__'))
+          return true;
         final file = File(path);
         return file.existsSync() && file.lengthSync() > 1000;
       }).toList();
 
       if (valid.isNotEmpty) {
-        print('[BOOT] Found ${valid.length} valid cached ads. Starting playback immediately.');
+        _hasCachedContent = true;
+        print(
+            '[BOOT] Found ${valid.length} valid cached ads. Starting playback immediately.');
         _masterAdPlaylist = List.from(valid);
         await _loadFrequenciesAndTimestamps();
         final eligible = _getEligiblePlaylist(_masterAdPlaylist);
         setState(() {
           _localPlaylist = eligible;
-          _playerState = PlayerState.playing;
+          _playerState =
+              startPlayback ? PlayerState.playing : PlayerState.booting;
           _statusMessage = '';
         });
-        _startPlaybackLoop();
+        if (startPlayback) _startPlaybackLoop();
         return;
       }
     }
@@ -623,21 +720,25 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     final dir = Directory(_adsDirectory);
     if (dir.existsSync()) {
       final files = dir.listSync().whereType<File>().where((f) {
-        return (f.path.endsWith('.mp4') || f.path.endsWith('.webm')) && f.lengthSync() > 1000;
+        return (f.path.endsWith('.mp4') || f.path.endsWith('.webm')) &&
+            f.lengthSync() > 1000;
       }).toList();
 
       if (files.isNotEmpty) {
+        _hasCachedContent = true;
         final recovered = files.map((f) => f.path).toList();
-        print('[BOOT] Recovered ${recovered.length} ads from filesystem. Starting playback.');
+        print(
+            '[BOOT] Recovered ${recovered.length} ads from filesystem. Starting playback.');
         _masterAdPlaylist = List.from(recovered);
         await _loadFrequenciesAndTimestamps();
         final eligible = _getEligiblePlaylist(_masterAdPlaylist);
         setState(() {
           _localPlaylist = eligible;
-          _playerState = PlayerState.playing;
+          _playerState =
+              startPlayback ? PlayerState.playing : PlayerState.booting;
           _statusMessage = '';
         });
-        _startPlaybackLoop();
+        if (startPlayback) _startPlaybackLoop();
         return;
       }
     }
@@ -673,10 +774,10 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       try {
-        final req = HeartbeatRequest()
-          ..deviceId = widget.deviceId;
+        final req = HeartbeatRequest()..deviceId = widget.deviceId;
 
-        final res = await _deviceClient.sendHeartbeat(req, options: _callOptions);
+        final res =
+            await _deviceClient.sendHeartbeat(req, options: _callOptions);
 
         if (res.hasCommand()) {
           final cmd = res.command.toLowerCase();
@@ -702,7 +803,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     print('[SYNC] Attempting server sync (retry #$_syncRetryCount)...');
 
     try {
-      final url = Uri.parse(buildServerUrl(widget.serverHost, path: '/api/v1/auth/device/ads'));
+      final url = Uri.parse(
+          buildServerUrl(widget.serverHost, path: '/api/v1/auth/device/ads'));
       final response = await http.get(
         url,
         headers: {'Authorization': 'Bearer ${widget.token}'},
@@ -712,6 +814,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       if (response.statusCode == 200 && data['success'] == true) {
         final List serverAds = data['data'] ?? [];
         _syncRetryCount = 0;
+        if (mounted) setState(() => _offline = false);
 
         print('[SYNC] Server reachable. Got ${serverAds.length} ads.');
 
@@ -719,14 +822,22 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
           await _syncAndDownloadAds(serverAds);
         } else {
           print('[SYNC] Server returned empty ads list.');
+          if (mounted && !_hasCachedContent) {
+            setState(() {
+              _playerState = PlayerState.waiting;
+              _statusMessage = 'No ads are assigned to this device yet.';
+            });
+          }
         }
 
         // Schedule periodic re-sync every 5 minutes
         _schedulePeriodicSync();
         return;
       }
+      if (mounted) setState(() => _offline = true);
     } catch (e) {
       print('[SYNC] Failed to reach server: $e');
+      if (mounted) setState(() => _offline = true);
     }
 
     // Sync failed — schedule retry with backoff
@@ -738,11 +849,13 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _syncRetryCount++;
     final delay = const Duration(seconds: 10);
 
-    print('[SYNC] Scheduling retry in ${delay.inSeconds}s (attempt #$_syncRetryCount)');
+    print(
+        '[SYNC] Scheduling retry in ${delay.inSeconds}s (attempt #$_syncRetryCount)');
 
     if (mounted && _playerState == PlayerState.waiting) {
       setState(() {
-        _statusMessage = 'Server unreachable. Retrying in ${delay.inSeconds}s...';
+        _statusMessage =
+            'Server unreachable. Retrying in ${delay.inSeconds}s...';
       });
     }
 
@@ -784,11 +897,23 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
       final List<String> newLocalPaths = [];
       final List<String> activeFileNames = [];
+      if (mounted) {
+        setState(() {
+          _downloadProgress = 0;
+          _downloadStatus = 'Preparing downloads...';
+        });
+      }
 
       for (int i = 0; i < serverAds.length; i++) {
         final ad = serverAds[i];
         final mediaUrl = ad['mediaUrl'] as String? ?? '';
         final bookingId = ad['bookingId'] as String? ?? 'unknown';
+        if (mounted) {
+          setState(() {
+            _downloadProgress = i / serverAds.length;
+            _downloadStatus = 'Downloading ${i + 1} of ${serverAds.length}';
+          });
+        }
 
         if (mediaUrl.isNotEmpty &&
             (mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm'))) {
@@ -804,7 +929,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
           // Download if file doesn't exist or is too small (corrupt)
           if (!localFile.existsSync() || localFile.lengthSync() < 1000) {
-            final success = await _downloadWithRetry(absoluteUrl, localFile, i + 1, serverAds.length);
+            final success = await _downloadWithRetry(
+                absoluteUrl, localFile, i + 1, serverAds.length);
             if (!success) {
               print('[DOWNLOAD] Skipping ad $bookingId after failed download.');
               continue;
@@ -815,7 +941,10 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
           newLocalPaths.add(localFile.path);
         } else if (mediaUrl.isNotEmpty &&
-            (mediaUrl.endsWith('.webp') || mediaUrl.endsWith('.jpg') || mediaUrl.endsWith('.jpeg') || mediaUrl.endsWith('.png'))) {
+            (mediaUrl.endsWith('.webp') ||
+                mediaUrl.endsWith('.jpg') ||
+                mediaUrl.endsWith('.jpeg') ||
+                mediaUrl.endsWith('.png'))) {
           // Image ad — download and register as img__ entry
           final absoluteUrl = mediaUrl.startsWith('http')
               ? mediaUrl
@@ -827,13 +956,16 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
           activeFileNames.add(fileName);
 
           if (!localFile.existsSync() || localFile.lengthSync() < 500) {
-            final success = await _downloadWithRetry(absoluteUrl, localFile, i + 1, serverAds.length);
+            final success = await _downloadWithRetry(
+                absoluteUrl, localFile, i + 1, serverAds.length);
             if (!success) {
-              print('[DOWNLOAD] Skipping image ad $bookingId after failed download.');
+              print(
+                  '[DOWNLOAD] Skipping image ad $bookingId after failed download.');
               continue;
             }
           } else {
-            print('[DOWNLOAD] Image ad $bookingId already cached: ${localFile.path}');
+            print(
+                '[DOWNLOAD] Image ad $bookingId already cached: ${localFile.path}');
           }
 
           // Register as img__[localPath] so the player knows it is an image
@@ -848,14 +980,27 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
       // Update playlist, handle playback transition and file cleanup safely
       await _updatePlaylist(newLocalPaths, activeFileNames);
+      if (mounted) {
+        setState(() {
+          _downloadProgress = 1;
+          _downloadStatus = '';
+        });
+      }
     } catch (e) {
       print('[SYNC] Download error: $e');
+      if (mounted) {
+        setState(() {
+          _downloadProgress = 0;
+          _downloadStatus = 'Download failed. Retrying automatically...';
+        });
+      }
     } finally {
       _isSyncing = false;
     }
   }
 
-  Future<void> _updatePlaylist(List<String> newPlaylist, List<String> activeFileNames) async {
+  Future<void> _updatePlaylist(
+      List<String> newPlaylist, List<String> activeFileNames) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('local_playlist', newPlaylist);
     await prefs.setString('last_sync_time', DateTime.now().toIso8601String());
@@ -894,41 +1039,45 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       return;
     }
 
-    // Currently playing -> preserve active ad playback without interrupting active stream
-    final currentPlayingSource = _localPlaylist.isNotEmpty && _currentAdIndex < _localPlaylist.length
-        ? _localPlaylist[_currentAdIndex]
-        : '';
-
-    final currentPlayingIndexInNew = eligible.indexOf(currentPlayingSource);
-
-    if (currentPlayingIndexInNew != -1) {
-      print('[PLAYER] Playlist updated. Currently playing ad is still valid.');
-      setState(() {
-        _localPlaylist = eligible;
-        _currentAdIndex = currentPlayingIndexInNew;
-      });
-      _cleanupOldFiles(activeFileNames);
-    } else {
-      print('[PLAYER] Playlist updated. Active ad will finish before transitioning to new playlist.');
-      setState(() {
-        _localPlaylist = eligible;
-      });
-      _cleanupOldFiles(activeFileNames);
+    // Keep the current loop untouched. The new playlist is committed at the
+    // next ad boundary by _advanceToNextAd().
+    if (isPlaying) {
+      _pendingPlaylist = eligible;
+    }
+    _pendingActiveFileNames = activeFileNames;
+    if (isPlaying) {
+      print('[PLAYER] Playlist downloaded and queued for next ad boundary.');
     }
   }
 
-  Future<bool> _downloadWithRetry(String url, File targetFile, int current, int total) async {
+  Future<bool> _downloadWithRetry(
+      String url, File targetFile, int current, int total) async {
     const maxRetries = 3;
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         print('[DOWNLOAD] Attempt $attempt: $url');
-        final response = await http.get(Uri.parse(url)).timeout(const Duration(minutes: 5));
-
-        if (response.statusCode == 200 && response.bodyBytes.length > 1000) {
-          await targetFile.writeAsBytes(response.bodyBytes);
-          print('[DOWNLOAD] Success: ${targetFile.path}');
-          return true;
+        final client = http.Client();
+        try {
+          final request = http.Request('GET', Uri.parse(url));
+          final response =
+              await client.send(request).timeout(const Duration(minutes: 5));
+          if (response.statusCode == 200 &&
+              (response.contentLength ?? 1001) > 1000) {
+            final tempFile = File('${targetFile.path}.part');
+            if (await tempFile.exists()) await tempFile.delete();
+            final sink = tempFile.openWrite();
+            await response.stream.pipe(sink);
+            if (await tempFile.length() > 1000) {
+              if (await targetFile.exists()) await targetFile.delete();
+              await tempFile.rename(targetFile.path);
+              print('[DOWNLOAD] Success: ${targetFile.path}');
+              return true;
+            }
+            if (await tempFile.exists()) await tempFile.delete();
+          }
+        } finally {
+          client.close();
         }
       } catch (e) {
         print('[DOWNLOAD] Attempt $attempt failed: $e');
@@ -950,7 +1099,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       for (var entity in dir.listSync()) {
         if (entity is File) {
           final name = entity.path.split('/').last.split('\\').last;
-          if ((name.startsWith('ad_') || name.startsWith('img_')) && !activeFileNames.contains(name)) {
+          if ((name.startsWith('ad_') || name.startsWith('img_')) &&
+              !activeFileNames.contains(name)) {
             print('[CLEANUP] Removing old ad file: ${entity.path}');
             entity.deleteSync();
           }
@@ -969,10 +1119,13 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
 
     print('[PLAYER] Starting playback loop with ${_localPlaylist.length} ads.');
     _currentAdIndex = 0;
-    _playCurrentAd();
+    _playbackGeneration++;
+    _playCurrentAd(_playbackGeneration);
   }
 
-  void _playCurrentAd() async {
+  void _playCurrentAd([int? generation]) async {
+    final playGeneration = generation ?? _playbackGeneration;
+    if (!mounted || playGeneration != _playbackGeneration) return;
     _staticAdTimer?.cancel();
     _videoWatchdogTimer?.cancel();
 
@@ -996,7 +1149,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       if (mounted) setState(() {});
       _staticAdTimer = Timer(const Duration(seconds: 8), () {
         _trackImpression(adSource, 8);
-        _advanceToNextAd();
+        _advanceToNextAd(playGeneration);
       });
     } else if (adSource.startsWith('img__')) {
       // Image ad — stop video to free VPU decoder and show image on top
@@ -1007,57 +1160,78 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
       if (mounted) setState(() {});
       _staticAdTimer = Timer(Duration(seconds: durationSec), () {
         _trackImpression(adSource, durationSec);
-        _advanceToNextAd();
+        _advanceToNextAd(playGeneration);
       });
     } else {
       // Native AndroidX Media3 ExoPlayer SurfaceView ad (0% green lines, 100% exact pixels)
       final file = File(adSource);
       if (!file.existsSync() || file.lengthSync() < 1000) {
         print('[PLAYER] File missing or corrupt: $adSource. Skipping.');
-        _advanceToNextAd();
+        _advanceToNextAd(playGeneration);
         return;
       }
 
       try {
         _videoWatchdogTimer?.cancel();
-        _videoChannel.invokeMethod('playVideo', {'path': adSource});
+        await _videoChannel.invokeMethod('playVideo', {'path': adSource});
         if (mounted) setState(() {});
 
         // Safety watchdog: advance if video completes or stalls (35s timeout)
         _videoWatchdogTimer = Timer(const Duration(seconds: 35), () {
+          if (playGeneration != _playbackGeneration) return;
           print('[WATCHDOG] Video timer expired for $adSource');
-          _onNativeVideoComplete(30);
+          _onNativeVideoComplete(30, playGeneration);
         });
       } catch (e) {
         print('[PLAYER] Native video error for $adSource: $e');
-        _advanceToNextAd();
+        _advanceToNextAd(playGeneration);
       }
     }
   }
 
-  void _onNativeVideoComplete(int durationSec) {
+  void _onNativeVideoComplete(int durationSec, [int? generation]) {
+    if ((generation != null && generation != _playbackGeneration) ||
+        _isAdvancing) return;
     _videoWatchdogTimer?.cancel();
     if (_localPlaylist.isNotEmpty) {
       final adSource = _localPlaylist[_currentAdIndex % _localPlaylist.length];
       _trackImpression(adSource, durationSec);
     }
-    _advanceToNextAd();
+    _advanceToNextAd(generation ?? _playbackGeneration);
   }
 
-  void _advanceToNextAd() {
-    if (_localPlaylist.isEmpty) return;
+  void _advanceToNextAd([int? generation]) {
+    if (_localPlaylist.isEmpty || _isAdvancing) return;
+    final advanceGeneration = generation ?? _playbackGeneration;
+    if (advanceGeneration != _playbackGeneration) return;
+    _isAdvancing = true;
 
     _loadFrequenciesAndTimestamps().then((_) {
+      if (!mounted || advanceGeneration != _playbackGeneration) return;
+      final appliedPendingPlaylist = _pendingPlaylist != null;
+      if (appliedPendingPlaylist) {
+        _localPlaylist = _pendingPlaylist!;
+        _masterAdPlaylist = List.from(_pendingPlaylist!);
+        _cleanupOldFiles(_pendingActiveFileNames ?? []);
+        _pendingPlaylist = null;
+        _pendingActiveFileNames = null;
+        _currentAdIndex = 0;
+      }
       final eligible = _getEligiblePlaylist(_masterAdPlaylist);
-      if (eligible.isEmpty) {
-        print('[PLAYER] No eligible ads after frequency filter. Repeating full master list.');
+      if (appliedPendingPlaylist) {
+        _currentAdIndex = 0;
+      } else if (eligible.isEmpty) {
+        print(
+            '[PLAYER] No eligible ads after frequency filter. Repeating full master list.');
         _currentAdIndex = (_currentAdIndex + 1) % _localPlaylist.length;
       } else {
         _localPlaylist = eligible;
         _currentAdIndex = (_currentAdIndex + 1) % eligible.length;
       }
 
-      _playCurrentAd();
+      _playCurrentAd(advanceGeneration);
+    }).whenComplete(() {
+      _isAdvancing = false;
     });
   }
 
@@ -1090,7 +1264,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   Future<void> _saveLastPlayedTimes() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ad_last_played_times', jsonEncode(_lastPlayedTimes));
+      await prefs.setString(
+          'ad_last_played_times', jsonEncode(_lastPlayedTimes));
     } catch (e) {
       print('Error saving last played times: $e');
     }
@@ -1213,6 +1388,7 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
     _syncTimer?.cancel();
     _staticAdTimer?.cancel();
     _videoWatchdogTimer?.cancel();
+    _playbackGeneration++;
     _videoChannel.invokeMethod('stopVideo');
     _channel.shutdown();
     super.dispose();
@@ -1232,6 +1408,25 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         children: [
           // Main player content
           _buildMainContent(),
+
+          if (_offline)
+            Positioned(
+              top: 18,
+              right: 68,
+              child: _buildStatusPill(
+                label: 'Offline',
+                color: Colors.orangeAccent,
+                icon: Icons.cloud_off_rounded,
+              ),
+            ),
+
+          if (_downloadStatus.isNotEmpty)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: _buildDownloadStatus(),
+            ),
 
           // Subtle unobtrusive settings trigger in top-right corner
           Positioned(
@@ -1304,31 +1499,79 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   Widget _buildSplashScreen(String message) {
     return Container(
       color: Colors.black,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.tv_rounded, size: 80, color: Colors.indigoAccent),
-            const SizedBox(height: 24),
-            const Text(
-              'DigiAds Screen',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                color: Colors.white,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/SplashScreen.png', fit: BoxFit.cover),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 42),
+              child: Text(
+                message,
+                style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                    shadows: [Shadow(blurRadius: 8, color: Colors.black)]),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 32),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigoAccent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusPill({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withOpacity(0.55)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadStatus() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.78),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_downloadStatus,
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: _downloadProgress,
+                minHeight: 5,
+                backgroundColor: Colors.white12,
+                color: Colors.indigoAccent,
+              ),
             ),
           ],
         ),
@@ -1343,7 +1586,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.wifi_find_rounded, size: 80, color: Colors.indigoAccent),
+            const Icon(Icons.wifi_find_rounded,
+                size: 80, color: Colors.indigoAccent),
             const SizedBox(height: 24),
             const Text(
               'DigiAds Wall Screen',
@@ -1357,7 +1601,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
             const SizedBox(height: 8),
             Text(
               'Device ID: ${widget.deviceId}',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), letterSpacing: 1),
+              style: const TextStyle(
+                  fontSize: 13, color: Color(0xFF64748B), letterSpacing: 1),
             ),
             const SizedBox(height: 24),
             Container(
@@ -1373,12 +1618,14 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
                   const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigoAccent),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.indigoAccent),
                   ),
                   const SizedBox(width: 12),
                   Text(
                     _statusMessage,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                   ),
                 ],
               ),
@@ -1389,10 +1636,12 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
                 _syncRetryCount = 0;
                 _attemptSync();
               },
-              icon: const Icon(Icons.refresh, color: Colors.indigoAccent, size: 18),
+              icon: const Icon(Icons.refresh,
+                  color: Colors.indigoAccent, size: 18),
               label: const Text(
                 'Retry Sync Now',
-                style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Colors.indigoAccent, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -1402,7 +1651,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
   }
 
   Widget _buildPlayerView() {
-    if (_localPlaylist.isEmpty) return _buildSplashScreen('Loading ad creatives...');
+    if (_localPlaylist.isEmpty)
+      return _buildSplashScreen('Loading ad creatives...');
 
     final adSource = _localPlaylist[_currentAdIndex % _localPlaylist.length];
     final hasImage = adSource.startsWith('img__');
@@ -1416,13 +1666,38 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
         fit: StackFit.expand,
         children: [
           // 1. Persistent Native Video Surface (Never destroyed or rebuilt during playlist loops)
-          const RepaintBoundary(
+          RepaintBoundary(
             child: IgnorePointer(
               child: SizedBox.expand(
-                child: AndroidView(
-                  key: Key('persistent_native_screen_player'),
+                child: PlatformViewLink(
+                  key: const Key('persistent_native_screen_player'),
                   viewType: 'com.digiads.screen/native_video',
-                  creationParamsCodec: StandardMessageCodec(),
+                  surfaceFactory: (context, controller) {
+                    return AndroidViewSurface(
+                      controller: controller as AndroidViewController,
+                      gestureRecognizers: <Factory<
+                          OneSequenceGestureRecognizer>>{},
+                      hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+                    );
+                  },
+                  onCreatePlatformView: (params) {
+                    // Force Android hybrid composition for the native
+                    // SurfaceView. TLHC/virtual-display composition starves
+                    // the Allwinner display buffer queue on this hardware.
+                    final controller =
+                        PlatformViewsService.initExpensiveAndroidView(
+                      id: params.id,
+                      viewType: 'com.digiads.screen/native_video',
+                      layoutDirection: TextDirection.ltr,
+                      creationParams: null,
+                      creationParamsCodec: const StandardMessageCodec(),
+                      onFocus: () => params.onFocusChanged(true),
+                    );
+                    controller.addOnPlatformViewCreatedListener(
+                        params.onPlatformViewCreated);
+                    controller.create();
+                    return controller;
+                  },
                 ),
               ),
             ),
@@ -1455,11 +1730,13 @@ class _AdPlayerScreenState extends State<AdPlayerScreen> with WidgetsBindingObse
               gaplessPlayback: true,
               cacheWidth: 1920,
               errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(Icons.broken_image, size: 80, color: Colors.white24),
+                child:
+                    Icon(Icons.broken_image, size: 80, color: Colors.white24),
               ),
             )
           : const Center(
-              child: Icon(Icons.image_not_supported, size: 80, color: Colors.white24),
+              child: Icon(Icons.image_not_supported,
+                  size: 80, color: Colors.white24),
             ),
     );
   }
@@ -1541,7 +1818,8 @@ class ScreenSettingsScreen extends StatefulWidget {
 }
 
 class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
-  static const MethodChannel _systemChannel = MethodChannel('com.digiads.screen/system');
+  static const MethodChannel _systemChannel =
+      MethodChannel('com.digiads.screen/system');
   bool _isReSyncing = false;
 
   Future<void> _handleReSync() async {
@@ -1571,7 +1849,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF111827),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Reset Screen Device?', style: TextStyle(color: Colors.white)),
+        title: const Text('Reset Screen Device?',
+            style: TextStyle(color: Colors.white)),
         content: const Text(
           'This will clear all saved credentials, stored tokens, and cached ads.\n\n'
           'The screen will return to initial setup and require re-authorization.',
@@ -1580,12 +1859,15 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Reset Device', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text('Reset Device',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1625,7 +1907,10 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           children: [
             const Text(
               'Screen Display Settings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white),
             ),
             Text(
               'Device ID: ${widget.deviceId}',
@@ -1644,7 +1929,11 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
 
           const Text(
             "DEVICE & NETWORK CONTROLS",
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B), letterSpacing: 1),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF64748B),
+                letterSpacing: 1),
           ),
           const SizedBox(height: 12),
 
@@ -1652,7 +1941,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           _buildActionCard(
             icon: Icons.refresh_rounded,
             title: 'Re-download & Sync Ads',
-            subtitle: 'Force an immediate sync with the server to fetch and cache the latest ad creatives.',
+            subtitle:
+                'Force an immediate sync with the server to fetch and cache the latest ad creatives.',
             isLoading: _isReSyncing,
             onTap: _isReSyncing ? null : _handleReSync,
           ),
@@ -1661,7 +1951,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           _buildActionCard(
             icon: Icons.settings_remote_rounded,
             title: 'Re-configure Screen Connection',
-            subtitle: 'Update Server Host / IP address or assign a different Device ID.',
+            subtitle:
+                'Update Server Host / IP address or assign a different Device ID.',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -1693,7 +1984,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           _buildActionCard(
             icon: Icons.lock_reset_rounded,
             title: 'Reset Screen Device',
-            subtitle: 'Clear all credentials and return to factory setup. Requires re-authorization.',
+            subtitle:
+                'Clear all credentials and return to factory setup. Requires re-authorization.',
             isDanger: true,
             onTap: _handleReset,
           ),
@@ -1702,7 +1994,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           _buildActionCard(
             icon: Icons.settings_applications_rounded,
             title: 'Open Android System Settings',
-            subtitle: 'Configure device WiFi network, display resolution, sound, or system time.',
+            subtitle:
+                'Configure device WiFi network, display resolution, sound, or system time.',
             onTap: _openAndroidSettings,
           ),
         ],
@@ -1729,21 +2022,30 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
                   color: Colors.indigoAccent.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.info_outline_rounded, color: Colors.indigoAccent, size: 20),
+                child: const Icon(Icons.info_outline_rounded,
+                    color: Colors.indigoAccent, size: 20),
               ),
               const SizedBox(width: 12),
               const Text(
                 'System & Connection Information',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
               ),
             ],
           ),
           const SizedBox(height: 16),
           _buildInfoRow('Device ID', widget.deviceId),
           _buildInfoRow('Server Host', widget.serverHost),
-          _buildInfoRow('Venue Application ID', widget.hostApplicationId.isNotEmpty ? widget.hostApplicationId : 'Not Assigned'),
+          _buildInfoRow(
+              'Venue Application ID',
+              widget.hostApplicationId.isNotEmpty
+                  ? widget.hostApplicationId
+                  : 'Not Assigned'),
           _buildInfoRow('Display Type', 'Wall Display Screen (16:9 Landscape)'),
-          _buildInfoRow('Active Playlist', '${widget.activePlaylistCount} Ads in rotation'),
+          _buildInfoRow('Active Playlist',
+              '${widget.activePlaylistCount} Ads in rotation'),
           _buildInfoRow('Package Name', 'com.digiads.screen'),
           _buildInfoRow('App Version', 'v1.0.0 (Build 1)'),
         ],
@@ -1757,10 +2059,12 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
+          Text(label,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8))),
           Text(
             value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ],
       ),
@@ -1786,7 +2090,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDanger ? Colors.redAccent.withOpacity(0.3) : Colors.white10,
+              color:
+                  isDanger ? Colors.redAccent.withOpacity(0.3) : Colors.white10,
             ),
           ),
           child: Row(
@@ -1794,7 +2099,9 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isDanger ? Colors.redAccent.withOpacity(0.15) : Colors.indigoAccent.withOpacity(0.15),
+                  color: isDanger
+                      ? Colors.redAccent.withOpacity(0.15)
+                      : Colors.indigoAccent.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -1819,7 +2126,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
@@ -1828,7 +2136,8 @@ class _ScreenSettingsScreenState extends State<ScreenSettingsScreen> {
                 const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigoAccent),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.indigoAccent),
                 )
               else
                 Icon(

@@ -268,21 +268,32 @@ export default function LandingPage() {
             {/* Micro Trust Stats */}
             <motion.div
               variants={fadeInUp}
-              className="grid grid-cols-3 gap-6 pt-4 border-t border-border/60"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-4 md:gap-6 pt-5 border-t border-border/60"
             >
-              <div>
-                <div className="font-outfit text-2xl font-bold text-foreground">Multi Format Ads</div>
-                <div className="text-xs text-muted-foreground font-medium">Run Video Or Image Ads With Full Customization</div>
+              <div className="space-y-1">
+                <div className="font-outfit text-lg sm:text-xl md:text-2xl font-bold text-foreground tracking-tight">
+                  Multi-Format Ads
+                </div>
+                <div className="text-xs text-muted-foreground font-medium leading-relaxed">
+                  Run video or image ads with full customization
+                </div>
               </div>
-              <div>
-                <div className="font-outfit text-2xl font-bold text-foreground">Higher Engagements</div>
-                <div className="text-xs text-muted-foreground font-medium">Single Use Menu-Ad Display design Results In Higher Engagements</div>
+              <div className="space-y-1">
+                <div className="font-outfit text-lg sm:text-xl md:text-2xl font-bold text-foreground tracking-tight">
+                  High Engagement
+                </div>
+                <div className="text-xs text-muted-foreground font-medium leading-relaxed">
+                  Single-use menu & ad displays result in higher engagement
+                </div>
               </div>
-              <div>
-                <div className="font-outfit text-2xl font-bold text-foreground">Hassel Free  Fast Deployments</div>
-                <div className="text-xs text-muted-foreground font-medium">Upload The Content And We Will Deploy It within 15 Minutes</div>
+              <div className="space-y-1">
+                <div className="font-outfit text-lg sm:text-xl md:text-2xl font-bold text-foreground tracking-tight">
+                  Fast Deployments
+                </div>
+                <div className="text-xs text-muted-foreground font-medium leading-relaxed">
+                  Upload content and deploy across venues within 15 minutes
+                </div>
               </div>
-
             </motion.div>
           </motion.div>
 
@@ -350,7 +361,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center space-x-2">
               <IndianRupee className="w-4 h-4 text-emerald-500" />
-              <span className="text-foreground">UPI Payment Integreation</span>
+              <span className="text-foreground">UPI Payment Integration</span>
             </div>
             <div className="flex items-center space-x-2">
               <Layers className="w-4 h-4 text-indigo-500" />

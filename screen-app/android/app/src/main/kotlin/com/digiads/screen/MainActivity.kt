@@ -95,6 +95,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         var activeVideoView: NativeVideoView? = null
         var safeMode = false
+        var pendingVideoPath: String? = null
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -141,22 +142,37 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "playVideo" -> {
                     val path = call.argument<String>("path") ?: ""
-                    activeVideoView?.playVideo(path)
+                    mainHandler.post {
+                        val view = activeVideoView
+                        if (view == null) {
+                            pendingVideoPath = path
+                            Log.i(TAG, "Video view is not attached yet; queued $path")
+                        } else {
+                            view.playVideo(path)
+                        }
+                    }
                     result.success(null)
                 }
                 "setPlaylist" -> {
                     val paths = call.argument<List<String>>("paths") ?: emptyList()
                     val index = call.argument<Int>("currentIndex") ?: 0
                     val targetPath = paths.getOrNull(index) ?: paths.firstOrNull() ?: ""
-                    activeVideoView?.playVideo(targetPath)
+                    mainHandler.post { activeVideoView?.playVideo(targetPath) }
                     result.success(null)
                 }
                 "play" -> {
-                    activeVideoView?.play()
+                    mainHandler.post { activeVideoView?.play() }
                     result.success(null)
                 }
-                "pause", "stopVideo" -> {
-                    activeVideoView?.pause()
+                "pause" -> {
+                    mainHandler.post { activeVideoView?.pause() }
+                    result.success(null)
+                }
+                "stopVideo" -> {
+                    mainHandler.post {
+                        pendingVideoPath = null
+                        activeVideoView?.stopVideo()
+                    }
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -168,7 +184,6 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
-        WifiHelper.ensureWifiEnabled(this)
         hideSystemUI()
     }
 
@@ -185,6 +200,7 @@ class MainActivity : FlutterActivity() {
             KioskGuard.markHealthy(this)
         }
         activeVideoView = null
+        pendingVideoPath = null
         super.onDestroy()
     }
 
@@ -231,6 +247,7 @@ class NativeVideoView(
     private val handler = Handler(Looper.getMainLooper())
 
     private var currentVideoPath: String? = null
+    private var pendingVideoPath: String? = null
     private var isPlaying = true
     private var disposed = false
     private var attached = false
@@ -243,7 +260,10 @@ class NativeVideoView(
 
         val initialPath = (creationParams?.get("path") as? String)
             ?: (creationParams?.get("paths") as? List<*>)?.firstOrNull() as? String
+            ?: MainActivity.pendingVideoPath
+        MainActivity.pendingVideoPath = null
         currentVideoPath = initialPath
+        Log.i(TAG, "NativeVideoView created; initial video=${initialPath ?: "none"}")
 
         if (MainActivity.safeMode) {
             Log.w(TAG, "Safe Mode — native video surface suppressed for recovery.")
@@ -282,6 +302,7 @@ class NativeVideoView(
 
             player.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    Log.i(TAG, "ExoPlayer state=$playbackState path=$currentVideoPath")
                     if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
                         val durationMs = player.duration
                         val durationSec = if (durationMs > 0) (durationMs / 1000).toInt() else 0
@@ -295,6 +316,10 @@ class NativeVideoView(
                     }
                 }
 
+                override fun onRenderedFirstFrame() {
+                    Log.i(TAG, "ExoPlayer first frame rendered path=$currentVideoPath")
+                }
+
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     Log.w(TAG, "ExoPlayer playback error: ${error.message}")
                     methodChannel?.invokeMethod(
@@ -304,6 +329,10 @@ class NativeVideoView(
                 }
             })
 
+            pendingVideoPath?.let {
+                currentVideoPath = it
+                pendingVideoPath = null
+            }
             currentVideoPath?.let { path ->
                 if (path.isNotEmpty()) {
                     playVideo(path)
@@ -321,7 +350,11 @@ class NativeVideoView(
         currentVideoPath = path
         isPlaying = true
 
-        val player = exoPlayer ?: return
+        val player = exoPlayer
+        if (player == null) {
+            pendingVideoPath = path
+            return
+        }
         if (path.isEmpty()) {
             player.stop()
             player.clearMediaItems()
@@ -329,6 +362,8 @@ class NativeVideoView(
         }
 
         try {
+            player.stop()
+            player.clearMediaItems()
             val uri = Uri.parse(path)
             val mediaItem = if (uri.scheme.isNullOrEmpty()) {
                 androidx.media3.common.MediaItem.fromUri(Uri.fromFile(java.io.File(path)))

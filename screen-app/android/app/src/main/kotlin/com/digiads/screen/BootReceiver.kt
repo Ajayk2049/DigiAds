@@ -6,29 +6,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 
 private const val TAG = "DigiAdsScreenBoot"
-
-object WifiHelper {
-    fun ensureWifiEnabled(context: Context) {
-        try {
-            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            if (wifiManager != null) {
-                if (!wifiManager.isWifiEnabled) {
-                    Log.i(TAG, "Wi-Fi is currently disabled. Automatically enabling Wi-Fi...")
-                    @Suppress("DEPRECATION")
-                    wifiManager.setWifiEnabled(true)
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not ensure Wi-Fi state: ${e.message}")
-        }
-    }
-}
 
 /**
  * Fallback cold-boot launcher.
@@ -48,8 +30,6 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         try {
-            WifiHelper.ensureWifiEnabled(context)
-
             if (context.packageManager.isSafeMode) {
                 Log.w(TAG, "Android safe mode — skipping screen auto-launch.")
                 return
