@@ -104,57 +104,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Last-resort field recovery. These kiosks have no USB port, so without an
-  /// on-screen way to surrender Device Owner a wedged unit can only be fixed by
-  /// a factory reset.
-  Future<void> _releaseDeviceOwner() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
-        title: const Text('Release Device Owner?'),
-        content: const Text(
-          'This permanently surrenders enterprise Device Owner privileges for this '
-          'app. Kiosk Lock Task mode will stop working and CANNOT be granted again '
-          'without a full factory reset of the tablet.\n\n'
-          'Only do this if the tablet is stuck in a reboot loop and no other '
-          'recovery option is available.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Release'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      final released =
-          await _perfChannel.invokeMethod<bool>('clearDeviceOwner') ?? false;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(released
-              ? 'Device Owner released. Kiosk lockdown is now disabled.'
-              : 'App is not Device Owner — nothing to release.'),
-          backgroundColor: released ? Colors.orange.shade800 : Colors.grey,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to release Device Owner: $e')),
-      );
-    }
-  }
-
   Future<void> _resetDevice() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -294,14 +243,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Reset device',
             subtitle: 'Clear all credentials and wiped cached assets. Returns to clean slate.',
             onTap: _resetDevice,
-            danger: true,
-          ),
-          _buildActionCard(
-            icon: Icons.admin_panel_settings_rounded,
-            title: 'Release Device Owner',
-            subtitle:
-                'Emergency only. Surrenders kiosk lockdown permanently — cannot be undone without a factory reset.',
-            onTap: _releaseDeviceOwner,
             danger: true,
           ),
           const SizedBox(height: 20),

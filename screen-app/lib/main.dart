@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:grpc/grpc.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'generated/device.pbgrpc.dart';
 
@@ -180,8 +181,9 @@ class _MainDeviceRouterState extends State<MainDeviceRouter> {
       if (await adsDir.exists()) {
         await adsDir.delete(recursive: true);
       }
+      await adsDir.create(recursive: true);
     } catch (e) {
-      debugPrint('[RESET] Failed to delete screen ads dir: $e');
+      debugPrint('[RESET] Failed to clean screen ads dir: $e');
     }
 
     setState(() {
@@ -1428,25 +1430,34 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
               child: _buildDownloadStatus(),
             ),
 
-          // Subtle unobtrusive settings trigger in top-right corner
+          // Subtle, non-intrusive DigiAds platform branding watermark (discreet manager settings trigger)
           Positioned(
             top: 16,
             right: 16,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(16),
+                splashColor: Colors.white10,
+                highlightColor: Colors.white10,
                 onTap: _openSettingsScreen,
                 child: Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
-                    shape: BoxShape.circle,
+                    color: Colors.black.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.08),
+                      width: 0.8,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.settings_outlined,
-                    color: Colors.white24,
-                    size: 22,
+                  child: Opacity(
+                    opacity: 0.85,
+                    child: SvgPicture.asset(
+                      'assets/digiads-logo.svg',
+                      height: 20,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),

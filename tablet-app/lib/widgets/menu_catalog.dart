@@ -88,7 +88,7 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _getCategorySubtitle(widget.selectedCategory),
+                          getCategorySubtitle(widget.selectedCategory),
                           style: kCardDescriptionStyle.copyWith(fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -102,7 +102,7 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: kAccentBlue.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       "$totalItems items",
@@ -148,23 +148,6 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
         );
       },
     );
-  }
-
-  String _getCategorySubtitle(String category) {
-    switch (category.toLowerCase()) {
-      case 'starters':
-        return "Freshly prepared starters & finger bites";
-      case 'main course':
-        return "Hearty main dishes prepared fresh on order";
-      case 'dessert':
-      case 'desserts':
-        return "Sweet endings & pastries to satisfy your cravings";
-      case 'beverages':
-      case 'drinks':
-        return "Refreshments, mocktails, teas and coffees";
-      default:
-        return "Tasteful creations from our expert chefs";
-    }
   }
 }
 
@@ -283,11 +266,12 @@ class _MenuCard extends StatelessWidget {
             ),
           ),
 
-          // Content bottom frame
+          // Content text frame (Title and Description)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Title
                 Text(
@@ -307,21 +291,20 @@ class _MenuCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 12),
-
-                // Full-width Bottom ADD / Stepper Button
-                ValueListenableBuilder<CartSnapshot>(
-                  valueListenable: cartNotifier,
-                  builder: (context, cart, _) {
-                    final qty = cart.quantityOf(item.itemId);
-                    if (qty > 0) {
-                      return _buildFullWidthStepper(qty);
-                    }
-                    return _buildFullWidthAddButton();
-                  },
-                ),
               ],
             ),
+          ),
+
+          // Bottom Corner-to-Corner ADD / Stepper Button (No Side/Bottom Padding)
+          ValueListenableBuilder<CartSnapshot>(
+            valueListenable: cartNotifier,
+            builder: (context, cart, _) {
+              final qty = cart.quantityOf(item.itemId);
+              if (qty > 0) {
+                return _buildFullWidthStepper(qty);
+              }
+              return _buildFullWidthAddButton();
+            },
           ),
         ],
       ),
@@ -355,49 +338,83 @@ class _MenuCard extends StatelessWidget {
 
   Widget _buildFullWidthStepper(int qty) {
     return Container(
-      height: 42,
+      height: 48,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: kScaffoldBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kAccentBlue.withOpacity(0.4)),
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-              onTap: isOnline
-                  ? () {
-                      HapticFeedback.lightImpact();
-                      cartNotifier.removeItem(item.itemId);
-                    }
-                  : null,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Icon(Icons.remove_rounded, color: kAccentBlue, size: 20),
+          // Minus (-) button - Faded red tint background with clear red icon
+          Expanded(
+            child: Material(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(24)),
+              child: InkWell(
+                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(24)),
+                onTap: isOnline
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        cartNotifier.removeItem(item.itemId);
+                      }
+                    : null,
+                child: const SizedBox(
+                  height: double.infinity,
+                  child: Center(
+                    child: Icon(
+                      Icons.remove_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 26,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          Text(
-            '$qty',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: kTextDark),
+
+          // Number in center - Exactly 2-digit width on clean white background
+          Container(
+            width: 38,
+            height: double.infinity,
+            alignment: Alignment.center,
+            color: Colors.white,
+            child: Text(
+              '$qty',
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+                color: kTextDark,
+              ),
+            ),
           ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
-              onTap: isOnline
-                  ? () {
-                      HapticFeedback.lightImpact();
-                      cartNotifier.addItem(item.itemId);
-                    }
-                  : null,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Icon(Icons.add_rounded, color: Colors.green, size: 20),
+
+          // Plus (+) button - Faded green tint background with clear green icon
+          Expanded(
+            child: Material(
+              color: const Color(0xFFDCFCE7),
+              borderRadius: const BorderRadius.only(bottomRight: Radius.circular(24)),
+              child: InkWell(
+                borderRadius: const BorderRadius.only(bottomRight: Radius.circular(24)),
+                onTap: isOnline
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        cartNotifier.addItem(item.itemId);
+                      }
+                    : null,
+                child: const SizedBox(
+                  height: double.infinity,
+                  child: Center(
+                    child: Icon(
+                      Icons.add_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 26,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -409,14 +426,14 @@ class _MenuCard extends StatelessWidget {
   Widget _buildFullWidthAddButton() {
     final bool canAdd = item.isAvailable && isOnline;
     return SizedBox(
-      height: 42,
+      height: 48,
       width: double.infinity,
       child: Material(
         color: canAdd ? kAccentBlue : Colors.grey.shade300,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
         elevation: canAdd ? 1 : 0,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
           onTap: canAdd
               ? () {
                   HapticFeedback.lightImpact();
@@ -428,7 +445,7 @@ class _MenuCard extends StatelessWidget {
             children: [
               Icon(
                 Icons.add_rounded,
-                size: 18,
+                size: 22,
                 color: canAdd ? Colors.white : Colors.grey.shade600,
               ),
               const SizedBox(width: 6),
@@ -437,8 +454,8 @@ class _MenuCard extends StatelessWidget {
                 style: TextStyle(
                   color: canAdd ? Colors.white : Colors.grey.shade600,
                   fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  letterSpacing: 0.8,
+                  fontSize: 14,
+                  letterSpacing: 1.0,
                 ),
               ),
             ],

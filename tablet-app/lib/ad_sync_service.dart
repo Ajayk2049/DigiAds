@@ -505,7 +505,7 @@ class AdSyncService {
       await for (final entity in dir.list()) {
         if (entity is File) {
           final name = entity.path.split('/').last.split('\\').last;
-          if (name.startsWith('ad_') && !activeFileNames.contains(name)) {
+          if ((name.startsWith('ad_') || name.startsWith('img_')) && !activeFileNames.contains(name)) {
             // Also protect active files playing currently
             if (_protectedPaths.contains(entity.path)) {
               debugPrint('[CLEANUP] Skipping active protected file: ${entity.path}');

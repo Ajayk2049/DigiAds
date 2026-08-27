@@ -21,7 +21,10 @@ const Duration kFadeDuration = Duration(milliseconds: 200);
 const Duration kTransitionBlackDuration = Duration(milliseconds: 350);
 
 /// Inactivity timeout before the kiosk returns to ad slideshow.
-const Duration kInactivityTimeout = Duration(seconds: 30);
+const Duration kInactivityTimeout = Duration(seconds: 60);
+
+/// Abandoned unsubmitted cart expiration timeout before cart is automatically cleared.
+const Duration kAbandonedCartTimeout = Duration(minutes: 15);
 
 /// Position poll frequency for video completion detection.
 const Duration kPositionPollInterval = Duration(milliseconds: 500);
@@ -308,7 +311,7 @@ const TextStyle kEmptyCartStyle = TextStyle(
 const BorderRadius kCardBorderRadius = BorderRadius.all(Radius.circular(24));
 const BorderRadius kImageBorderRadius = BorderRadius.all(Radius.circular(18));
 const BorderRadius kInputBorderRadius = BorderRadius.all(Radius.circular(16));
-const BorderRadius kFloatingCartBorderRadius = BorderRadius.all(Radius.circular(32));
+const BorderRadius kFloatingCartBorderRadius = BorderRadius.all(Radius.circular(16));
 
 // ───────────────────────── Grid Delegates ─────────────────────────
 
@@ -331,3 +334,139 @@ const String kLastSyncTimeKey = 'last_sync_time';
 /// Extra pixels added to the video container to push the hardware decoder
 /// green stripe off-screen for Rockchip/Mali budget tablets.
 const double kVideoOverflowPx = 80.0;
+
+// ───────────────────────── Dynamic Category Helpers ─────────────────────────
+
+/// Smart culinary keyword mapper returning the most suitable icon for any
+/// custom category created by venue admins.
+IconData getCategoryIcon(String category) {
+  final cat = category.toLowerCase().trim();
+
+  if (cat.contains('popular') || cat.contains('trending') || cat.contains('bestseller') || cat.contains('top')) {
+    return Icons.insights;
+  }
+  if (cat.contains('starter') || cat.contains('appetizer') || cat.contains('snack') || cat.contains('finger') || cat.contains('chaat') || cat.contains('munch')) {
+    return Icons.fastfood;
+  }
+  if (cat.contains('soup') || cat.contains('broth') || cat.contains('ramen') || cat.contains('noodle') || cat.contains('pasta') || cat.contains('chowmein') || cat.contains('maggi')) {
+    return Icons.soup_kitchen;
+  }
+  if (cat.contains('pizza')) {
+    return Icons.local_pizza;
+  }
+  if (cat.contains('burger') || cat.contains('sandwich') || cat.contains('wrap') || cat.contains('roll') || cat.contains('sub') || cat.contains('frankie') || cat.contains('shawarma')) {
+    return Icons.lunch_dining;
+  }
+  if (cat.contains('main') || cat.contains('curry') || cat.contains('gravy') || cat.contains('entree') || cat.contains('dal') || cat.contains('sabji') || cat.contains('sabzi') || cat.contains('paneer')) {
+    return Icons.dinner_dining;
+  }
+  if (cat.contains('rice') || cat.contains('biryani') || cat.contains('pulao') || cat.contains('fried rice') || cat.contains('thali') || cat.contains('bowl') || cat.contains('khichdi')) {
+    return Icons.rice_bowl;
+  }
+  if (cat.contains('bread') || cat.contains('roti') || cat.contains('naan') || cat.contains('paratha') || cat.contains('bakery') || cat.contains('toast') || cat.contains('kulcha')) {
+    return Icons.bakery_dining;
+  }
+  if (cat.contains('breakfast') || cat.contains('brunch') || cat.contains('morning') || cat.contains('egg') || cat.contains('omelette') || cat.contains('waffle') || cat.contains('pancake') || cat.contains('dosa') || cat.contains('idli')) {
+    return Icons.breakfast_dining;
+  }
+  if (cat.contains('salad') || cat.contains('veg') || cat.contains('healthy') || cat.contains('green') || cat.contains('diet') || cat.contains('sprout') || cat.contains('raw')) {
+    return Icons.eco;
+  }
+  if (cat.contains('seafood') || cat.contains('fish') || cat.contains('prawn') || cat.contains('crab') || cat.contains('sushi') || cat.contains('squid') || cat.contains('salmon')) {
+    return Icons.set_meal;
+  }
+  if (cat.contains('bbq') || cat.contains('grill') || cat.contains('tandoor') || cat.contains('kebab') || cat.contains('kabab') || cat.contains('steak') || cat.contains('meat') || cat.contains('chicken') || cat.contains('mutton') || cat.contains('tikka')) {
+    return Icons.outdoor_grill;
+  }
+  if (cat.contains('dessert') || cat.contains('sweet') || cat.contains('cake') || cat.contains('pastry') || cat.contains('cookie') || cat.contains('brownie') || cat.contains('chocolate') || cat.contains('mithai') || cat.contains('halwa') || cat.contains('gulab')) {
+    return Icons.cookie;
+  }
+  if (cat.contains('ice cream') || cat.contains('icecream') || cat.contains('gelato') || cat.contains('sundae') || cat.contains('kulfi') || cat.contains('shake') || cat.contains('smoothie') || cat.contains('falooda')) {
+    return Icons.icecream;
+  }
+  if (cat.contains('beverage') || cat.contains('drink') || cat.contains('tea') || cat.contains('chai') || cat.contains('coffee') || cat.contains('juice') || cat.contains('soda') || cat.contains('water') || cat.contains('lassi')) {
+    return Icons.local_cafe;
+  }
+  if (cat.contains('bar') || cat.contains('cocktail') || cat.contains('mocktail') || cat.contains('wine') || cat.contains('beer') || cat.contains('alcohol') || cat.contains('liquor') || cat.contains('whiskey') || cat.contains('vodka') || cat.contains('shots')) {
+    return Icons.local_bar;
+  }
+  if (cat.contains('special') || cat.contains('chef') || cat.contains('signature') || cat.contains('today') || cat.contains('featured') || cat.contains('exclusive') || cat.contains('premium')) {
+    return Icons.star_rounded;
+  }
+  if (cat.contains('combo') || cat.contains('deal') || cat.contains('offer') || cat.contains('saver') || cat.contains('pack') || cat.contains('family')) {
+    return Icons.local_offer;
+  }
+  if (cat.contains('kid') || cat.contains('child') || cat.contains('junior')) {
+    return Icons.child_care;
+  }
+  if (cat.contains('sauce') || cat.contains('dip') || cat.contains('side') || cat.contains('extra') || cat.contains('addon') || cat.contains('chutney') || cat.contains('raita') || cat.contains('papad')) {
+    return Icons.add_circle_outline;
+  }
+
+  return Icons.restaurant;
+}
+
+/// Smart culinary keyword mapper returning helpful, appetizing category subtitles.
+String getCategorySubtitle(String category) {
+  final cat = category.toLowerCase().trim();
+
+  if (cat.contains('popular') || cat.contains('trending') || cat.contains('bestseller') || cat.contains('top')) {
+    return "Crowd favorites & most-ordered dishes";
+  }
+  if (cat.contains('starter') || cat.contains('appetizer') || cat.contains('snack') || cat.contains('finger') || cat.contains('chaat')) {
+    return "Freshly prepared starters & finger bites";
+  }
+  if (cat.contains('main') || cat.contains('curry') || cat.contains('gravy') || cat.contains('dal') || cat.contains('paneer')) {
+    return "Hearty main dishes prepared fresh on order";
+  }
+  if (cat.contains('rice') || cat.contains('biryani') || cat.contains('pulao') || cat.contains('thali')) {
+    return "Aromatic rice bowls, biryanis & regional thalis";
+  }
+  if (cat.contains('pizza')) {
+    return "Handcrafted pizzas with premium cheese & toppings";
+  }
+  if (cat.contains('burger') || cat.contains('sandwich') || cat.contains('wrap') || cat.contains('roll') || cat.contains('shawarma')) {
+    return "Juicy burgers, toasted sandwiches & wraps";
+  }
+  if (cat.contains('soup') || cat.contains('noodle') || cat.contains('pasta') || cat.contains('broth') || cat.contains('ramen')) {
+    return "Warm comforting broths, pastas & noodles";
+  }
+  if (cat.contains('dessert') || cat.contains('sweet') || cat.contains('cake') || cat.contains('pastry') || cat.contains('brownie') || cat.contains('mithai')) {
+    return "Sweet endings & pastries to satisfy your cravings";
+  }
+  if (cat.contains('ice cream') || cat.contains('icecream') || cat.contains('shake') || cat.contains('smoothie') || cat.contains('kulfi')) {
+    return "Chilled treats, milkshakes & frozen delights";
+  }
+  if (cat.contains('beverage') || cat.contains('drink') || cat.contains('tea') || cat.contains('chai') || cat.contains('coffee') || cat.contains('juice') || cat.contains('lassi')) {
+    return "Refreshments, cold beverages, teas and coffees";
+  }
+  if (cat.contains('bar') || cat.contains('cocktail') || cat.contains('mocktail') || cat.contains('wine') || cat.contains('beer')) {
+    return "Handcrafted cocktails, mocktails & spirits";
+  }
+  if (cat.contains('salad') || cat.contains('veg') || cat.contains('healthy') || cat.contains('sprout')) {
+    return "Crisp greens, fresh salads & healthy choices";
+  }
+  if (cat.contains('breakfast') || cat.contains('brunch') || cat.contains('morning') || cat.contains('dosa') || cat.contains('egg')) {
+    return "Morning classics, eggs & wholesome breakfast";
+  }
+  if (cat.contains('bread') || cat.contains('roti') || cat.contains('naan') || cat.contains('paratha') || cat.contains('kulcha')) {
+    return "Freshly baked tandoori rotis, naans & breads";
+  }
+  if (cat.contains('seafood') || cat.contains('fish') || cat.contains('prawn') || cat.contains('crab')) {
+    return "Fresh catches & coastal seafood specialties";
+  }
+  if (cat.contains('bbq') || cat.contains('grill') || cat.contains('kebab') || cat.contains('tandoor') || cat.contains('tikka')) {
+    return "Smoky grills, skewers & flame-roasted specialties";
+  }
+  if (cat.contains('special') || cat.contains('chef') || cat.contains('signature')) {
+    return "Chef-curated signature culinary creations";
+  }
+  if (cat.contains('combo') || cat.contains('deal') || cat.contains('offer') || cat.contains('family')) {
+    return "Value meal combos & curated feast pairings";
+  }
+  if (cat.contains('sauce') || cat.contains('dip') || cat.contains('side') || cat.contains('addon') || cat.contains('chutney')) {
+    return "Delicious accompaniments, chutneys & extra dips";
+  }
+  return "Tasteful creations from our expert chefs";
+}
+

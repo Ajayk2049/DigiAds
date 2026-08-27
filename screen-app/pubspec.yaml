@@ -16,6 +16,7 @@ dependencies:
   path_provider: ^2.1.3
   permission_handler: ^11.3.0
   fixnum: ^1.1.0
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:
@@ -26,3 +27,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/SplashScreen.png
+    - assets/digiads-logo.svg
+    - assets/digiads-icon.svg

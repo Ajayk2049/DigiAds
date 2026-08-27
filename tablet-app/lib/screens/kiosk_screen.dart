@@ -72,6 +72,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   String _waiterStatusText = '';
   String _waiterStatusOption = '';
   Timer? _waiterVanishTimer;
+  Timer? _abandonedCartTimer;
 
   // ── gRPC ──
   ClientChannel? _channel;
@@ -933,11 +934,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     if (!_isIdle) {
       _inactivityTimer = Timer(kInactivityTimeout, () {
         if (mounted) {
-          _cart.clear();
+          // Preserve unsubmitted cart items across idle ad transitions
           setState(() {
             _isIdle = true;
             _showCart = false;
           });
+          _startAbandonedCartTimer();
           final eligible = _getEligiblePlaylist(_masterAdPlaylist);
           if (eligible.isNotEmpty) {
             _adPlayer.startLoop(eligible);
@@ -958,7 +960,27 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     _inactivityTimer = null;
   }
 
+  void _startAbandonedCartTimer() {
+    _abandonedCartTimer?.cancel();
+    if (_cart.value.isNotEmpty) {
+      _abandonedCartTimer = Timer(kAbandonedCartTimeout, () {
+        if (mounted) {
+          _cart.clear();
+          setState(() {});
+          debugPrint(
+              '[CART] Abandoned unplaced cart cleared after ${kAbandonedCartTimeout.inMinutes} minutes of inactivity.');
+        }
+      });
+    }
+  }
+
+  void _cancelAbandonedCartTimer() {
+    _abandonedCartTimer?.cancel();
+    _abandonedCartTimer = null;
+  }
+
   void _enterMenuMode() {
+    _cancelAbandonedCartTimer();
     setState(() {
       _isIdle = false;
       _showCart = false;
@@ -969,6 +991,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   void _returnToAds() {
+    _cancelAbandonedCartTimer();
     _cart.clear();
     setState(() {
       _isIdle = true;
@@ -1359,6 +1382,63 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               DownloadProgressIndicator(progress: _adSync.progress),
               // Non-blocking back-online banner (auto-dismisses in 3s, tap anywhere)
               if (_backOnlineVisible) _buildBackOnlineBanner(),
+              // Floating unplaced cart resume indicator (appears only when items are in cart)
+              ValueListenableBuilder<CartSnapshot>(
+                valueListenable: _cart,
+                builder: (context, cart, _) {
+                  if (cart.isEmpty) return const SizedBox.shrink();
+                  return Positioned(
+                    bottom: 28,
+                    right: 28,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: () {
+                          _dismissBackOnlineBanner();
+                          _enterMenuMode();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xEE111827),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                                color: kAccentBlue, width: 1.5),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 16,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.shopping_bag_outlined,
+                                  color: kAccentBlue, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${cart.totalItemCount} ${cart.totalItemCount == 1 ? "item" : "items"} in cart — Tap to order',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.arrow_forward_ios_rounded,
+                                  color: kAccentBlue, size: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -1490,7 +1570,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(32),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1546,25 +1626,30 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       child: Row(
         children: [
           if (_showCart) ...[
-            GestureDetector(
-              onTap: () => setState(() => _showCart = false),
-              child: Container(
-                decoration: const BoxDecoration(
+            ElevatedButton.icon(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                setState(() => _showCart = false);
+              },
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
+              label: const Text(
+                "BACK",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
                   color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
-                    )
-                  ],
+                  letterSpacing: 1,
                 ),
-                padding: const EdgeInsets.all(22),
-                child: const Icon(Icons.arrow_back, color: kTextDark, size: 32),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccentBlue,
+                minimumSize: const Size(120, 56),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 3,
               ),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
           ],
           Expanded(
             child: Column(
@@ -1826,28 +1911,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                 final cat = categories[index];
                 final isSelected = cat.toLowerCase() == _selectedCategory.toLowerCase();
 
-                IconData iconData;
-                switch (cat.toLowerCase()) {
-                  case 'popular':
-                    iconData = Icons.insights;
-                    break;
-                  case 'starters':
-                    iconData = Icons.fastfood;
-                    break;
-                  case 'main course':
-                    iconData = Icons.ramen_dining;
-                    break;
-                  case 'dessert':
-                  case 'desserts':
-                    iconData = Icons.cookie;
-                    break;
-                  case 'beverages':
-                  case 'drinks':
-                    iconData = Icons.local_cafe;
-                    break;
-                  default:
-                    iconData = Icons.restaurant;
-                }
+                final iconData = getCategoryIcon(cat);
 
                 return Material(
                   color: Colors.transparent,
@@ -1928,10 +1992,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
             onTap: _isOnline ? () => setState(() => _showCart = true) : null,
             child: Container(
               height: 72,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: kFloatingCartBorderRadius,
-                boxShadow: [
+                border: Border.all(
+                  color: const Color(0xFF1E1B4B),
+                  width: 2.0,
+                ),
+                boxShadow: const [
                   BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4)),
                 ],
               ),
@@ -1955,8 +2023,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text("${cart.totalItemCount} items in cart",
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: kTextDark)),
+                          Text(
+                              "${cart.totalItemCount} ${cart.totalItemCount == 1 ? "item" : "items"} in cart",
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: kTextDark)),
                           Text("Total value: Rs. ${cart.totalPrice(_menu.value.items).toStringAsFixed(2)}",
                               style: const TextStyle(fontSize: 12, color: kTextGrey)),
                         ],
@@ -1967,7 +2039,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                     Container(
                       decoration: BoxDecoration(
                         color: kAccentBlue,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       child: const Row(
@@ -1983,7 +2055,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Row(
                         children: [

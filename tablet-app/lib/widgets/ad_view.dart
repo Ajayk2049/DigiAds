@@ -130,7 +130,7 @@ class AdViewWidget extends StatelessWidget {
               child: const Icon(
                 Icons.restaurant_menu_rounded,
                 size: 80,
-                color: Colors.amberAccent,
+                color: kAccentBlue,
               ),
             ),
             const SizedBox(height: 32),

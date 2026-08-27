@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../constants.dart';
 import '../menu_state.dart';
 import '../menu_image_cache.dart';
@@ -82,21 +83,35 @@ class OrderSummaryPanel extends StatelessWidget {
                     ],
                   ),
                   InkWell(
-                    onTap: () => cartNotifier.togglePackAll(),
-                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      cartNotifier.togglePackAll();
+                    },
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isAllPacked ? Colors.amber.shade700 : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(20),
+                        color: isAllPacked ? kAccentBlue : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        isAllPacked ? "PACKED ALL" : "PACK ALL",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isAllPacked ? Colors.white : kTextDark,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isAllPacked ? Icons.restaurant_rounded : Icons.takeout_dining_outlined,
+                            size: 16,
+                            color: isAllPacked ? Colors.white : kTextDark,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isAllPacked ? "DINE-IN ALL" : "PACK ALL",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isAllPacked ? Colors.white : kTextDark,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -237,9 +252,10 @@ class OrderSummaryPanel extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  // Pack Action Button
+                                  // Pack / Dine-In Action Button
                                   InkWell(
                                     onTap: () {
+                                      HapticFeedback.lightImpact();
                                       if (totalQty == 1) {
                                         cartNotifier.togglePacked(rawId);
                                       } else {
@@ -253,32 +269,56 @@ class OrderSummaryPanel extends StatelessWidget {
                                         );
                                       }
                                     },
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.circular(12),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                       decoration: BoxDecoration(
-                                        color: packedQty > 0 ? Colors.amber.shade100 : Colors.grey.shade100,
+                                        color: packedQty > 0
+                                            ? (packedQty == totalQty
+                                                ? const Color(0xFFEFF6FF)
+                                                : Colors.amber.shade50)
+                                            : Colors.grey.shade100,
                                         border: Border.all(
-                                          color: packedQty > 0 ? Colors.amber.shade700 : Colors.grey.shade400,
+                                          color: packedQty > 0
+                                              ? (packedQty == totalQty
+                                                  ? kAccentBlue
+                                                  : Colors.amber.shade700)
+                                              : Colors.grey.shade400,
                                           width: 1.5,
                                         ),
-                                        borderRadius: BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            Icons.inventory_2_outlined,
+                                            packedQty == totalQty
+                                                ? Icons.restaurant_rounded
+                                                : (packedQty > 0
+                                                    ? Icons.takeout_dining_rounded
+                                                    : Icons.takeout_dining_outlined),
                                             size: 16,
-                                            color: packedQty > 0 ? Colors.amber.shade900 : Colors.grey.shade800,
+                                            color: packedQty > 0
+                                                ? (packedQty == totalQty
+                                                    ? kAccentBlue
+                                                    : Colors.amber.shade900)
+                                                : Colors.grey.shade800,
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 5),
                                           Text(
-                                            packedQty > 0 ? "Pack ($packedQty)" : "Pack",
+                                            packedQty == totalQty
+                                                ? "Dine-In"
+                                                : (packedQty > 0
+                                                    ? "Packed ($packedQty/$totalQty)"
+                                                    : "Pack"),
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
-                                              color: packedQty > 0 ? Colors.amber.shade900 : Colors.grey.shade800,
+                                              color: packedQty > 0
+                                                ? (packedQty == totalQty
+                                                    ? kAccentBlue
+                                                    : Colors.amber.shade900)
+                                                : Colors.grey.shade800,
                                             ),
                                           ),
                                         ],
@@ -326,7 +366,45 @@ class OrderSummaryPanel extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // Remove All Action Pill (Right-aligned above Total Card)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    HapticFeedback.mediumImpact();
+                    cartNotifier.clear();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.red.shade200, width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.delete_outline_rounded, color: Colors.red.shade600, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          "Remove All",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             // Calculations Card
             Container(
               decoration: const BoxDecoration(
@@ -365,7 +443,7 @@ class OrderSummaryPanel extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kAccentBlue,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 2,
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                 ),
