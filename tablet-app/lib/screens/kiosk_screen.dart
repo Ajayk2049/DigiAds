@@ -1549,8 +1549,15 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildCartBody() {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(40, 24, 40, 24),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 12 : 24,
+        isMobile ? 16 : 40,
+        isMobile ? 12 : 24,
+      ),
       child: Column(
         children: [
           Expanded(
@@ -1594,26 +1601,48 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildMenuBody() {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+
     return Stack(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildSidebar(),
-            Container(width: 1, color: kDividerColor),
-            Expanded(
-              child: MenuCatalogWidget(
-                menuNotifier: _menu,
-                cartNotifier: _cart,
-                serverHost: widget.serverHost,
-                viewportHeight: MediaQuery.of(context).size.height,
-                selectedCategory: _selectedCategory,
-                imageCache: _imageCache,
-                isOnline: _isOnline,
+        if (isMobile)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHorizontalCategoryBar(),
+              Container(height: 1, color: kDividerColor),
+              Expanded(
+                child: MenuCatalogWidget(
+                  menuNotifier: _menu,
+                  cartNotifier: _cart,
+                  serverHost: widget.serverHost,
+                  viewportHeight: MediaQuery.of(context).size.height,
+                  selectedCategory: _selectedCategory,
+                  imageCache: _imageCache,
+                  isOnline: _isOnline,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildSidebar(),
+              Container(width: 1, color: kDividerColor),
+              Expanded(
+                child: MenuCatalogWidget(
+                  menuNotifier: _menu,
+                  cartNotifier: _cart,
+                  serverHost: widget.serverHost,
+                  viewportHeight: MediaQuery.of(context).size.height,
+                  selectedCategory: _selectedCategory,
+                  imageCache: _imageCache,
+                  isOnline: _isOnline,
+                ),
+              ),
+            ],
+          ),
         _buildFloatingCartBar(),
         _buildLiveSessionStatusBar(),
       ],
@@ -1621,8 +1650,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHeader() {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 14 : 24,
+        isMobile ? 12 : 20,
+        isMobile ? 14 : 24,
+        isMobile ? 10 : 16,
+      ),
       child: Row(
         children: [
           if (_showCart) ...[
@@ -1631,25 +1668,28 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                 HapticFeedback.lightImpact();
                 setState(() => _showCart = false);
               },
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
-              label: const Text(
+              icon: Icon(Icons.arrow_back_rounded, color: Colors.white, size: isMobile ? 18 : 24),
+              label: Text(
                 "BACK",
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 15,
+                  fontSize: isMobile ? 13 : 15,
                   color: Colors.white,
                   letterSpacing: 1,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentBlue,
-                minimumSize: const Size(120, 56),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                minimumSize: isMobile ? const Size(85, 44) : const Size(120, 56),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 12 : 24,
+                  vertical: isMobile ? 10 : 18,
+                ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 3,
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: isMobile ? 10 : 16),
           ],
           Expanded(
             child: Column(
@@ -1662,24 +1702,24 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                           children: [
                             TextSpan(
                               text: "${_outletName.toUpperCase()} ",
-                              style: const TextStyle(
-                                fontSize: 14,
+                              style: TextStyle(
+                                fontSize: isMobile ? 12 : 14,
                                 fontWeight: FontWeight.w900,
                                 color: kAccentBlue,
-                                letterSpacing: 1.5,
+                                letterSpacing: 1.2,
                               ),
                             ),
                             TextSpan(
                               text: "(Table $_tableNumber)",
-                              style: const TextStyle(
-                                fontSize: 12,
+                              style: TextStyle(
+                                fontSize: isMobile ? 11 : 12,
                                 fontWeight: FontWeight.normal,
                                 color: kTextGrey,
                               ),
                             ),
                           ],
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       )
                     : Text.rich(
@@ -1687,18 +1727,18 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                           children: [
                             TextSpan(
                               text: _outletName,
-                              style: const TextStyle(
-                                fontSize: 26,
+                              style: TextStyle(
+                                fontSize: isMobile ? 18 : 26,
                                 fontWeight: FontWeight.w800,
                                 color: kTextDark,
-                                letterSpacing: 0.5,
+                                letterSpacing: 0.3,
                                 height: 1.15,
                               ),
                             ),
                             TextSpan(
-                              text: "   •   Table $_tableNumber",
-                              style: const TextStyle(
-                                fontSize: 15,
+                              text: "  •  Table $_tableNumber",
+                              style: TextStyle(
+                                fontSize: isMobile ? 12 : 15,
                                 fontWeight: FontWeight.normal,
                                 color: kTextGrey,
                                 height: 1.15,
@@ -1706,15 +1746,15 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                             ),
                           ],
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                 if (_showCart) ...[
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     "Your Cart",
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: isMobile ? 20 : 28,
                       fontWeight: FontWeight.bold,
                       color: kTextDark,
                     ),
@@ -1723,33 +1763,36 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isMobile ? 8 : 16),
           ElevatedButton.icon(
             onPressed: _showCallWaiterDialog,
-            icon: const Icon(Icons.room_service_rounded, color: Colors.white, size: 20),
-            label: const Text(
-              "CALL WAITER",
+            icon: Icon(Icons.room_service_rounded, color: Colors.white, size: isMobile ? 16 : 20),
+            label: Text(
+              isMobile ? "WAITER" : "CALL WAITER",
               style: TextStyle(
                 fontWeight: FontWeight.w900,
-                fontSize: 14,
+                fontSize: isMobile ? 11 : 14,
                 color: Colors.white,
-                letterSpacing: 1,
+                letterSpacing: 0.8,
               ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: kAccentBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 20,
+                vertical: isMobile ? 10 : 16,
+              ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 3,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isMobile ? 8 : 16),
           GestureDetector(
             onTap: _onBrandIconTapped,
             behavior: HitTestBehavior.opaque,
             child: SizedBox(
-              height: 52,
-              width: 52,
+              height: isMobile ? 38 : 52,
+              width: isMobile ? 38 : 52,
               child: SvgPicture.asset(
                 'assets/digiads-icon.svg',
                 fit: BoxFit.contain,
@@ -1875,7 +1918,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildSidebar() {
+  List<String> _computeCategories() {
     const defaultCategoriesOrder = ['Popular', 'Starters', 'Main Course', 'Dessert', 'Beverages'];
     final categories = <String>['Popular']; // Always include 'Popular' as category #1
 
@@ -1896,6 +1939,89 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     if (!categories.any((c) => c.toLowerCase() == _selectedCategory.toLowerCase())) {
       _selectedCategory = categories.first;
     }
+    return categories;
+  }
+
+  Widget _buildHorizontalCategoryBar() {
+    final categories = _computeCategories();
+
+    return Container(
+      height: 52,
+      color: kSidebarBg,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          final isSelected = cat.toLowerCase() == _selectedCategory.toLowerCase();
+          final iconData = getCategoryIcon(cat);
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedCategory = cat);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isSelected ? kAccentBlue : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? kAccentBlue : Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: kAccentBlue.withValues(alpha: 0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 3,
+                            offset: Offset(0, 1),
+                          )
+                        ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      iconData,
+                      size: 18,
+                      color: isSelected ? Colors.white : kTextDark,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      cat,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? Colors.white : kTextDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSidebar() {
+    final categories = _computeCategories();
 
     return Container(
       width: 120,
@@ -1984,14 +2110,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       builder: (context, cart, _) {
         if (cart.isEmpty) return const SizedBox.shrink();
 
+        final isMobile = MediaQuery.sizeOf(context).width < 600;
+
         return Positioned(
-          bottom: 24,
-          left: 144,
-          right: 24,
+          bottom: isMobile ? 16 : 24,
+          left: isMobile ? 16 : 144,
+          right: isMobile ? 16 : 24,
           child: GestureDetector(
             onTap: _isOnline ? () => setState(() => _showCart = true) : null,
             child: Container(
-              height: 72,
+              height: isMobile ? 64 : 72,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: kFloatingCartBorderRadius,
@@ -2003,7 +2131,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4)),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 6 : 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -2011,26 +2139,26 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                     children: [
                       Container(
                         decoration: const BoxDecoration(color: kAccentBlue, shape: BoxShape.circle),
-                        padding: const EdgeInsets.all(10),
+                        padding: EdgeInsets.all(isMobile ? 8 : 10),
                         child: Badge(
                           isLabelVisible: cart.isNotEmpty,
                           label: Text('${cart.totalItemCount}', style: const TextStyle(color: Colors.white)),
-                          child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
+                          child: Icon(Icons.shopping_cart_outlined, color: Colors.white, size: isMobile ? 18 : 20),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isMobile ? 10 : 16),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                               "${cart.totalItemCount} ${cart.totalItemCount == 1 ? "item" : "items"} in cart",
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                                  fontSize: isMobile ? 13 : 15,
                                   color: kTextDark)),
-                          Text("Total value: Rs. ${cart.totalPrice(_menu.value.items).toStringAsFixed(2)}",
-                              style: const TextStyle(fontSize: 12, color: kTextGrey)),
+                          Text("Total: Rs. ${cart.totalPrice(_menu.value.items).toStringAsFixed(2)}",
+                              style: TextStyle(fontSize: isMobile ? 11 : 12, color: kTextGrey)),
                         ],
                       ),
                     ],
@@ -2041,12 +2169,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                         color: kAccentBlue,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      child: const Row(
+                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 10 : 12),
+                      child: Row(
                         children: [
-                          Text("View Cart", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                          Text("View Cart", style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 12 : 14, color: Colors.white)),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
                         ],
                       ),
                     )
@@ -2082,14 +2210,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           return const SizedBox.shrink();
         }
 
+        final isMobile = MediaQuery.sizeOf(context).width < 600;
+
         if (_showWaiterStatus) {
           final isAccepted = _waiterStatusText == 'Request Accepted';
           return Positioned(
-            bottom: 24,
-            left: 144,
-            right: 24,
+            bottom: isMobile ? 16 : 24,
+            left: isMobile ? 16 : 144,
+            right: isMobile ? 16 : 24,
             child: Container(
-              height: 76,
+              height: isMobile ? 64 : 76,
               decoration: BoxDecoration(
                 color: isAccepted ? const Color(0xFF059669) : Colors.red.shade600,
                 borderRadius: kFloatingCartBorderRadius,
@@ -2098,7 +2228,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 6 : 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -2106,30 +2236,30 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                     children: [
                       Container(
                         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                        padding: const EdgeInsets.all(10),
+                        padding: EdgeInsets.all(isMobile ? 8 : 10),
                         child: Icon(
                           isAccepted ? Icons.check_circle_outline_rounded : Icons.room_service_rounded,
                           color: Colors.white,
-                          size: 22,
+                          size: isMobile ? 18 : 22,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isMobile ? 10 : 16),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                             _waiterStatusText,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: isMobile ? 13 : 15,
                               color: Colors.white,
                             ),
                           ),
                           Text(
                             "Service requested: $_waiterStatusOption",
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: isMobile ? 10 : 11,
                               color: Colors.white.withValues(alpha: 0.85),
                             ),
                           ),
@@ -2210,9 +2340,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         }
 
         return Positioned(
-          bottom: 24,
-          left: 144,
-          right: 24,
+          bottom: isMobile ? 16 : 24,
+          left: isMobile ? 16 : 144,
+          right: isMobile ? 16 : 24,
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -2222,7 +2352,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                 setState(() => _showOrderDetailsModal = true);
               },
               child: Container(
-                height: 76,
+                height: isMobile ? 64 : 76,
                 decoration: BoxDecoration(
                   color: isCancelled ? Colors.red.shade700 : kAccentBlue,
                   borderRadius: kFloatingCartBorderRadius,

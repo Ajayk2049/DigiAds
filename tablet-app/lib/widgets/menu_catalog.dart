@@ -67,12 +67,20 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
 
         final totalItems = displayItems.length;
 
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final isMobile = screenWidth < 600;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Bar: Category Title & Item Count Pill (Search Box Removed)
+            // Header Bar: Category Title & Item Count Pill
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 14 : 24,
+                isMobile ? 10 : 16,
+                isMobile ? 14 : 24,
+                isMobile ? 8 : 12,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -82,14 +90,16 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
                       children: [
                         Text(
                           "${widget.selectedCategory} Selection",
-                          style: kCategoryHeaderStyle,
+                          style: isMobile
+                              ? kCategoryHeaderStyle.copyWith(fontSize: 18)
+                              : kCategoryHeaderStyle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           getCategorySubtitle(widget.selectedCategory),
-                          style: kCardDescriptionStyle.copyWith(fontSize: 12),
+                          style: kCardDescriptionStyle.copyWith(fontSize: isMobile ? 11 : 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -99,14 +109,21 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
 
                   // Item Count Pill
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 10 : 16,
+                      vertical: isMobile ? 6 : 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: kAccentBlue.withOpacity(0.12),
+                      color: kAccentBlue.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       "$totalItems items",
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: kAccentBlue),
+                      style: TextStyle(
+                        fontSize: isMobile ? 11 : 13,
+                        fontWeight: FontWeight.bold,
+                        color: kAccentBlue,
+                      ),
                     ),
                   ),
                 ],
@@ -122,24 +139,40 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
                         style: const TextStyle(color: kTextGrey, fontSize: 15, fontWeight: FontWeight.w500),
                       ),
                     )
-                  : GridView.builder(
-                      padding: const EdgeInsets.only(left: 24, right: 24, bottom: 120),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 20,
-                        mainAxisSpacing: 20,
-                        childAspectRatio: 0.82, // Slightly taller aspect ratio for full-width bottom ADD button
-                      ),
-                      itemCount: displayItems.length,
-                      physics: const ClampingScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        return _MenuCard(
-                          key: ValueKey(displayItems[index].itemId),
-                          item: displayItems[index],
-                          cartNotifier: widget.cartNotifier,
-                          serverHost: widget.serverHost,
-                          imageCache: widget.imageCache,
-                          isOnline: widget.isOnline,
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final isCompact = width < 500;
+                        final crossAxisCount = 2;
+                        final aspectRatio = isCompact ? 0.74 : 0.82;
+                        final spacing = isCompact ? 12.0 : 20.0;
+                        final horizontalPadding = isCompact ? 12.0 : 24.0;
+                        final bottomPadding = isCompact ? 96.0 : 120.0;
+
+                        return GridView.builder(
+                          padding: EdgeInsets.only(
+                            left: horizontalPadding,
+                            right: horizontalPadding,
+                            bottom: bottomPadding,
+                          ),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: spacing,
+                            mainAxisSpacing: spacing,
+                            childAspectRatio: aspectRatio,
+                          ),
+                          itemCount: displayItems.length,
+                          physics: const ClampingScrollPhysics(),
+                          itemBuilder: (context, index) {
+                            return _MenuCard(
+                              key: ValueKey(displayItems[index].itemId),
+                              item: displayItems[index],
+                              cartNotifier: widget.cartNotifier,
+                              serverHost: widget.serverHost,
+                              imageCache: widget.imageCache,
+                              isOnline: widget.isOnline,
+                            );
+                          },
                         );
                       },
                     ),
