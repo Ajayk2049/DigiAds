@@ -6,6 +6,8 @@ const envFileArg = process.argv.find(arg => arg.startsWith('--env-file='));
 let envPath;
 if (envFileArg) {
   envPath = path.resolve(process.cwd(), envFileArg.split('=')[1]);
+} else if (process.env.NODE_ENV === 'production') {
+  envPath = path.resolve(__dirname, '.env.prod');
 } else {
   // Fallback to dev file if nothing is injected via command line
   envPath = path.resolve(__dirname, '.env.dev');
