@@ -1281,7 +1281,7 @@ export default function AdvertiserDashboard() {
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto font-medium">Click &ldquo;Book Ad Spot&rdquo; in the navigation to launch your first location-based ad.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto m-0 p-0 bg-transparent border-none">
+              <div className="w-full max-w-full overflow-x-auto m-0 p-0 bg-transparent border-none">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-border/40 text-muted-foreground font-bold uppercase tracking-wider">
@@ -1554,7 +1554,7 @@ export default function AdvertiserDashboard() {
                   No rate configurations found for {rateTab === 'tablet' ? 'tablets' : 'screens'}.
                 </div>
               ) : (
-                <div className="overflow-x-auto m-0 p-0 bg-transparent border-none">
+                <div className="w-full max-w-full overflow-x-auto m-0 p-0 bg-transparent border-none">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-border/40 text-muted-foreground font-bold uppercase tracking-wider">

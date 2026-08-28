@@ -78,12 +78,38 @@ button:not(.rounded-full),
   @apply border-border;
 }
 
+html {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 body {
   @apply bg-background text-foreground;
   font-family: var(--font-sans);
+  max-width: 100vw;
   overflow-x: hidden;
+  position: relative;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* Prevent viewport-level horizontal overflow on main containers */
+main,
+header,
+nav,
+section,
+footer,
+article {
+  max-width: 100%;
+}
+
+/* Guarantee responsive media containment */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
 
 .glassmorphism {
   background: rgba(255, 255, 255, 0.235);
