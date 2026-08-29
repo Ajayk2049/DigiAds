@@ -647,44 +647,57 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   String _getBookingId(String path) {
-    if (path.startsWith('static__') || path.startsWith('img__')) {
+    if (path.startsWith('static__')) {
+      final parts = path.split('__');
+      return parts.length >= 2 ? parts[1] : '';
+    } else if (path.startsWith('img__')) {
       final parts = path.split('__');
       if (parts.length >= 2) {
         final rawId = parts[1];
-        if (rawId.startsWith('VENUE_AD_')) {
-          final sub = rawId.substring('VENUE_AD_'.length).split('_').first;
-          return 'VENUE_AD_$sub';
-        }
-        if (rawId.startsWith('PAD_')) {
-          final sub = rawId.substring('PAD_'.length).split('_').first;
-          return 'PAD_$sub';
-        }
-        if (rawId.startsWith('FALLBACK_')) {
-          final sub = rawId.substring('FALLBACK_'.length).split('_').first;
-          return 'FALLBACK_$sub';
-        }
-        return rawId.split('_').first;
+        // Strip trailing image index '_0', '_1', etc.
+        return rawId.replaceFirst(RegExp(r'_\d+$'), '');
       }
     } else {
       final fileName = path.split('/').last.split('\\').last;
-      if (fileName.startsWith('ad_VENUE_AD_')) {
-        final sub = fileName.substring('ad_VENUE_AD_'.length).split('_').first;
+      final withoutAdPrefix = fileName.startsWith('ad_') ? fileName.substring(3) : fileName;
+      final idx = withoutAdPrefix.lastIndexOf('.');
+      final withoutExt = idx != -1 ? withoutAdPrefix.substring(0, idx) : withoutAdPrefix;
+
+      // Check if known campaign bookingId matches
+      for (final campaign in _adSync.adCampaigns) {
+        final bId = campaign['bookingId'] as String?;
+        if (bId != null && bId.isNotEmpty && withoutExt.startsWith(bId)) {
+          return bId;
+        }
+      }
+
+      // If video contains '_vid_' or '_img_' separator from ad_sync_service
+      if (withoutExt.contains('_vid_')) {
+        return withoutExt.substring(0, withoutExt.indexOf('_vid_'));
+      }
+      if (withoutExt.contains('_img_')) {
+        return withoutExt.substring(0, withoutExt.indexOf('_img_'));
+      }
+
+      if (withoutExt.startsWith('VENUE_AD_')) {
+        final sub = withoutExt.substring('VENUE_AD_'.length).split('_').first;
         return 'VENUE_AD_$sub';
       }
-      if (fileName.startsWith('ad_PAD_')) {
-        final sub = fileName.substring('ad_PAD_'.length).split('_').first;
+      if (withoutExt.startsWith('PAD_')) {
+        final sub = withoutExt.substring('PAD_'.length).split('_').first;
         return 'PAD_$sub';
       }
-      if (fileName.startsWith('ad_FALLBACK_')) {
-        final sub = fileName.substring('ad_FALLBACK_'.length).split('_').first;
+      if (withoutExt.startsWith('FALLBACK_')) {
+        final sub = withoutExt.substring('FALLBACK_'.length).split('_').first;
         return 'FALLBACK_$sub';
       }
-      if (fileName.startsWith('ad_')) {
-        final afterPrefix = fileName.substring(3);
-        final idx = afterPrefix.lastIndexOf('.');
-        final withoutExt = idx != -1 ? afterPrefix.substring(0, idx) : afterPrefix;
-        return withoutExt.split('_').first;
+      if (withoutExt.startsWith('AD_')) {
+        final parts = withoutExt.split('_');
+        if (parts.length >= 2) {
+          return '${parts[0]}_${parts[1]}';
+        }
       }
+      return withoutExt;
     }
     return '';
   }

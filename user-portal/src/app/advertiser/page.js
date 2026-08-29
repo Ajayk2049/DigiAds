@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
+  Check,
+  Sparkles,
   Layers,
   MapPin,
   Video,
@@ -201,11 +203,12 @@ export default function AdvertiserDashboard() {
   const [maxVideoLengthSeconds, setMaxVideoLengthSeconds] = useState(30); // 30 or 60
 
   // Form Fields
+  const [selectedRateId, setSelectedRateId] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [adDurationDays, setAdDurationDays] = useState(7);
   const [frequency, setFrequency] = useState('hourly');
-  const [adCategory, setAdCategory] = useState('Electronics');
+  const [computedAmount, setComputedAmount] = useState(0);
 
   const getFrequencyLabel = (freq) => {
     if (!freq) return 'Unknown';
@@ -222,48 +225,60 @@ export default function AdvertiserDashboard() {
     return freq;
   };
 
-  const getAvailableFrequencies = () => {
-    const deviceRates = rates.filter((r) => 
-      r.deviceType === selectedDeviceType && 
-      (r.mediaType ? r.mediaType === selectedMediaType : true) &&
-      (selectedMediaType === 'video' ? (r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true) : true)
-    );
-    const uniqFrequencies = Array.from(new Set(deviceRates.map((r) => r.frequency)));
-    if (uniqFrequencies.length === 0) {
-      const fallbackFrequencies = Array.from(new Set(rates.filter(r => r.deviceType === selectedDeviceType).map(r => r.frequency)));
-      return fallbackFrequencies.length > 0 ? fallbackFrequencies : ['continuous', 'hourly'];
-    }
-    return uniqFrequencies;
-  };
+  // Filter matching rate plans dynamically based on selected hardware & creative format
+  const matchingPlans = useMemo(() => {
+    if (!selectedDeviceType || !selectedMediaType) return [];
+    return rates.filter((r) => {
+      if (r.deviceType !== selectedDeviceType) return false;
+      if (selectedMediaType === 'image') {
+        return r.mediaType === 'image' || !r.mediaType;
+      }
+      if (selectedMediaType === 'video') {
+        const isVideo = r.mediaType === 'video';
+        const matchTier = r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true;
+        return isVideo && matchTier;
+      }
+      return false;
+    });
+  }, [rates, selectedDeviceType, selectedMediaType, maxVideoLengthSeconds]);
 
-  const getAvailableDurations = () => {
-    const deviceRates = rates.filter((r) => 
-      r.deviceType === selectedDeviceType && 
-      (r.mediaType ? r.mediaType === selectedMediaType : true) &&
-      (selectedMediaType === 'video' ? (r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true) : true)
-    );
-    const uniqDurations = Array.from(new Set(deviceRates.map((r) => r.durationDays))).sort((a, b) => a - b);
-    if (uniqDurations.length === 0) {
-      const fallbackDurations = Array.from(new Set(rates.filter(r => r.deviceType === selectedDeviceType).map(r => r.durationDays))).sort((a, b) => a - b);
-      return fallbackDurations.length > 0 ? fallbackDurations : [7, 30];
-    }
-    return uniqDurations;
-  };
-
+  // Pre-select first matching rate plan when plans list updates
   useEffect(() => {
-    const availFrequencies = getAvailableFrequencies();
-    if (availFrequencies.length > 0 && !availFrequencies.includes(frequency)) {
-      setFrequency(availFrequencies[0]);
+    if (matchingPlans.length > 0) {
+      const exists = matchingPlans.find(p => (p.rateId || p._id) === selectedRateId);
+      if (!exists) {
+        setSelectedRateId(matchingPlans[0].rateId || matchingPlans[0]._id);
+      }
+    } else {
+      setSelectedRateId('');
+      setComputedAmount(0);
     }
-  }, [selectedDeviceType, selectedMediaType, maxVideoLengthSeconds, rates]);
+  }, [matchingPlans]);
 
+  // Sync pricing, duration, frequency, quantity from selected plan
   useEffect(() => {
-    const availDurations = getAvailableDurations();
-    if (availDurations.length > 0 && !availDurations.includes(adDurationDays)) {
-      setAdDurationDays(availDurations[0]);
+    if (!selectedOutlet || !selectedMediaType || !selectedRateId) {
+      setComputedAmount(0);
+      return;
     }
-  }, [selectedDeviceType, selectedMediaType, maxVideoLengthSeconds, rates]);
-  const [computedAmount, setComputedAmount] = useState(0);
+    const currentPlan = matchingPlans.find(p => (p.rateId || p._id) === selectedRateId);
+    if (!currentPlan) {
+      setComputedAmount(0);
+      return;
+    }
+
+    setAdDurationDays(currentPlan.durationDays);
+    setFrequency(currentPlan.frequency);
+
+    const outletDevices = selectedOutlet.quantity || 1;
+    setQuantity(outletDevices.toString());
+
+    if (currentPlan.pricingType === 'whole_venue') {
+      setComputedAmount(currentPlan.amount);
+    } else {
+      setComputedAmount(currentPlan.amount * outletDevices);
+    }
+  }, [selectedRateId, matchingPlans, selectedOutlet, selectedMediaType]);
   const [uploading, setUploading] = useState(false);
   const [rateTab, setRateTab] = useState('tablet');
   const [mediaTypeTab, setMediaTypeTab] = useState('videos'); // 'videos' or 'images'
@@ -382,6 +397,13 @@ export default function AdvertiserDashboard() {
   // Active paid booking pending media upload persistence
   const [activeUploadBooking, setActiveUploadBooking] = useState(null);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
+  const [uploadAdCategory, setUploadAdCategory] = useState('');
+  const [customAdCategory, setCustomAdCategory] = useState('');
+
+  const isUploadCategoryValid = Boolean(
+    uploadAdCategory && (uploadAdCategory !== 'Other' || customAdCategory.trim().length > 0)
+  );
+  const resolvedUploadCategory = uploadAdCategory === 'Other' ? customAdCategory.trim() : uploadAdCategory;
 
   useEffect(() => {
     if (activeUploadBooking) {
@@ -390,6 +412,27 @@ export default function AdvertiserDashboard() {
       } else if (activeUploadBooking.mediaType === 'video') {
         setMediaTypeTab('videos');
       }
+
+      // For fresh pending uploads without mediaUrl, force blank selection
+      if (!activeUploadBooking.mediaUrl || activeUploadBooking.mediaUrl.trim() === '') {
+        setUploadAdCategory('');
+        setCustomAdCategory('');
+      } else {
+        const standardCategories = ['Electronics', 'RealEstate', 'Automotive', 'Beverages', 'Fashion', 'Finance', 'Entertainment'];
+        if (activeUploadBooking.adCategory && standardCategories.includes(activeUploadBooking.adCategory)) {
+          setUploadAdCategory(activeUploadBooking.adCategory);
+          setCustomAdCategory('');
+        } else if (activeUploadBooking.adCategory && activeUploadBooking.adCategory !== 'Other' && activeUploadBooking.adCategory.trim() !== '') {
+          setUploadAdCategory('Other');
+          setCustomAdCategory(activeUploadBooking.adCategory);
+        } else {
+          setUploadAdCategory('');
+          setCustomAdCategory('');
+        }
+      }
+    } else {
+      setUploadAdCategory('');
+      setCustomAdCategory('');
     }
   }, [activeUploadBooking]);
 
@@ -635,11 +678,16 @@ export default function AdvertiserDashboard() {
       return;
     }
 
+    if (!isUploadCategoryValid) {
+      showToast('error', 'Please select and define your Ad Category before uploading.');
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 
     try {
-      let uploadUrl = `${API_BASE}/ads/upload?deviceType=${targetDeviceType}`;
+      let uploadUrl = `${API_BASE}/ads/upload?deviceType=${targetDeviceType}&adCategory=${encodeURIComponent(resolvedUploadCategory)}`;
       if (targetBooking) {
         uploadUrl += `&bookingId=${targetBooking._id}`;
       }
@@ -762,6 +810,11 @@ export default function AdvertiserDashboard() {
       return;
     }
 
+    if (!isUploadCategoryValid) {
+      showToast('error', 'Please select and define your Ad Category before uploading.');
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -769,7 +822,7 @@ export default function AdvertiserDashboard() {
       const serverUrls = [];
       for (let i = 0; i < selectedImageFiles.length; i++) {
         const imgFile = selectedImageFiles[i];
-        let uploadUrl = `${API_BASE}/ads/upload-image?deviceType=${targetDeviceType}&slotIndex=${i}${i === 0 ? '&isFirst=true' : ''}`;
+        let uploadUrl = `${API_BASE}/ads/upload-image?deviceType=${targetDeviceType}&slotIndex=${i}${i === 0 ? '&isFirst=true' : ''}&adCategory=${encodeURIComponent(resolvedUploadCategory)}`;
         if (targetBooking) {
           uploadUrl += `&bookingId=${targetBooking._id}`;
         }
@@ -827,49 +880,6 @@ export default function AdvertiserDashboard() {
     setMediaUrl(updated.join(', '));
   };
 
-  // Compute calculated pricing amount
-  useEffect(() => {
-    if (!selectedOutlet || !selectedMediaType) {
-      setComputedAmount(0);
-      return;
-    }
-    const qty = parseInt(quantity, 10);
-    const dur = parseInt(adDurationDays, 10);
-    if (isNaN(qty) || qty < 1) {
-      setComputedAmount(0);
-      return;
-    }
-
-    let matchRate = rates.find(
-      (r) =>
-        r.deviceType === selectedOutlet.deviceType &&
-        (r.mediaType ? r.mediaType === selectedMediaType : true) &&
-        (selectedMediaType === 'video' ? (r.maxVideoLengthSeconds ? r.maxVideoLengthSeconds === maxVideoLengthSeconds : true) : true) &&
-        r.durationDays === dur &&
-        r.frequency === frequency
-    );
-
-    if (!matchRate) {
-      matchRate = rates.find(
-        (r) =>
-          r.deviceType === selectedOutlet.deviceType &&
-          (r.mediaType ? r.mediaType === selectedMediaType : true) &&
-          r.durationDays === dur &&
-          r.frequency === frequency
-      );
-    }
-
-    if (matchRate) {
-      if (matchRate.pricingType === 'whole_venue') {
-        setComputedAmount(matchRate.amount); // Flat rate for whole venue
-      } else {
-        setComputedAmount(matchRate.amount * qty); // Per device rate x qty
-      }
-    } else {
-      setComputedAmount(0);
-    }
-  }, [selectedOutlet, selectedMediaType, maxVideoLengthSeconds, quantity, adDurationDays, frequency, rates]);
-
   // Handle Ad booking initiation (Paywall First)
   const handleInitiateBooking = async (e) => {
     e.preventDefault();
@@ -911,7 +921,7 @@ export default function AdvertiserDashboard() {
           adDurationDays: parseInt(adDurationDays, 10),
           frequency,
           mediaUrl: '', // Paywall first: media URL filled in subsequent upload phase
-          adCategory,
+          adCategory: '',
           redirectUrl
         },
         {
@@ -1661,7 +1671,75 @@ export default function AdvertiserDashboard() {
                     </span>
                   </div>
 
-                  {activeUploadBooking?.mediaType !== 'image' ? (
+                  {/* MANDATORY POST-PAYMENT AD CATEGORY SELECTOR */}
+                  <div className="p-5 rounded-2xl bg-card/60 border border-border/80 shadow-md space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-foreground mb-1 flex items-center justify-between">
+                        <span className="flex items-center space-x-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-primary" />
+                          <span>1. Select Ad Category / Industry <span className="text-destructive">*</span></span>
+                        </span>
+                        {isUploadCategoryValid && (
+                          <span className="text-emerald-500 font-extrabold text-[10px] uppercase bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center space-x-1">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>Category Selected</span>
+                          </span>
+                        )}
+                      </label>
+                      <p className="text-[11px] text-muted-foreground mb-2.5">
+                        Select your brand category to unlock creative file upload and kiosk schedule optimization.
+                      </p>
+
+                      <select
+                        value={uploadAdCategory}
+                        onChange={(e) => setUploadAdCategory(e.target.value)}
+                        disabled={uploading}
+                        className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                      >
+                        <option value="" disabled>-- Choose your category --</option>
+                        <option value="Electronics">Electronics & Gadgets</option>
+                        <option value="RealEstate">Real Estate & Housing</option>
+                        <option value="Automotive">Automotive & Vehicles</option>
+                        <option value="Beverages">Beverages & Soft Drinks</option>
+                        <option value="Fashion">Fashion & Apparel</option>
+                        <option value="Finance">Finance & Banking</option>
+                        <option value="Entertainment">Entertainment & Media</option>
+                        <option value="Other">Other / Custom Industry...</option>
+                      </select>
+                    </div>
+
+                    {uploadAdCategory === 'Other' && (
+                      <div className="pt-2 animate-fade-in space-y-1.5">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-foreground flex items-center justify-between">
+                          <span>Define Custom Category / Industry Name <span className="text-destructive">*</span></span>
+                          {customAdCategory.trim().length > 0 && (
+                            <span className="text-[10px] text-emerald-500 font-bold">✓ Defined</span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Healthcare & Clinics, Education & Coaching, Gym & Fitness, Legal Consulting..."
+                          value={customAdCategory}
+                          onChange={(e) => setCustomAdCategory(e.target.value)}
+                          disabled={uploading}
+                          className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* MEDIA UPLOAD SECTION (LOCKED UNTIL CATEGORY IS SPECIFIED) */}
+                  {!isUploadCategoryValid ? (
+                    <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-2 animate-fade-in">
+                      <AlertCircle className="w-6 h-6 text-amber-500 mx-auto opacity-80" />
+                      <h4 className="font-outfit text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                        2. Creative Upload Locked
+                      </h4>
+                      <p className="text-xs text-foreground/90 max-w-md mx-auto font-medium">
+                        Please choose your <strong>Ad Category</strong> above {uploadAdCategory === 'Other' ? '(and type your custom category name)' : ''} to unlock media file selection and upload.
+                      </p>
+                    </div>
+                  ) : activeUploadBooking?.mediaType !== 'image' ? (
                     <div className="space-y-4">
                       {/* MODERN TWO-STAGE VIDEO UPLOAD SECTION */}
                       {/* Step 1: File selection target */}
@@ -2063,25 +2141,29 @@ export default function AdvertiserDashboard() {
                 </div>
 
                 {/* Step 3: Campaign Schedule & Pricing Package (Unlocked only when media type selected) */}
-                {rates.length === 0 ? (
-                  <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center space-x-3 mt-6">
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <div>
-                      <p className="font-bold text-sm">No Rate Plans Configured</p>
-                      <p className="text-xs text-foreground/90 mt-0.5">The platform administrator has not created any pricing rate cards yet. Ad booking is currently unavailable until rate plans are configured in the admin panel.</p>
-                    </div>
-                  </div>
-                ) : !selectedMediaType ? (
+                {!selectedMediaType ? (
                   <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center space-x-3 mt-6">
                     <AlertCircle className="w-5 h-5 shrink-0" />
                     <span>Please choose whether you want to advertise <strong>Static Image</strong> or <strong>Dynamic Video</strong> above to unlock pricing plans.</span>
+                  </div>
+                ) : matchingPlans.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-card/20 border border-dashed border-border/60 text-center space-y-3 mt-6 animate-fade-in">
+                    <div className="w-12 h-12 rounded-full bg-muted/20 flex items-center justify-center mx-auto text-muted-foreground">
+                      <AlertCircle className="w-6 h-6 opacity-60" />
+                    </div>
+                    <div>
+                      <h4 className="font-outfit text-sm font-bold text-foreground">No Plans Available for This Selection</h4>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto font-medium">
+                        There are currently no active pricing rate cards configured for {selectedDeviceType === 'tablet' ? 'Tabletop Tablets' : 'Wall Screens'} with {selectedMediaType === 'image' ? 'Static Images' : `${maxVideoLengthSeconds}s Videos`}. Please select another format or check back later.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <form onSubmit={handleInitiateBooking} className="space-y-4 pt-6 border-t border-border/40 mt-6 animate-fade-in">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-outfit text-md font-bold text-foreground flex items-center">
                         <CreditCard className="w-4 h-4 mr-2 text-primary shrink-0" />
-                        <span>Step 3: Select Plan & Proceed to Pay ({selectedMediaType === 'image' ? '🖼️ Static Image Pricing' : '🎬 Dynamic Video Pricing'})</span>
+                        <span>Step 3: Select Plan & Proceed to Pay ({selectedMediaType === 'image' ? '🖼️ Static Image Plans' : `🎬 ${maxVideoLengthSeconds}s Video Plans`})</span>
                       </h3>
                       <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 px-2.5 py-1 rounded-full border border-emerald-500/20">
                         Step 3 of 3
@@ -2090,65 +2172,74 @@ export default function AdvertiserDashboard() {
 
                     {/* 2-Column Side-by-Side Layout inside the Blue Glow Box */}
                     <div className="grid lg:grid-cols-12 gap-6 items-start">
-                      {/* LEFT SIDE: Inputs & Options (lg:col-span-7) */}
+                      {/* LEFT SIDE: Selectable Rate Cards/Pills (lg:col-span-7) */}
                       <div className="lg:col-span-7 space-y-4">
-                        <div className="grid sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Quantity of Devices</label>
-                            <input
-                              type="text"
-                              required
-                              value={quantity}
-                              onChange={(e) => handleQuantityChange(e.target.value)}
-                              className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                            />
-                            {selectedOutlet && (
-                              <p className="text-[10px] text-muted-foreground mt-1 font-semibold">Max available: {selectedOutlet.quantity}</p>
-                            )}
-                          </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
+                            Select an Advertising Plan ({matchingPlans.length} Available)
+                          </label>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {matchingPlans.map((plan) => {
+                              const planKey = plan.rateId || plan._id;
+                              const isSelected = selectedRateId === planKey;
+                              const outletDevices = selectedOutlet?.quantity || 1;
+                              const planTotal = plan.pricingType === 'whole_venue' 
+                                ? plan.amount 
+                                : (plan.amount * outletDevices);
 
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Duration (Days)</label>
-                            <select
-                              value={adDurationDays}
-                              onChange={(e) => setAdDurationDays(parseInt(e.target.value, 10))}
-                              className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                            >
-                              {getAvailableDurations().map((dur) => (
-                                <option key={dur} value={dur}>{dur} {dur === 1 ? 'Day Plan' : 'Days Plan'}</option>
-                              ))}
-                            </select>
-                          </div>
+                              return (
+                                <button
+                                  key={planKey}
+                                  type="button"
+                                  onClick={() => setSelectedRateId(planKey)}
+                                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between relative group ${
+                                    isSelected
+                                      ? 'border-emerald-500 bg-emerald-500/10 text-foreground shadow-md ring-1 ring-emerald-500'
+                                      : 'border-border/60 hover:border-emerald-500/40 bg-card/20 text-muted-foreground hover:bg-card/40'
+                                  }`}
+                                >
+                                  <div className="space-y-2 w-full">
+                                    <div className="flex items-start justify-between">
+                                      <div>
+                                        <span className="font-outfit text-sm font-black text-foreground">
+                                          {plan.durationDays} {plan.durationDays === 1 ? 'Day Campaign' : 'Days Campaign'}
+                                        </span>
+                                        <div className="flex items-center space-x-1.5 mt-1">
+                                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                            {getFrequencyLabel(plan.frequency)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all shrink-0 ${
+                                        isSelected ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border'
+                                      }`}>
+                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                      </div>
+                                    </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Frequency</label>
-                            <select
-                              value={frequency}
-                              onChange={(e) => setFrequency(e.target.value)}
-                              className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                            >
-                              {getAvailableFrequencies().map((freq) => (
-                                <option key={freq} value={freq}>{getFrequencyLabel(freq)}</option>
-                              ))}
-                            </select>
-                          </div>
+                                    <div className="text-[11px] text-muted-foreground font-semibold pt-1">
+                                      {plan.pricingType === 'whole_venue' ? (
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                          🌟 Full Venue Package (All {outletDevices} {selectedDeviceType === 'tablet' ? 'Tablets' : 'Screens'})
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          ₹{(plan.amount / 100).toLocaleString('en-IN')}/device × {outletDevices} devices
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Ad Category</label>
-                            <select
-                              value={adCategory}
-                              onChange={(e) => setAdCategory(e.target.value)}
-                              className="w-full bg-background border border-input rounded-xl px-4 py-3 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                            >
-                              <option value="Electronics">Electronics & Gadgets</option>
-                              <option value="RealEstate">Real Estate & Housing</option>
-                              <option value="Automotive">Automotive & Vehicles</option>
-                              <option value="Beverages">Beverages & Soft Drinks</option>
-                              <option value="Fashion">Fashion & Apparel</option>
-                              <option value="Finance">Finance & Banking</option>
-                              <option value="Entertainment">Entertainment & Media</option>
-                              <option value="Other">Other Commercial Brands</option>
-                            </select>
+                                  <div className="flex items-baseline justify-between pt-3 border-t border-border/40 mt-3 w-full">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Total Payable</span>
+                                    <span className="font-outfit text-lg font-black text-foreground">
+                                      ₹{(planTotal / 100).toLocaleString('en-IN')}
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -2156,7 +2247,7 @@ export default function AdvertiserDashboard() {
                         <div className="pt-2 block lg:hidden">
                           <button
                             type="submit"
-                            disabled={computedAmount === 0 || submittingBooking || uploading}
+                            disabled={computedAmount === 0 || submittingBooking || uploading || !selectedRateId}
                             className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:bg-muted disabled:text-muted-foreground text-white font-black py-4 px-6 rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-xl hover:shadow-emerald-500/20 cursor-pointer disabled:cursor-not-allowed text-sm min-h-[54px]"
                           >
                             {submittingBooking ? (
@@ -2170,7 +2261,7 @@ export default function AdvertiserDashboard() {
                                 <span>
                                   {computedAmount > 0
                                     ? `Pay ₹${(computedAmount / 100).toLocaleString('en-IN')} & Reserve Ad Slots`
-                                    : 'Select Plan Options to Calculate Total'}
+                                    : 'Select a Plan Above to Proceed'}
                                 </span>
                               </>
                             )}
@@ -2180,7 +2271,7 @@ export default function AdvertiserDashboard() {
 
                       {/* RIGHT SIDE: Order & Pricing Summary Card (lg:col-span-5) */}
                       <div className="lg:col-span-5">
-                        {computedAmount > 0 ? (
+                        {selectedRateId ? (
                           <div className="p-5 rounded-2xl bg-card/60 border border-border/80 shadow-xl space-y-4 animate-fade-in">
                             <div className="flex items-center justify-between border-b border-border/60 pb-3">
                               <div className="flex items-center space-x-2">
@@ -2208,9 +2299,19 @@ export default function AdvertiserDashboard() {
                               </div>
 
                               <div className="flex justify-between items-center p-2.5 rounded-xl bg-background/50 border border-border/40">
-                                <span className="text-[11px] text-muted-foreground font-semibold">Duration & Units</span>
+                                <span className="text-[11px] text-muted-foreground font-semibold">Campaign Duration</span>
                                 <span className="font-extrabold text-foreground">
-                                  {adDurationDays} Days × {quantity} {quantity === 1 || quantity === '1' ? 'Device' : 'Devices'}
+                                  {adDurationDays} {adDurationDays === 1 ? 'Day' : 'Days'}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center p-2.5 rounded-xl bg-background/50 border border-border/40">
+                                <span className="text-[11px] text-muted-foreground font-semibold">Coverage Scope</span>
+                                <span className="font-extrabold text-foreground">
+                                  {matchingPlans.find(p => (p.rateId || p._id) === selectedRateId)?.pricingType === 'whole_venue'
+                                    ? `Full Venue (All ${selectedOutlet?.quantity || 1} Devices)`
+                                    : `${selectedOutlet?.quantity || 1} Devices (${(selectedOutlet?.quantity || 1)}x Rate)`
+                                  }
                                 </span>
                               </div>
 
@@ -2231,17 +2332,11 @@ export default function AdvertiserDashboard() {
                               <p className="text-[10px] text-muted-foreground font-medium">Phone Pe Payments Gateway</p>
                             </div>
 
-                            {computedAmount === 0 && (
-                              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 text-[11px] font-bold text-center">
-                                ⚠️ No active rate plan configured by admin for this selection. Booking is unavailable until a rate plan is created.
-                              </div>
-                            )}
-
                             {/* Pay Button on Right Column (Desktop View) */}
                             <div className="pt-2 hidden lg:block">
                               <button
                                 type="submit"
-                                disabled={rates.length === 0 || computedAmount === 0 || submittingBooking || uploading}
+                                disabled={computedAmount === 0 || submittingBooking || uploading || !selectedRateId}
                                 className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:bg-muted disabled:text-muted-foreground text-white font-black py-3.5 px-4 rounded-2xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-xl hover:shadow-emerald-500/20 cursor-pointer disabled:cursor-not-allowed text-xs min-h-[48px]"
                               >
                                 {submittingBooking ? (

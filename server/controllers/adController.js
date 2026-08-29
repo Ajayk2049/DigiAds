@@ -735,6 +735,10 @@ class AdController {
         if (typeof durationSeconds === 'number' && durationSeconds > 0) {
           targetBookingObj.mediaDuration = Math.round(durationSeconds);
         }
+        const incomingCategory = req.query.adCategory || req.headers['x-ad-category'];
+        if (incomingCategory) {
+          targetBookingObj.adCategory = decodeURIComponent(incomingCategory).trim();
+        }
         await targetBookingObj.save();
         if (global.broadcastToAdmins) {
           global.broadcastToAdmins('new_campaign', { bookingId: targetBookingObj.bookingId });
@@ -887,6 +891,10 @@ class AdController {
           }
           existingUrls.push(fileUrl);
           targetBookingObj.mediaUrl = existingUrls.join(', ');
+          const incomingCategory = req.query.adCategory || req.headers['x-ad-category'];
+          if (incomingCategory) {
+            targetBookingObj.adCategory = decodeURIComponent(incomingCategory).trim();
+          }
           await targetBookingObj.save();
 
           // Broadcast real-time WebSocket update to Admin Live Feed

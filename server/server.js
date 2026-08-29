@@ -99,7 +99,7 @@ async function startFastify() {
   await fastify.register(cors, {
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-ad-category', 'X-Ad-Category', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
     credentials: true
   });
 

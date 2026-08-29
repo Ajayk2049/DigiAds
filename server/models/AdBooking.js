@@ -62,8 +62,7 @@ const AdBookingSchema = new mongoose.Schema({
   },
   adCategory: {
     type: String,
-    enum: ['Electronics', 'RealEstate', 'Automotive', 'Beverages', 'Fashion', 'Finance', 'Entertainment', 'Other'],
-    default: 'Other',
+    default: '',
     index: true
   },
   paymentStatus: {

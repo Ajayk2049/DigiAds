@@ -1278,16 +1278,20 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
       final inner = path.substring(5);
       final fileName = inner.split('/').last.split('\\').last;
       if (fileName.startsWith('img_')) {
-        return fileName.replaceAll('img_', '').split('.').first;
+        final after = fileName.substring(4);
+        final idx = after.lastIndexOf('.');
+        return idx != -1 ? after.substring(0, idx) : after;
       }
       return inner;
     } else if (path.startsWith('static__')) {
       final parts = path.split('__');
-      if (parts.length >= 2) return parts[1];
+      return parts.length >= 2 ? parts[1] : '';
     } else {
       final fileName = path.split('/').last.split('\\').last;
       if (fileName.startsWith('ad_')) {
-        return fileName.replaceAll('ad_', '').split('.').first;
+        final after = fileName.substring(3);
+        final idx = after.lastIndexOf('.');
+        return idx != -1 ? after.substring(0, idx) : after;
       }
     }
     return '';
