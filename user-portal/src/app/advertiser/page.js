@@ -280,7 +280,6 @@ export default function AdvertiserDashboard() {
     }
   }, [selectedRateId, matchingPlans, selectedOutlet, selectedMediaType]);
   const [uploading, setUploading] = useState(false);
-  const [rateTab, setRateTab] = useState('tablet');
   const [mediaTypeTab, setMediaTypeTab] = useState('videos'); // 'videos' or 'images'
   const [uploadedImages, setUploadedImages] = useState([]); // array of up to 2 image URLs
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -1069,22 +1068,6 @@ export default function AdvertiserDashboard() {
                 showToast('info', 'Please upload media creative for your confirmed booking first.');
                 return;
               }
-              setActiveTab('rates');
-            }}
-            className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeTab === 'rates'
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-          >
-            <IndianRupee className={`w-3.5 h-3.5 fill-current ${activeTab === 'rates' ? 'text-primary-foreground' : 'text-primary'}`} />
-            <span className="hidden sm:inline">Ad Rates</span>
-          </button>
-          <button
-            onClick={() => {
-              if (activeUploadBooking) {
-                showToast('info', 'Please upload media creative for your confirmed booking first.');
-                return;
-              }
               setActiveTab('new-booking');
             }}
             className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${activeTab === 'new-booking'
@@ -1193,24 +1176,6 @@ export default function AdvertiserDashboard() {
           >
             <ListVideo className={`w-4 h-4 ${activeTab === 'bookings' ? 'text-primary-foreground' : 'text-primary'}`} />
             <span>My Campaigns</span>
-          </button>
-          <button
-            onClick={() => {
-              if (activeUploadBooking) {
-                showToast('info', 'Please upload media creative for your confirmed booking first.');
-                return;
-              }
-              setActiveTab('rates');
-              setMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'rates'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            <IndianRupee className={`w-4 h-4 ${activeTab === 'rates' ? 'text-primary-foreground' : 'text-primary'}`} />
-            <span>Ad Rates</span>
           </button>
           <button
             onClick={() => {
@@ -1525,93 +1490,7 @@ export default function AdvertiserDashboard() {
           </div>
         )}
 
-        {/* 2. Configured Ad Rates Tab */}
-        {activeTab === 'rates' && (
-          <div className="animate-fade-in max-w-2xl mx-auto p-4 rounded-xl bg-card border border-[#0069a8]/80 shadow-[0_0_20px_rgba(0,105,168,0.3)] dark:shadow-[0_0_35px_rgba(0,105,168,0.55)] space-y-6">
-            <div className="flex items-center justify-between border-b border-border/40 pb-4">
-              <div className="space-y-1">
-                <h1 className="font-outfit text-2xl font-black text-foreground">Configured Ad Rates</h1>
-                <p className="text-muted-foreground text-xs font-semibold">Standard package prices set by platform administrators.</p>
-              </div>
-
-              {/* Device Tabs for Tablet vs Screen */}
-              <div className="flex bg-muted p-1 rounded-xl border border-border/40 text-[10px] font-bold">
-                <button
-                  onClick={() => setRateTab('tablet')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${rateTab === 'tablet'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                  Tablets
-                </button>
-                <button
-                  onClick={() => setRateTab('screen')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${rateTab === 'screen'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                >
-                  Screens
-                </button>
-              </div>
-            </div>
-
-            {(() => {
-              const filteredRates = rates.filter(r => r.deviceType === rateTab);
-              return filteredRates.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground font-medium italic border border-dashed border-border/40 rounded-xl">
-                  No rate configurations found for {rateTab === 'tablet' ? 'tablets' : 'screens'}.
-                </div>
-              ) : (
-                <div className="w-full max-w-full overflow-x-auto m-0 p-0 bg-transparent border-none">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-border/40 text-muted-foreground font-bold uppercase tracking-wider">
-                        <th className="pb-3 pr-2">Format</th>
-                        <th className="pb-3 pr-2">Pricing Scope</th>
-                        <th className="pb-3 pr-2">Duration</th>
-                        <th className="pb-3 pr-2">Frequency</th>
-                        <th className="pb-3 text-right">Rate</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {filteredRates.map((rate, index) => (
-                        <tr key={rate._id || index} className="hover:bg-muted/10">
-                          <td className="py-3 pr-2 font-bold text-foreground">
-                            <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${rate.mediaType === 'image' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
-                              {rate.mediaType === 'image' ? '🖼️ Image' : `🎬 Video (${rate.maxVideoLengthSeconds || 30}s)`}
-                            </span>
-                          </td>
-                          <td className="py-3 pr-2 font-semibold text-foreground">
-                            <span className={`inline-flex items-center text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${rate.pricingType === 'whole_venue' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-muted text-muted-foreground border border-border/50'}`}>
-                              {rate.pricingType === 'whole_venue' ? 'Whole Venue (Flat)' : 'Per Device'}
-                            </span>
-                          </td>
-                          <td className="py-3 pr-2">
-                            <div className="flex items-center space-x-1.5 font-semibold text-foreground">
-                              <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <span>{rate.durationDays} {rate.durationDays === 1 ? 'Day' : 'Days'}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 pr-2 font-semibold capitalize text-foreground">
-                            {getFrequencyLabel(rate.frequency)}
-                          </td>
-                          <td className="py-3 font-extrabold text-foreground text-right">
-                            <span className="text-emerald-500 font-black">₹{rate.amount / 100}</span>
-                            <span className="text-[10px] text-muted-foreground ml-1 font-normal">{rate.pricingType === 'whole_venue' ? '/ venue' : '/ device'}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* 3. New Booking Flow Tab */}
+        {/* 2. New Booking Flow Tab */}
         {activeTab === 'new-booking' && (
           <div className="animate-fade-in max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 rounded-2xl bg-card border border-[#0069a8]/80 shadow-[0_0_20px_rgba(0,105,168,0.3)] dark:shadow-[0_0_35px_rgba(0,105,168,0.55)] space-y-6 transition-all duration-500">
 
