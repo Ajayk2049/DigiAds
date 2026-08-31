@@ -1566,9 +1566,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 12 : 24,
-        isMobile ? 16 : 40,
+        isMobile ? 12 : 40,
+        isMobile ? 8 : 24,
+        isMobile ? 12 : 40,
         isMobile ? 12 : 24,
       ),
       child: Column(
@@ -1668,10 +1668,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        isMobile ? 14 : 24,
-        isMobile ? 12 : 20,
-        isMobile ? 14 : 24,
-        isMobile ? 10 : 16,
+        isMobile ? 12 : 24,
+        isMobile ? 10 : 20,
+        isMobile ? 12 : 24,
+        isMobile ? 8 : 16,
       ),
       child: Row(
         children: [
@@ -1681,28 +1681,28 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                 HapticFeedback.lightImpact();
                 setState(() => _showCart = false);
               },
-              icon: Icon(Icons.arrow_back_rounded, color: Colors.white, size: isMobile ? 18 : 24),
+              icon: Icon(Icons.arrow_back_rounded, color: Colors.white, size: isMobile ? 16 : 24),
               label: Text(
                 "BACK",
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: isMobile ? 13 : 15,
+                  fontSize: isMobile ? 12 : 15,
                   color: Colors.white,
-                  letterSpacing: 1,
+                  letterSpacing: isMobile ? 0.5 : 1,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentBlue,
-                minimumSize: isMobile ? const Size(85, 44) : const Size(120, 56),
+                minimumSize: isMobile ? const Size(76, 40) : const Size(120, 56),
                 padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 12 : 24,
-                  vertical: isMobile ? 10 : 18,
+                  horizontal: isMobile ? 10 : 24,
+                  vertical: isMobile ? 8 : 18,
                 ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 3,
               ),
             ),
-            SizedBox(width: isMobile ? 10 : 16),
+            SizedBox(width: isMobile ? 8 : 16),
           ],
           Expanded(
             child: Column(
@@ -1710,31 +1710,57 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _showCart
-                    ? Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: "${_outletName.toUpperCase()} ",
-                              style: TextStyle(
-                                fontSize: isMobile ? 12 : 14,
-                                fontWeight: FontWeight.w900,
-                                color: kAccentBlue,
-                                letterSpacing: 1.2,
+                    ? (isMobile
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                "Your Cart",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: kTextDark,
+                                ),
                               ),
-                            ),
-                            TextSpan(
-                              text: "(Table $_tableNumber)",
-                              style: TextStyle(
-                                fontSize: isMobile ? 11 : 12,
-                                fontWeight: FontWeight.normal,
-                                color: kTextGrey,
+                              const SizedBox(height: 1),
+                              Text(
+                                "${_outletName.toUpperCase()} (Table $_tableNumber)",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: kTextGrey,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            ],
+                          )
+                        : Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: "${_outletName.toUpperCase()} ",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                    color: kAccentBlue,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: "(Table $_tableNumber)",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.normal,
+                                    color: kTextGrey,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ))
                     : Text.rich(
                         TextSpan(
                           children: [
@@ -1762,12 +1788,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                if (_showCart) ...[
+                if (_showCart && !isMobile) ...[
                   const SizedBox(height: 2),
-                  Text(
+                  const Text(
                     "Your Cart",
                     style: TextStyle(
-                      fontSize: isMobile ? 20 : 28,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: kTextDark,
                     ),
@@ -1776,36 +1802,36 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               ],
             ),
           ),
-          SizedBox(width: isMobile ? 8 : 16),
+          SizedBox(width: isMobile ? 6 : 16),
           ElevatedButton.icon(
             onPressed: _showCallWaiterDialog,
-            icon: Icon(Icons.room_service_rounded, color: Colors.white, size: isMobile ? 16 : 20),
+            icon: Icon(Icons.room_service_rounded, color: Colors.white, size: isMobile ? 14 : 20),
             label: Text(
               isMobile ? "WAITER" : "CALL WAITER",
               style: TextStyle(
                 fontWeight: FontWeight.w900,
-                fontSize: isMobile ? 11 : 14,
+                fontSize: isMobile ? 10 : 14,
                 color: Colors.white,
-                letterSpacing: 0.8,
+                letterSpacing: 0.6,
               ),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: kAccentBlue,
               padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 10 : 20,
-                vertical: isMobile ? 10 : 16,
+                horizontal: isMobile ? 8 : 20,
+                vertical: isMobile ? 8 : 16,
               ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 3,
             ),
           ),
-          SizedBox(width: isMobile ? 8 : 16),
+          SizedBox(width: isMobile ? 6 : 16),
           GestureDetector(
             onTap: _onBrandIconTapped,
             behavior: HitTestBehavior.opaque,
             child: SizedBox(
-              height: isMobile ? 38 : 52,
-              width: isMobile ? 38 : 52,
+              height: isMobile ? 32 : 52,
+              width: isMobile ? 32 : 52,
               child: SvgPicture.asset(
                 'assets/digiads-icon.svg',
                 fit: BoxFit.contain,

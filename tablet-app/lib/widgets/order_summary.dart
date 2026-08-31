@@ -45,14 +45,19 @@ class OrderSummaryPanel extends StatelessWidget {
 
         final total = cart.totalPrice(menuItems);
         final isAllPacked = cart.isAllPacked;
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final isMobile = screenWidth < 600;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Top Bar: Global "Pack Entire Order" Toggle
             Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              margin: EdgeInsets.only(bottom: isMobile ? 10 : 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 16,
+                vertical: isMobile ? 8 : 10,
+              ),
               decoration: BoxDecoration(
                 color: isAllPacked ? Colors.amber.shade100 : kCardBg,
                 borderRadius: kCardBorderRadius,
@@ -64,24 +69,31 @@ class OrderSummaryPanel extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.takeout_dining_outlined,
-                        color: isAllPacked ? Colors.amber.shade900 : kTextDark,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Pack Entire Order (Takeaway / Parcel)",
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.takeout_dining_outlined,
                           color: isAllPacked ? Colors.amber.shade900 : kTextDark,
+                          size: isMobile ? 18 : 22,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: isMobile ? 8 : 10),
+                        Expanded(
+                          child: Text(
+                            isMobile ? "Takeaway / Parcel All" : "Pack Entire Order (Takeaway / Parcel)",
+                            style: TextStyle(
+                              fontSize: isMobile ? 13 : 15,
+                              fontWeight: FontWeight.bold,
+                              color: isAllPacked ? Colors.amber.shade900 : kTextDark,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   InkWell(
                     onTap: () {
                       HapticFeedback.lightImpact();
@@ -89,7 +101,10 @@ class OrderSummaryPanel extends StatelessWidget {
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 10 : 14,
+                        vertical: isMobile ? 6 : 8,
+                      ),
                       decoration: BoxDecoration(
                         color: isAllPacked ? kAccentBlue : Colors.grey.shade200,
                         borderRadius: BorderRadius.circular(12),
@@ -99,14 +114,14 @@ class OrderSummaryPanel extends StatelessWidget {
                         children: [
                           Icon(
                             isAllPacked ? Icons.restaurant_rounded : Icons.takeout_dining_outlined,
-                            size: 16,
+                            size: isMobile ? 14 : 16,
                             color: isAllPacked ? Colors.white : kTextDark,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           Text(
                             isAllPacked ? "DINE-IN ALL" : "PACK ALL",
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: isMobile ? 11 : 12,
                               fontWeight: FontWeight.bold,
                               color: isAllPacked ? Colors.white : kTextDark,
                             ),
@@ -122,7 +137,7 @@ class OrderSummaryPanel extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 itemCount: cart.uniqueItemIds.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 16),
+                separatorBuilder: (context, index) => SizedBox(height: isMobile ? 10 : 16),
                 itemBuilder: (context, index) {
                   final rawId = cart.uniqueItemIds[index];
                   final dineInQty = cart.dineInQtyOf(rawId);
@@ -140,6 +155,234 @@ class OrderSummaryPanel extends StatelessWidget {
                   final unitPrice = item.price.toDouble() / 100.0;
                   final lineTotal = unitPrice * totalQty;
 
+                  // Mobile Layout (< 600px)
+                  if (isMobile) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: kCardBg,
+                        borderRadius: kCardBorderRadius,
+                        border: packedQty > 0 ? Border.all(color: Colors.amber.shade500, width: 1.5) : null,
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 6,
+                            offset: Offset(0, 3),
+                          )
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Food Image
+                              ClipRRect(
+                                borderRadius: kImageBorderRadius,
+                                child: Container(
+                                  width: 68,
+                                  height: 68,
+                                  color: kScaffoldBg,
+                                  child: CachedMenuImage(
+                                    cache: imageCache,
+                                    itemId: item.itemId,
+                                    imageUrl: item.imageUrl,
+                                    serverHost: serverHost,
+                                    fallback: const Icon(Icons.restaurant_menu, color: kTextGrey, size: 28),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Details
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      style: kCardTitleStyle.copyWith(fontSize: 16),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      "Unit price: ₹${unitPrice.toStringAsFixed(2)}",
+                                      style: kCardDescriptionStyle.copyWith(fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                      children: [
+                                        if (dineInQty > 0)
+                                          Text(
+                                            "🍽️ $dineInQty Dine-In",
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: kTextDark),
+                                          ),
+                                        if (dineInQty > 0 && packedQty > 0)
+                                          const Text(" • ", style: TextStyle(fontSize: 11, color: kTextGrey)),
+                                        if (packedQty > 0)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber.shade800,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              "📦 $packedQty PACK",
+                                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Delete trash icon and Line total on top-right
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => cartNotifier.removeAllOfItem(rawId),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.red.shade200, width: 1.2),
+                                        color: Colors.red.shade50,
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      child: Icon(Icons.delete_outline_rounded, color: Colors.red.shade400, size: 16),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "₹${lineTotal.toStringAsFixed(2)}",
+                                    style: kTotalValueStyle.copyWith(fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Container(height: 1, color: const Color(0xFFF1F5F9)),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Pill Qty Stepper
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: kScaffoldBg,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: Colors.grey.shade300, width: 1),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      constraints: const BoxConstraints(),
+                                      padding: const EdgeInsets.all(6),
+                                      icon: const Icon(Icons.remove, color: kAccentBlue, size: 16),
+                                      onPressed: () => cartNotifier.removeItem(rawId),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text(
+                                        '$totalQty',
+                                        style: kQuantityTextStyle.copyWith(color: kTextDark, fontSize: 14),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      constraints: const BoxConstraints(),
+                                      padding: const EdgeInsets.all(6),
+                                      icon: const Icon(Icons.add, color: kAccentBlue, size: 16),
+                                      onPressed: () => cartNotifier.addItem(rawId),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Pack / Dine-In Action Button
+                              InkWell(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  if (totalQty == 1) {
+                                    cartNotifier.togglePacked(rawId);
+                                  } else {
+                                    _showPackQuantityDialog(
+                                      context,
+                                      cartNotifier,
+                                      rawId,
+                                      item.name,
+                                      totalQty,
+                                      packedQty,
+                                    );
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: packedQty > 0
+                                        ? (packedQty == totalQty
+                                            ? const Color(0xFFEFF6FF)
+                                            : Colors.amber.shade50)
+                                        : Colors.grey.shade100,
+                                    border: Border.all(
+                                      color: packedQty > 0
+                                          ? (packedQty == totalQty
+                                              ? kAccentBlue
+                                              : Colors.amber.shade700)
+                                          : Colors.grey.shade400,
+                                      width: 1.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        packedQty == totalQty
+                                            ? Icons.restaurant_rounded
+                                            : (packedQty > 0
+                                                ? Icons.takeout_dining_rounded
+                                                : Icons.takeout_dining_outlined),
+                                        size: 14,
+                                        color: packedQty > 0
+                                            ? (packedQty == totalQty
+                                                ? kAccentBlue
+                                                : Colors.amber.shade900)
+                                            : Colors.grey.shade800,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        packedQty == totalQty
+                                            ? "Dine-In"
+                                            : (packedQty > 0
+                                                ? "Packed ($packedQty/$totalQty)"
+                                                : "Pack"),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: packedQty > 0
+                                              ? (packedQty == totalQty
+                                                  ? kAccentBlue
+                                                  : Colors.amber.shade900)
+                                              : Colors.grey.shade800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Tablet Layout (>= 600px)
                   return Container(
                     decoration: BoxDecoration(
                       color: kCardBg,
@@ -366,7 +609,7 @@ class OrderSummaryPanel extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: isMobile ? 8 : 12),
             // Remove All Action Pill (Right-aligned above Total Card)
             Align(
               alignment: Alignment.centerRight,
@@ -379,7 +622,10 @@ class OrderSummaryPanel extends StatelessWidget {
                     cartNotifier.clear();
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 10 : 14,
+                      vertical: isMobile ? 5 : 7,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
                       borderRadius: BorderRadius.circular(20),
@@ -388,12 +634,12 @@ class OrderSummaryPanel extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.delete_outline_rounded, color: Colors.red.shade600, size: 16),
-                        const SizedBox(width: 6),
+                        Icon(Icons.delete_outline_rounded, color: Colors.red.shade600, size: isMobile ? 14 : 16),
+                        const SizedBox(width: 5),
                         Text(
                           "Remove All",
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: isMobile ? 11 : 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.red.shade700,
                           ),
@@ -404,7 +650,7 @@ class OrderSummaryPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isMobile ? 6 : 8),
             // Calculations Card
             Container(
               decoration: const BoxDecoration(
@@ -418,26 +664,26 @@ class OrderSummaryPanel extends StatelessWidget {
                   )
                 ],
               ),
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isMobile ? 14 : 20),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Total", style: kTotalLabelStyle.copyWith(fontSize: 18)),
+                      Text("Total", style: kTotalLabelStyle.copyWith(fontSize: isMobile ? 16 : 18)),
                       Text(
                         "₹${total.toStringAsFixed(2)}",
-                        style: kTotalValueStyle.copyWith(fontSize: 24),
+                        style: kTotalValueStyle.copyWith(fontSize: isMobile ? 20 : 24),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 12 : 20),
             // Proceed to Payment button
             SizedBox(
-              height: 64,
+              height: isMobile ? 52 : 64,
               child: ElevatedButton(
                 onPressed: onPlaceOrder,
                 style: ElevatedButton.styleFrom(
@@ -445,23 +691,27 @@ class OrderSummaryPanel extends StatelessWidget {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 2,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const SizedBox(width: 24), // to center text somewhat
-                    const Text(
+                    SizedBox(width: isMobile ? 16 : 24), // to center text somewhat
+                    Text(
                       "Place Order",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: isMobile ? 16 : 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                     Container(
                       decoration: const BoxDecoration(
                         color: Colors.white24,
                         shape: BoxShape.circle,
                       ),
-                      padding: const EdgeInsets.all(8),
-                      child: const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
+                      child: Icon(Icons.arrow_forward, color: Colors.white, size: isMobile ? 16 : 20),
                     ),
                   ],
                 ),
@@ -491,14 +741,14 @@ class OrderSummaryPanel extends StatelessWidget {
             return AlertDialog(
               shape: const RoundedRectangleBorder(borderRadius: kCardBorderRadius),
               backgroundColor: kCardBg,
-              title: Row(
+              title: const Row(
                 children: [
-                  const Icon(Icons.takeout_dining_rounded, color: Colors.amber, size: 28),
-                  const SizedBox(width: 10),
+                  Icon(Icons.takeout_dining_rounded, color: Colors.amber, size: 28),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       "Parcel Quantity",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kTextDark),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kTextDark),
                     ),
                   ),
                 ],
