@@ -1943,6 +1943,18 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           'waiterOption': option,
           'tableNumber': _tableNumber
         }));
+      } else if (_deviceClient != null) {
+        final req = HeartbeatRequest()
+          ..deviceId = widget.deviceId
+          ..callWaiter = true
+          ..waiterOption = option
+          ..tableNumber = _tableNumber;
+        _deviceClient!.sendHeartbeat(req, options: _callOptions).then((resp) {
+          debugPrint('[gRPC] Call waiter acknowledged by server');
+        }).catchError((err) {
+          debugPrint('[gRPC] Call waiter fallback error: $err');
+          return HeartbeatResponse();
+        });
       }
     } catch (e) {
       debugPrint('Call waiter failed: $e');
@@ -2316,6 +2328,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           return const SizedBox.shrink();
         }
 
+        final rawItems = _tableSession!['items'] as List<dynamic>? ?? [];
+        final amountPaise = _tableSession!['amount'] as int? ?? 0;
+
+        // If there are no food items and total amount is 0, this is only a service/waiter request, not an active food order
+        if (rawItems.isEmpty && amountPaise == 0) {
+          return const SizedBox.shrink();
+        }
+
         final orderStatus = (_tableSession!['orderStatus'] as String? ?? 'placed').toLowerCase();
         final tableStatus = (_tableSession!['status'] as String? ?? '').toLowerCase();
 
@@ -2323,10 +2343,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         if (tableStatus == 'completed' && orderStatus != 'cancelled') {
           return const SizedBox.shrink();
         }
-
-        final amountPaise = _tableSession!['amount'] as int? ?? 0;
         final orderId = _tableSession!['orderId'] as String? ?? '';
-        final rawItems = _tableSession!['items'] as List<dynamic>? ?? [];
         int rawSubtotalPaise = _tableSession!['subtotal'] as int? ?? 0;
         if (rawSubtotalPaise <= 0) {
           for (final item in rawItems) {
@@ -2494,6 +2511,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     }
 
     final rawItems = _tableSession!['items'] as List<dynamic>? ?? [];
+    if (rawItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final orderId = _tableSession!['orderId'] as String? ?? '';
     final orderStatus = _tableSession!['orderStatus'] as String? ?? 'placed';
 

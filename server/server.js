@@ -43,12 +43,39 @@ const AdsRates = require('./models/AdsRates');
 const HostApplication = require('./models/HostApplication');
 const AdImpression = require('./models/AdImpression');
 
-// WebSocket client sockets map (merchantId -> ws socket)
+// WebSocket client sockets map (merchantId -> Set<WebSocket>)
 const merchantSockets = new Map();
 global.merchantSockets = merchantSockets;
 global.deviceSockets = new Map();
 global.adminSockets = new Map();
 global.pendingDeviceCommands = new Map();
+
+/**
+ * Robust helper to send real-time events to all active sockets of a merchant
+ */
+global.sendToMerchant = (merchantId, payload) => {
+  if (!merchantId) return;
+  const mId = merchantId.toString();
+  const sockets = global.merchantSockets ? global.merchantSockets.get(mId) : null;
+  if (sockets) {
+    const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    if (sockets instanceof Set) {
+      for (const s of sockets) {
+        try {
+          if (s.readyState === 1) s.send(msg);
+        } catch (e) {
+          console.error('[WS] Error sending to merchant socket:', e.message);
+        }
+      }
+    } else if (typeof sockets.send === 'function' && sockets.readyState === 1) {
+      try {
+        sockets.send(msg);
+      } catch (e) {
+        console.error('[WS] Error sending to merchant socket:', e.message);
+      }
+    }
+  }
+};
 
 /**
  * Universal broadcast to trigger ad refresh across both WebSocket tablets and gRPC wall screens
@@ -82,6 +109,80 @@ global.notifyDevicesReloadAds = async (targetVenueId = null) => {
     console.error('[notifyDevicesReloadAds Error]:', err.message);
   }
 };
+
+/**
+ * Thread-safe atomic waiter call handler with per-device mutex lock to prevent duplicate orders
+ */
+const pendingWaiterCalls = new Map();
+
+async function handleDeviceWaiterCall(deviceId, rawWaiterOption, rawTableNumber) {
+  if (pendingWaiterCalls.has(deviceId)) {
+    return await pendingWaiterCalls.get(deviceId);
+  }
+
+  const promise = (async () => {
+    try {
+      const waiterOption = String(rawWaiterOption || 'Others').trim().slice(0, 30).replace(/[\r\n\t]/g, '');
+      const tableNumber = String(rawTableNumber || 'T1').trim().slice(0, 30).replace(/[\r\n\t]/g, '');
+
+      let activeOrder = await Order.findOne({
+        deviceId,
+        tableStatus: { $in: ['active', 'close_table'] }
+      }).sort({ createdAt: -1 });
+
+      if (!activeOrder) {
+        const deviceDoc = await Device.findOne({ deviceId });
+        if (deviceDoc && deviceDoc.hostApplicationId) {
+          const HostApplication = require('./models/HostApplication');
+          const app = await HostApplication.findById(deviceDoc.hostApplicationId);
+          if (app) {
+            activeOrder = new Order({
+              orderId: 'ORD-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
+              merchantId: app.userId,
+              hostApplicationId: deviceDoc.hostApplicationId,
+              deviceId,
+              tableNumber: tableNumber || 'T1',
+              items: [],
+              totalAmount: 0,
+              paymentStatus: 'pending',
+              orderStatus: 'placed',
+              tableStatus: 'active',
+              waiterCallStatus: 'pending',
+              waiterCallCount: 1,
+              waiterCallOption: waiterOption || 'Others'
+            });
+            await activeOrder.save();
+          }
+        }
+      } else {
+        activeOrder.waiterCallCount = (activeOrder.waiterCallCount || 0) + 1;
+        activeOrder.waiterCallStatus = 'pending';
+        activeOrder.waiterCallOption = waiterOption || 'Others';
+        await activeOrder.save();
+      }
+
+      if (activeOrder) {
+        const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
+        notifyDeviceSessionUpdate(activeOrder);
+
+        if (activeOrder.merchantId && global.sendToMerchant) {
+          global.sendToMerchant(activeOrder.merchantId, {
+            event: 'waiter_call',
+            data: activeOrder
+          });
+        }
+      }
+      return activeOrder;
+    } catch (err) {
+      console.error('[WaiterCall] Error handling waiter call for device:', deviceId, err.message);
+    } finally {
+      setTimeout(() => pendingWaiterCalls.delete(deviceId), 1000);
+    }
+  })();
+
+  pendingWaiterCalls.set(deviceId, promise);
+  return await promise;
+}
 
 // ----------------------------------------------------
 // Fastify Setup (REST & WebSocket)
@@ -153,15 +254,28 @@ async function startFastify() {
           return;
         }
 
-        const merchantId = decoded.uid;
-        merchantSockets.set(merchantId, socket);
-        console.log(`[WS] Merchant connected: ${merchantId}`);
+        const merchantId = decoded.uid ? decoded.uid.toString() : null;
+        if (merchantId) {
+          if (!merchantSockets.has(merchantId)) {
+            merchantSockets.set(merchantId, new Set());
+          }
+          merchantSockets.get(merchantId).add(socket);
+          console.log(`[WS] Merchant connected: ${merchantId} (active connections: ${merchantSockets.get(merchantId).size})`);
+        }
 
         socket.send(JSON.stringify({ event: 'connected', message: 'Connected to live order feed' }));
 
         socket.on('close', () => {
-          merchantSockets.delete(merchantId);
-          console.log(`[WS] Merchant disconnected: ${merchantId}`);
+          if (merchantId) {
+            const sockets = merchantSockets.get(merchantId);
+            if (sockets) {
+              sockets.delete(socket);
+              if (sockets.size === 0) {
+                merchantSockets.delete(merchantId);
+              }
+            }
+          }
+          console.log(`[WS] Merchant socket closed: ${merchantId}`);
         });
 
       } catch (err) {
@@ -277,65 +391,7 @@ async function startFastify() {
                 { $set: updateDoc }
               ).catch(() => { });
             } else if (data.event === 'call_waiter') {
-              const rawWaiterOption = String(data.waiterOption || data.waiterCallOption || 'Others').trim();
-              const rawTableNumber = String(data.tableNumber || 'T1').trim();
-
-              // Sanitize inputs: restrict max length to 30 chars and strip control characters
-              const waiterOption = rawWaiterOption.slice(0, 30).replace(/[\r\n\t]/g, '');
-              const tableNumber = rawTableNumber.slice(0, 30).replace(/[\r\n\t]/g, '');
-
-              let activeOrder = await Order.findOne({
-                deviceId,
-                tableStatus: { $in: ['active', 'close_table'] }
-              }).sort({ createdAt: -1 });
-
-              if (!activeOrder) {
-                const deviceDoc = await Device.findOne({ deviceId });
-                if (deviceDoc && deviceDoc.hostApplicationId) {
-                  const HostApplication = require('./models/HostApplication');
-                  const app = await HostApplication.findById(deviceDoc.hostApplicationId);
-                  if (app) {
-                    activeOrder = new Order({
-                      orderId: 'ORD-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-                      merchantId: app.userId,
-                      hostApplicationId: deviceDoc.hostApplicationId,
-                      deviceId,
-                      tableNumber: tableNumber || 'T1',
-                      items: [],
-                      totalAmount: 0,
-                      paymentStatus: 'pending',
-                      orderStatus: 'placed',
-                      tableStatus: 'active',
-                      waiterCallStatus: 'pending',
-                      waiterCallCount: 1,
-                      waiterCallOption: waiterOption || 'Others'
-                    });
-                    await activeOrder.save();
-                  }
-                }
-              } else {
-                activeOrder.waiterCallCount = (activeOrder.waiterCallCount || 0) + 1;
-                activeOrder.waiterCallStatus = 'pending';
-                activeOrder.waiterCallOption = waiterOption || 'Others';
-                await activeOrder.save();
-              }
-
-              if (activeOrder && activeOrder.merchantId) {
-                const wsClient = global.merchantSockets ? global.merchantSockets.get(activeOrder.merchantId.toString()) : null;
-                if (wsClient) {
-                  wsClient.send(JSON.stringify({
-                    event: 'waiter_call',
-                    data: {
-                      deviceId,
-                      tableNumber: activeOrder.tableNumber,
-                      waiterCallCount: activeOrder.waiterCallCount,
-                      waiterCallOption: activeOrder.waiterCallOption,
-                      waiterCallStatus: activeOrder.waiterCallStatus,
-                      orderId: activeOrder.orderId
-                    }
-                  }));
-                }
-              }
+              await handleDeviceWaiterCall(deviceId, data.waiterOption || data.waiterCallOption, data.tableNumber);
             }
           } catch (e) {
             console.error('[WS] Device message parse error:', e.message);
@@ -693,55 +749,7 @@ const deviceServiceHandlers = {
 
       // Handle waiter call request
       if (callWaiter) {
-        let activeOrder = await Order.findOne({
-          deviceId,
-          tableStatus: { $in: ['active', 'close_table'] }
-        }).sort({ createdAt: -1 });
-
-        if (!activeOrder) {
-          const app = await HostApplication.findById(device.hostApplicationId);
-          if (app) {
-            activeOrder = new Order({
-              orderId: 'ORD-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
-              merchantId: app.userId,
-              hostApplicationId: device.hostApplicationId,
-              deviceId,
-              tableNumber: tableNumber || 'T1',
-              items: [],
-              totalAmount: 0,
-              paymentStatus: 'pending',
-              orderStatus: 'placed',
-              tableStatus: 'active',
-              waiterCallStatus: 'pending',
-              waiterCallCount: 1,
-              waiterCallOption: waiterOption || 'Others'
-            });
-            await activeOrder.save();
-          }
-        } else {
-          activeOrder.waiterCallCount = (activeOrder.waiterCallCount || 0) + 1;
-          activeOrder.waiterCallStatus = 'pending';
-          activeOrder.waiterCallOption = waiterOption || 'Others';
-          await activeOrder.save();
-        }
-
-        // Broadcast to merchant dashboard
-        if (activeOrder) {
-          const wsClient = global.merchantSockets.get(activeOrder.merchantId.toString());
-          if (wsClient) {
-            wsClient.send(JSON.stringify({
-              event: 'waiter_call',
-              data: {
-                deviceId,
-                tableNumber: activeOrder.tableNumber,
-                waiterCallCount: activeOrder.waiterCallCount,
-                waiterCallOption: activeOrder.waiterCallOption,
-                waiterCallStatus: activeOrder.waiterCallStatus,
-                orderId: activeOrder.orderId
-              }
-            }));
-          }
-        }
+        await handleDeviceWaiterCall(deviceId, waiterOption, tableNumber);
       }
 
       // Check for active table session state

@@ -4,12 +4,12 @@
   "description": "DigiAds Platform & Tabletop Kiosk Backend Server",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js --env-file=config/.env.dev",
-    "dev:local": "nodemon server.js --env-file=config/.env.local",
-    "prod": "node server.js --env-file=config/.env.prod",
-    "reset-db": "node reset_database.js --env-file=config/.env.dev",
-    "reset-db:prod": "node reset_database.js --env-file=config/.env.prod",
-    "backfill:venues": "node scripts/backfillVenueCoordinates.js"
+    "dev": "nodemon --node-args=\"--max-old-space-size=2048\" server.js --env-file=config/.env.dev",
+    "dev:local": "nodemon --node-args=\"--max-old-space-size=2048\" server.js --env-file=config/.env.local",
+    "prod": "node --max-old-space-size=2048 server.js --env-file=config/.env.prod",
+    "reset-db": "node --max-old-space-size=2048 reset_database.js --env-file=config/.env.dev",
+    "reset-db:prod": "node --max-old-space-size=2048 reset_database.js --env-file=config/.env.prod",
+    "backfill:venues": "node --max-old-space-size=2048 scripts/backfillVenueCoordinates.js"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

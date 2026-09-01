@@ -415,9 +415,11 @@ export default function MerchantDashboard() {
       // Combine all orders (completed transactions + live orders)
       const allVenueOrders = [...paymentOrders, ...orders];
 
-      // Filter matching orders for this venue within the selected date range
+      // Filter matching orders for this venue within the selected date range (excluding empty 0-rupee waiter calls)
       const matchingOrders = allVenueOrders.filter(ord => {
         if (ord.hostApplicationId && currentVenueApp && ord.hostApplicationId !== currentVenueApp._id) return false;
+        const isZeroEmpty = (!ord.items || ord.items.length === 0) && (ord.totalAmount || 0) === 0;
+        if (isZeroEmpty) return false;
         const ordTime = new Date(ord.createdAt || ord.updatedAt || 0).getTime();
         return ordTime >= startMs && ordTime <= endMs;
       });
@@ -859,7 +861,6 @@ export default function MerchantDashboard() {
 
   // Orders tab states (WebSocket)
   const [orders, setOrders] = useState([]);
-  const wsRef = useRef(null);
 
   // Helper to format local YYYY-MM-DD date string without UTC timezone offset shift
   const getLocalDateString = (d = new Date()) => {
@@ -1281,13 +1282,6 @@ export default function MerchantDashboard() {
     fetchApplications(storedToken);
     fetchDevices(storedToken);
     fetchLiveOrders(storedToken);
-    setupWebSocket(storedToken);
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
   }, [router]);
 
   // Persist Active Tab
@@ -1438,7 +1432,7 @@ export default function MerchantDashboard() {
       });
       const allOrders = res.data.data || [];
       const completed = allOrders.filter(
-        ord => ord.paymentStatus === 'completed'
+        ord => ord.paymentStatus === 'completed' && ((ord.totalAmount || 0) > 0 || (ord.items && ord.items.length > 0))
       );
       const live = allOrders.filter(
         ord => ord.tableStatus !== 'completed' && ord.tableStatus !== 'completed_acked' && ord.orderStatus !== 'cancelled'
@@ -1480,9 +1474,25 @@ export default function MerchantDashboard() {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.event === 'new_order' || data.event === 'order_update' || data.event === 'table_session') {
-              console.log('[WS] Live order update received:', data.event);
+            if (
+              data.event === 'new_order' ||
+              data.event === 'order_update' ||
+              data.event === 'table_session' ||
+              data.event === 'waiter_call' ||
+              data.event === 'waiter_serviced'
+            ) {
+              console.log('[WS] Live order/waiter update received:', data.event);
               fetchLiveOrders(token);
+              if (data.event === 'new_order' && data.data?.hostApplicationId && data.data.hostApplicationId !== activeOrderVenueTabRef.current) {
+                setUnreadOrderVenues(prev => {
+                  const next = new Set(prev);
+                  next.add(data.data.hostApplicationId);
+                  return next;
+                });
+              }
+            } else if (data.event === 'device_status_changed') {
+              console.log('[WS] Device status update received:', data.event);
+              fetchDevices(token);
             }
           } catch (e) {
             console.error('[WS] Message parse error:', e);
@@ -1766,37 +1776,7 @@ export default function MerchantDashboard() {
     }
   }, [token, selectedOutletId]);
 
-  // Setup WebSocket connection
-  const setupWebSocket = (authToken) => {
-    try {
-      const ws = new WebSocket(`${config.wsUrl}/ws/orders?token=${authToken}`);
-      wsRef.current = ws;
 
-      ws.onmessage = (event) => {
-        const payload = JSON.parse(event.data);
-        if (payload.event === 'new_order' || payload.event === 'waiter_call' || payload.event === 'waiter_serviced') {
-          fetchLiveOrders(authToken);
-          fetchPaymentOrders(authToken);
-          if (payload.event === 'new_order' && payload.data.hostApplicationId && payload.data.hostApplicationId !== activeOrderVenueTabRef.current) {
-            setUnreadOrderVenues(prev => {
-              const next = new Set(prev);
-              next.add(payload.data.hostApplicationId);
-              return next;
-            });
-          }
-        } else if (payload.event === 'device_status_changed') {
-          fetchDevices(authToken);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('[WS] Closed. Reconnecting in 5s...');
-        setTimeout(() => setupWebSocket(authToken), 5000);
-      };
-    } catch (err) {
-      console.error('[WS] Setup failed:', err.message);
-    }
-  };
 
   // Numeric input constraints
   const handlePhoneChange = (val) => {
@@ -4547,9 +4527,11 @@ export default function MerchantDashboard() {
                                         e.stopPropagation();
                                         closeTable(ord.orderId);
                                       }}
-                                      className={`text-xs font-black uppercase px-4 py-2.5 rounded-xl border transition-all shadow-sm shrink-0 w-fit cursor-pointer tracking-wide ${ord.orderStatus === 'served'
-                                        ? 'bg-destructive/10 hover:bg-destructive/20 text-destructive border-destructive/20'
-                                        : 'bg-muted text-muted-foreground border-border/40 opacity-50 cursor-not-allowed'
+                                      disabled={ord.orderStatus !== 'served' && (ord.items && ord.items.length > 0)}
+                                      className={`text-xs font-black uppercase px-4 py-2.5 rounded-xl border transition-all shadow-sm shrink-0 w-fit cursor-pointer tracking-wide ${
+                                        (ord.orderStatus === 'served' || (!ord.items || ord.items.length === 0))
+                                          ? 'bg-destructive/10 hover:bg-destructive/20 text-destructive border-destructive/20'
+                                          : 'bg-muted text-muted-foreground border-border/40 opacity-50 cursor-not-allowed'
                                         }`}
                                     >
                                       Clear Table
@@ -7407,6 +7389,8 @@ export default function MerchantDashboard() {
                   const currentVenueApp = applications.find(app => app._id === activeOrderVenueTab) || applications.find(app => app.status === 'approved');
                   const count = [...paymentOrders, ...orders].filter(ord => {
                     if (ord.hostApplicationId && currentVenueApp && ord.hostApplicationId !== currentVenueApp._id) return false;
+                    const isZeroEmpty = (!ord.items || ord.items.length === 0) && (ord.totalAmount || 0) === 0;
+                    if (isZeroEmpty) return false;
                     const ordTime = new Date(ord.createdAt || ord.updatedAt || 0).getTime();
                     return ordTime >= sMs && ordTime <= eMs;
                   }).length;

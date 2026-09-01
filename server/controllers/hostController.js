@@ -144,20 +144,12 @@ async function notifyDeviceSessionUpdate(order) {
     }
 
     // Push real-time update to Merchant Dashboard WebSocket stream
-    if (order.merchantId) {
-      const mId = order.merchantId.toString();
-      const merchantSocket = global.merchantSockets ? global.merchantSockets.get(mId) : null;
-      if (merchantSocket) {
-        try {
-          merchantSocket.send(JSON.stringify({
-            event: 'order_update',
-            data: order
-          }));
-          console.log(`[WS] Push order update to Merchant ${mId}: orderId=${order.orderId}, orderStatus=${order.orderStatus}`);
-        } catch (err) {
-          console.error('[WS] Failed to send update to merchant:', err.message);
-        }
-      }
+    if (order.merchantId && global.sendToMerchant) {
+      global.sendToMerchant(order.merchantId, {
+        event: 'order_update',
+        data: order
+      });
+      console.log(`[WS] Push order update to Merchant ${order.merchantId}: orderId=${order.orderId}, orderStatus=${order.orderStatus}`);
     }
 
     if (order.tableStatus === 'completed') {
@@ -1052,6 +1044,13 @@ class HostController {
       }
       if (orderStatus === 'cancelled') {
         order.tableStatus = 'completed';
+        const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
+        if (isEmpty) {
+          order.paymentStatus = 'cancelled';
+          notifyDeviceSessionUpdate(order);
+          await Order.deleteOne({ _id: order._id });
+          return res.status(200).send({ success: true, message: 'Empty order cancelled and session purged', data: { orderId, tableStatus: 'completed', orderStatus: 'cancelled' } });
+        }
       } else if (order.tableStatus === 'close_table' || order.tableStatus === 'completed') {
         order.tableStatus = 'active';
       }
@@ -1112,8 +1111,17 @@ class HostController {
       const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
       if (isEmpty) {
         order.tableStatus = 'completed';
-        order.paymentStatus = 'completed';
-        order.paidAt = new Date();
+        order.orderStatus = 'cancelled';
+        order.paymentStatus = 'cancelled';
+        order.completedAt = new Date();
+
+        // Broadcast session completion to tablet device & merchant dashboard
+        notifyDeviceSessionUpdate(order);
+
+        // Permanently purge empty 0-rupee placeholder order from MongoDB database
+        await Order.deleteOne({ _id: order._id });
+
+        return res.status(200).send({ success: true, message: 'Table cleared and empty session dismissed', data: { orderId, tableStatus: 'completed', orderStatus: 'cancelled' } });
       } else {
         if (!app.upiId) {
           return res.status(400).send({ success: false, message: 'No UPI ID configured. Set up payment config first.' });
@@ -1163,7 +1171,7 @@ class HostController {
 
       notifyDeviceSessionUpdate(order);
 
-      const message = isEmpty ? 'Session completed' : 'Table closed — showing payment QR to customer';
+      const message = 'Table closed — showing payment QR to customer';
       return res.status(200).send({ success: true, message, data: order });
     } catch (error) {
       console.error('closeTable Error:', error.message);
@@ -1440,15 +1448,14 @@ class HostController {
       notifyDeviceSessionUpdate(order);
 
       // Broadcast update to merchant WebSocket
-      const wsClient = global.merchantSockets.get(app.userId.toString());
-      if (wsClient) {
-        wsClient.send(JSON.stringify({
+      if (global.sendToMerchant) {
+        global.sendToMerchant(app.userId, {
           event: 'waiter_serviced',
           data: {
             orderId: order.orderId,
             waiterCallStatus: order.waiterCallStatus
           }
-        }));
+        });
       }
 
       return res.status(200).send({ success: true, message: 'Waiter call marked as serviced', data: order });
@@ -2118,7 +2125,9 @@ class HostController {
       const tableFrequency = {};
 
       orders.forEach(order => {
-        if (order.tableStatus === 'cancelled') return;
+        if (order.tableStatus === 'cancelled' || order.orderStatus === 'cancelled') return;
+        const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
+        if (isEmpty) return;
 
         totalRevenuePaise += (order.totalAmount || 0);
         totalCompletedOrders += 1;
