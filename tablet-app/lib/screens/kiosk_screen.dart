@@ -355,13 +355,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               _processTableSession(jsonEncode(payload));
             } else if (event == 'reload_menu') {
               debugPrint('[WS] Menu update reload request received');
-              final isInteracting = !_isIdle || _cart.value.isNotEmpty || _tableSession != null;
-              if (isInteracting) {
-                debugPrint('[WS] Customer is actively interacting / ordering. Deferring menu reload...');
-                _pendingMenuReload = true;
-              } else {
-                _fetchMenu();
-              }
+              _fetchMenu();
             } else if (event == 'reload_ads') {
               debugPrint('[WS] Ad update reload request received from server');
               _adSync.syncNow();

@@ -110,8 +110,18 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
       }
     } catch (e) {
       if (mounted) {
+        String cleanMsg = e.toString();
+        if (cleanMsg.contains('message:')) {
+          final parts = cleanMsg.split('message:');
+          if (parts.length > 1) {
+            cleanMsg = parts.last.replaceAll(')', '').trim();
+          }
+        } else if (cleanMsg.startsWith('Exception:')) {
+          cleanMsg = cleanMsg.replaceFirst('Exception:', '').trim();
+        }
+
         setState(() {
-          _error = 'Failed to place order: $e';
+          _error = cleanMsg;
           _loading = false;
         });
       }

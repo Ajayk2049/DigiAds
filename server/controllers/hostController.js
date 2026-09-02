@@ -576,7 +576,8 @@ class HostController {
    * Switch live active menu shift
    */
   async switchShift(req, res) {
-    const { hostApplicationId, activeShift } = req.body || {};
+    const { hostApplicationId, activeShift: rawActiveShift, shift } = req.body || {};
+    const activeShift = rawActiveShift || shift;
 
     if (!hostApplicationId || !activeShift) {
       return res.status(400).send({ success: false, message: 'hostApplicationId and activeShift are required' });
@@ -1299,7 +1300,7 @@ class HostController {
    * Admin toggles GST exemption on an active order (Remove/Restore GST)
    */
   async toggleGstExemption(req, res) {
-    const { orderId, removeGst } = req.body || {};
+    const { orderId, removeGst, isGstExempt } = req.body || {};
     if (!orderId) {
       return res.status(400).send({ success: false, message: 'orderId is required' });
     }
@@ -1311,7 +1312,7 @@ class HostController {
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
       if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
 
-      const isExempt = Boolean(removeGst);
+      const isExempt = isGstExempt !== undefined ? Boolean(isGstExempt) : Boolean(removeGst);
       order.isGstExempt = isExempt;
 
       let subtotalPaise = 0;
@@ -1365,7 +1366,7 @@ class HostController {
    * Admin toggles Service Tax exemption on an active order (Remove/Restore Service Tax)
    */
   async toggleServiceTaxExemption(req, res) {
-    const { orderId, removeServiceTax } = req.body || {};
+    const { orderId, removeServiceTax, isServiceTaxExempt } = req.body || {};
     if (!orderId) {
       return res.status(400).send({ success: false, message: 'orderId is required' });
     }
@@ -1377,7 +1378,7 @@ class HostController {
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
       if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
 
-      const isExempt = Boolean(removeServiceTax);
+      const isExempt = isServiceTaxExempt !== undefined ? Boolean(isServiceTaxExempt) : Boolean(removeServiceTax);
       order.isServiceTaxExempt = isExempt;
 
       let subtotalPaise = 0;

@@ -90,7 +90,7 @@ global.notifyDevicesReloadAds = async (targetVenueId = null) => {
         ...(targetVenueId ? { hostApplicationId: targetVenueId.toString() } : {})
       });
       for (const [devId, socket] of global.deviceSockets.entries()) {
-        try { socket.send(payload); } catch (e) {}
+        try { socket.send(payload); } catch (e) { }
       }
     }
 
@@ -338,13 +338,10 @@ async function startFastify() {
             const HostApplication = require('./models/HostApplication');
             const app = await HostApplication.findById(updatedDevice.hostApplicationId);
             if (app && app.userId) {
-              const wsClient = global.merchantSockets ? global.merchantSockets.get(app.userId.toString()) : null;
-              if (wsClient) {
-                wsClient.send(JSON.stringify({
-                  event: 'device_status_changed',
-                  data: { deviceId, status: 'online' }
-                }));
-              }
+              global.sendToMerchant(app.userId, {
+                event: 'device_status_changed',
+                data: { deviceId, status: 'online' }
+              });
             }
           }
         } catch (dbErr) {
@@ -411,13 +408,10 @@ async function startFastify() {
               const HostApplication = require('./models/HostApplication');
               const app = await HostApplication.findById(updatedDevice.hostApplicationId);
               if (app && app.userId) {
-                const wsClient = global.merchantSockets ? global.merchantSockets.get(app.userId.toString()) : null;
-                if (wsClient) {
-                  wsClient.send(JSON.stringify({
-                    event: 'device_status_changed',
-                    data: { deviceId, status: 'offline' }
-                  }));
-                }
+                global.sendToMerchant(app.userId, {
+                  event: 'device_status_changed',
+                  data: { deviceId, status: 'offline' }
+                });
               }
             }
           } catch (dbErr) {
@@ -1084,7 +1078,7 @@ const menuServiceHandlers = {
           // 2. Filter by active shift / all shifts
           if (item.isAllShifts === true) return true;
           if (Array.isArray(item.shifts) && item.shifts.length > 0) {
-            return item.shifts.includes(activeShift);
+            return item.shifts.some(s => s.toLowerCase() === activeShift.toLowerCase());
           }
           // Backward compatibility fallback: if item has no shifts array, include by default
           return true;
@@ -1095,10 +1089,10 @@ const menuServiceHandlers = {
           description: item.description || '',
           price: parseInt(item.price, 10),
           category: item.category,
-          isAvailable: true,
+          isAvailable: item.isAvailable !== false,
           imageUrl: item.imageUrl || '',
           isVeg: item.isVeg !== undefined ? item.isVeg : true,
-          isPopular: item.isPopular || false
+          isPopular: Boolean(item.isPopular)
         })) : [];
 
       callback(null, {
@@ -1127,15 +1121,30 @@ const orderServiceHandlers = {
       }
       const merchantId = device.hostApplicationId.userId;
 
-      // Recalculate item prices server-side against active menu database
+      // Recalculate item prices server-side against active menu database & check availability
       const requestedItemIds = (items || []).map(i => i.itemId).filter(Boolean);
-      const dbMenuItems = await Menu.find({ merchantId, itemId: { $in: requestedItemIds } });
+      const menuDoc = await Menu.findOne({ hostApplicationId });
+      const menuItems = menuDoc?.items || [];
       const menuPriceMap = new Map();
       const menuNameMap = new Map();
-      dbMenuItems.forEach(m => {
-        menuPriceMap.set(m.itemId, Number(m.price) || 0);
-        menuNameMap.set(m.itemId, m.name);
+      const unavailableItems = [];
+
+      menuItems.forEach(m => {
+        if (requestedItemIds.includes(m.itemId)) {
+          menuPriceMap.set(m.itemId, Number(m.price) || 0);
+          menuNameMap.set(m.itemId, m.name);
+          if (m.isAvailable === false) {
+            unavailableItems.push(m.name);
+          }
+        }
       });
+
+      if (unavailableItems.length > 0) {
+        return callback({
+          code: grpc.status.FAILED_PRECONDITION,
+          message: `${unavailableItems.join(', ')} is out of stock. Please remove or replace it to proceed.`
+        });
+      }
 
       // Validated items with server-verified prices
       const validatedItems = (items || []).map(item => {
@@ -1268,13 +1277,10 @@ const orderServiceHandlers = {
       const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
       notifyDeviceSessionUpdate(order);
 
-      const wsClient = merchantSockets.get(merchantId.toString());
-      if (wsClient) {
-        wsClient.send(JSON.stringify({
-          event: 'new_order',
-          data: order
-        }));
-      }
+      global.sendToMerchant(merchantId, {
+        event: 'new_order',
+        data: order
+      });
 
       callback(null, {
         success: true,
@@ -1387,9 +1393,9 @@ function startHeartbeatMonitor() {
 function startOtaDiskCleanupTask() {
   const releaseController = require('./controllers/releaseController');
   console.log('[OTA Disk Cleanup] Initializing background revoked releases cleanup task (24h)...');
-  releaseController.cleanupOldRevokedReleases().catch(() => {});
+  releaseController.cleanupOldRevokedReleases().catch(() => { });
   setInterval(() => {
-    releaseController.cleanupOldRevokedReleases().catch(() => {});
+    releaseController.cleanupOldRevokedReleases().catch(() => { });
   }, 24 * 60 * 60 * 1000);
 }
 
