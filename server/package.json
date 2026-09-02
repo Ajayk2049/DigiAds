@@ -4,8 +4,8 @@
   "description": "DigiAds Platform & Tabletop Kiosk Backend Server",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon --node-args=\"--max-old-space-size=2048\" server.js --env-file=config/.env.dev",
-    "dev:local": "nodemon --node-args=\"--max-old-space-size=2048\" server.js --env-file=config/.env.local",
+    "dev": "nodemon --max-old-space-size=2048 server.js --env-file=config/.env.dev",
+    "dev:local": "nodemon --max-old-space-size=2048 server.js --env-file=config/.env.local",
     "prod": "node --max-old-space-size=2048 server.js --env-file=config/.env.prod",
     "reset-db": "node --max-old-space-size=2048 reset_database.js --env-file=config/.env.dev",
     "reset-db:prod": "node --max-old-space-size=2048 reset_database.js --env-file=config/.env.prod",

@@ -1,6 +1,6 @@
 {
-  "name": "cms-landing-page",
-  "version": "1.0.0",
+  "name": "digiads-landing-page",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",

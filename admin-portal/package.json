@@ -1,6 +1,6 @@
 {
-  "name": "cms-admin-portal",
-  "version": "1.0.0",
+  "name": "digiads-admin-portal",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3002",

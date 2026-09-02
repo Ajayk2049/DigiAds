@@ -1953,7 +1953,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           debugPrint('[gRPC] Call waiter acknowledged by server');
         }).catchError((err) {
           debugPrint('[gRPC] Call waiter fallback error: $err');
-          return HeartbeatResponse();
+          return null;
         });
       }
     } catch (e) {

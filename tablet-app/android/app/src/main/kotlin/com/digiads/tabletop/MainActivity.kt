@@ -763,18 +763,36 @@ class NativeVideoView(
     fun play() {
         if (disposed) return
         isPlaying = true
-        exoPlayer?.let {
-            if (it.playbackState == androidx.media3.common.Player.STATE_ENDED || it.playbackState == androidx.media3.common.Player.STATE_IDLE) {
-                it.seekToDefaultPosition()
-                it.prepare()
+        exoPlayer?.let { player ->
+            if (player.playbackState == androidx.media3.common.Player.STATE_IDLE && currentVideoPath != null) {
+                try {
+                    val uri = Uri.parse(currentVideoPath)
+                    val mediaItem = if (uri.scheme.isNullOrEmpty()) {
+                        androidx.media3.common.MediaItem.fromUri(Uri.fromFile(java.io.File(currentVideoPath!!)))
+                    } else {
+                        androidx.media3.common.MediaItem.fromUri(uri)
+                    }
+                    player.setMediaItem(mediaItem, 0L)
+                    player.prepare()
+                } catch (e: Exception) {
+                    Log.e(TAG, "play re-prepare failed: ${e.message}")
+                }
+            } else if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                player.seekToDefaultPosition()
+                player.prepare()
             }
-            it.play()
+            player.play()
         }
     }
 
     fun pause() {
         isPlaying = false
-        exoPlayer?.pause()
+        try {
+            exoPlayer?.pause()
+            exoPlayer?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "pause/stop error: ${e.message}")
+        }
     }
 
     fun stopVideo() {

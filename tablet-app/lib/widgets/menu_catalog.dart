@@ -205,13 +205,14 @@ class _MenuCard extends StatelessWidget {
     // Check if item is veg via explicit field or fallback keyword detection
     final bool isVeg = item.hasIsVeg() ? item.isVeg : _checkIsVeg(item);
 
-    return Material(
-      color: kCardBg,
-      borderRadius: kCardBorderRadius,
-      elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.08),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
+    return RepaintBoundary(
+      child: Material(
+        color: kCardBg,
+        borderRadius: kCardBorderRadius,
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.08),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Image top frame — wrapped in ClipRRect for crisp corners
@@ -341,8 +342,9 @@ class _MenuCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   bool _checkIsVeg(MenuItem item) {
     final lowerName = item.name.toLowerCase();
