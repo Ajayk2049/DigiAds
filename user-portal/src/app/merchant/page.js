@@ -4427,7 +4427,7 @@ export default function MerchantDashboard() {
                               <td className="py-4 pr-2">
                                 <select
                                   value={ord.orderStatus}
-                                  disabled={ord.orderStatus === 'served'}
+                                  disabled={ord.orderStatus === 'served' || ord.orderStatus === 'cancelled'}
                                   onChange={(e) => {
                                     e.stopPropagation();
                                     updateOrderStatus(ord.orderId, e.target.value);
@@ -4437,9 +4437,9 @@ export default function MerchantDashboard() {
                                     : ord.orderStatus === 'cooking'
                                       ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 cursor-pointer'
                                       : ord.orderStatus === 'served'
-                                        ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 cursor-not-allowed opacity-90'
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 cursor-not-allowed opacity-90'
                                         : ord.orderStatus === 'cancelled'
-                                          ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
+                                          ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 cursor-not-allowed opacity-90'
                                           : 'bg-muted-foreground/15 text-muted-foreground border-border/30'
                                     }`}
                                 >
@@ -4449,9 +4449,9 @@ export default function MerchantDashboard() {
                                   {(ord.orderStatus === 'placed' || ord.orderStatus === 'cooking') && (
                                     <option value="cooking" className="bg-card text-foreground">Accepted & Preparing</option>
                                   )}
-                                  <option value="served" className="bg-card text-foreground">Delivered / Served</option>
-                                  {ord.orderStatus === 'placed' && (
-                                    <option value="cancelled" className="bg-card text-foreground text-red-500 font-bold">Cancelled / Rejected</option>
+                                  <option value="served" className="bg-card text-foreground">Served</option>
+                                  {(ord.orderStatus === 'placed' || ord.orderStatus === 'cancelled') && (
+                                    <option value="cancelled" className="bg-card text-foreground text-red-500 font-bold">Cancel order</option>
                                   )}
                                 </select>
                               </td>
