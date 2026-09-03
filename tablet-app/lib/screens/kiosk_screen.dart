@@ -2364,23 +2364,19 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
             break;
           case 'confirmed':
           case 'preparing':
-            iconData = Icons.check_circle_outline_rounded;
-            statusTitle = 'Order Confirmed';
-            statusSubtitle = 'Preparing your food shortly…';
-            break;
           case 'cooking':
             iconData = Icons.soup_kitchen;
-            statusTitle = 'Preparing & Cooking';
+            statusTitle = 'Accepted & Preparing';
             statusSubtitle = 'Chefs are working on your food!';
             break;
           case 'served':
             iconData = Icons.restaurant_rounded;
-            statusTitle = 'Delivered & Served';
-            statusSubtitle = 'Enjoy your meal!';
+            statusTitle = 'Delivered';
+            statusSubtitle = 'Enjoy your meal! • Bill available';
             break;
           case 'cancelled':
             iconData = Icons.cancel_outlined;
-            statusTitle = 'Order Cancelled';
+            statusTitle = 'Cancelled';
             statusSubtitle = 'Please contact the staff.';
             break;
           default:
@@ -2460,6 +2456,44 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 12),
                     Row(
                       children: [
+                        if (orderStatus.toLowerCase() == 'served') ...[
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _showOrderDetailsModal = true);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF16A34A),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.receipt_long_rounded, color: Colors.white, size: 15),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      "Request Bill",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: Column(
@@ -2660,6 +2694,56 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
+
+                // Request Bill Button (Only visible after food has been delivered!)
+                if (orderStatus.toLowerCase() == 'served') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () async {
+                        HapticFeedback.heavyImpact();
+                        await _triggerCallWaiter('Bill Requested');
+                        if (mounted) {
+                          setState(() => _showOrderDetailsModal = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.receipt_long_rounded, color: Colors.white),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    "Bill requested! Staff has been notified.",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: Colors.green.shade700,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.receipt_long_rounded, size: 20),
+                      label: const Text(
+                        "REQUEST BILL",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

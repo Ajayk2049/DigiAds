@@ -4462,17 +4462,28 @@ export default function MerchantDashboard() {
                                       e.stopPropagation();
                                       serviceWaiter(ord.orderId);
                                     }}
-                                    className="bg-red-600 text-white text-xs font-black uppercase px-4 py-2 rounded-xl animate-pulse cursor-pointer shrink-0 border border-red-700 shadow-md select-none"
-                                    style={{ animationDuration: '0.8s' }}
+                                    title="Click to acknowledge request"
+                                    className="group inline-flex items-center gap-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-600 dark:text-red-400 border border-red-500/40 text-xs font-black px-3 py-2 rounded-xl shadow-sm transition-all duration-150 select-none cursor-pointer shrink-0 animate-pulse"
+                                    style={{ animationDuration: '1.2s' }}
                                   >
-                                    Call Waiter ({ord.waiterCallOption || 'Others'}) x{ord.waiterCallCount || 1}
+                                    {ord.waiterCallOption?.toLowerCase().includes('bill') ? (
+                                      <Receipt className="w-3.5 h-3.5 shrink-0 text-red-600 dark:text-red-400" />
+                                    ) : (
+                                      <Bell className="w-3.5 h-3.5 shrink-0 text-red-600 dark:text-red-400 animate-bounce" />
+                                    )}
+                                    <span>
+                                      {ord.waiterCallOption || 'Assistance'}
+                                      {ord.waiterCallCount > 1 ? ` x${ord.waiterCallCount}` : ''}
+                                    </span>
+                                    <CheckCircle className="w-3.5 h-3.5 ml-0.5 text-red-600/70 dark:text-red-400/70 group-hover:text-red-600 transition-colors shrink-0" />
                                   </button>
                                 ) : ord.waiterCallStatus === 'serviced' ? (
-                                  <div className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border border-zinc-500/30 text-xs font-black uppercase px-3.5 py-2 rounded-xl w-fit shrink-0 select-none">
-                                    Serviced x{ord.waiterCallCount || 1}
+                                  <div className="inline-flex items-center gap-1 bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border border-zinc-500/20 text-xs font-semibold px-2.5 py-1.5 rounded-lg w-fit shrink-0 select-none">
+                                    <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                    <span>Serviced</span>
                                   </div>
                                 ) : (
-                                  <span className="text-muted-foreground font-semibold">-</span>
+                                  <span className="text-muted-foreground/40 font-semibold px-2">-</span>
                                 )}
                               </td>
                               <td className="py-4 pr-2">
