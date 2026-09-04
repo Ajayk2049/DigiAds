@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../constants.dart';
 import '../menu_image_cache.dart';
 
 /// Image widget for a menu item that prefers the locally cached copy and
 /// transparently falls back to the network URL when no local file exists.
+/// Automatically updates to the local file the moment background download completes.
 ///
 /// Usage:
 /// ```dart
@@ -49,29 +51,53 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
   @override
   void initState() {
     super.initState();
+    widget.cache.addListener(_onCacheChanged);
     _checkCache();
   }
 
   @override
   void didUpdateWidget(covariant CachedMenuImage old) {
     super.didUpdateWidget(old);
+    if (old.cache != widget.cache) {
+      old.cache.removeListener(_onCacheChanged);
+      widget.cache.addListener(_onCacheChanged);
+    }
     if (old.itemId != widget.itemId || old.imageUrl != widget.imageUrl) {
       _checkCache();
     }
   }
 
+  @override
+  void dispose() {
+    widget.cache.removeListener(_onCacheChanged);
+    super.dispose();
+  }
+
+  void _onCacheChanged() {
+    if (!mounted) return;
+    _checkCache();
+  }
+
   void _checkCache() {
     // 1. Try synchronous in-memory resolution first (Frame 1, zero flash!)
-    final syncFile = widget.cache.localFileForSync(widget.itemId);
+    final syncFile = widget.cache.localFileForSync(widget.itemId, widget.imageUrl);
     if (syncFile != null) {
-      _local = syncFile;
-      _checked = true;
+      if (_local?.path != syncFile.path || !_checked) {
+        setState(() {
+          _local = syncFile;
+          _checked = true;
+        });
+      }
       return;
     }
 
     // 2. Otherwise fall back to async disk check
-    _local = null;
-    _checked = false;
+    if (_local != null || _checked) {
+      setState(() {
+        _local = null;
+        _checked = false;
+      });
+    }
     _loadLocal();
   }
 
@@ -80,7 +106,7 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
       if (mounted) setState(() => _checked = true);
       return;
     }
-    final f = await widget.cache.localFileFor(widget.itemId);
+    final f = await widget.cache.localFileFor(widget.itemId, widget.imageUrl);
     if (!mounted) return;
     setState(() {
       _local = f;
@@ -89,10 +115,9 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
   }
 
   String get _networkUrl {
-    final u = widget.imageUrl;
+    final u = widget.imageUrl.trim();
     if (u.isEmpty) return '';
-    if (u.startsWith('http')) return u;
-    return 'http://${widget.serverHost}:${widget.httpPort}$u';
+    return buildServerUrl(widget.serverHost, defaultPort: widget.httpPort, path: u);
   }
 
   @override
@@ -124,3 +149,4 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
     );
   }
 }
+

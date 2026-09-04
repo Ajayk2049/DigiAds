@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -12,21 +14,18 @@ import 'generated/menu.pbgrpc.dart';
 /// catalog can render fully offline.
 ///
 /// On each menu fetch we:
-///  - Look at every item's imageUrl.
-///  - Download any image we don't have on disk.
-///  - Store the file under the app's documents dir at
-///    `<docs>/menu_images/<itemId>.img`.
-///
-/// The catalog/UI then asks [MenuImageCache.localPathFor] before
-/// rendering. If a local copy exists we serve it as a `FileImage`; if not
-/// we fall back to `Image.network` and try to fill the cache next time.
-class MenuImageCache {
+///  - Look at every item's imageUrl and calculate its unique hash.
+///  - Skip any image we already have on disk matching itemId + urlHash.
+///  - If an item's photo was updated, purge the obsolete image file and download the new one.
+///  - Store the file under `<docs>/menu_images/<itemId>_<hash>.img`.
+///  - Notify UI listeners (ChangeNotifier) the instant a download finishes.
+class MenuImageCache extends ChangeNotifier {
   final String serverHost;
   final int httpPort;
   final http.Client _client;
   Directory? _imagesDir;
 
-  /// Synchronous in-memory lookup map for cached image files (itemId -> File)
+  /// Synchronous in-memory lookup map for cached image files (cacheKey -> File)
   final Map<String, File> _fileCache = {};
 
   /// Per-item download progress (itemId -> 0..1) for the optional overlay.
@@ -45,9 +44,27 @@ class MenuImageCache {
   MenuImageCache({required this.serverHost, this.httpPort = 4200})
       : _client = http.Client();
 
+  /// Short 8-character MD5 hash of an imageUrl to detect photo updates.
+  String _urlHash(String url) {
+    if (url.isEmpty) return 'none';
+    return md5.convert(utf8.encode(url.trim())).toString().substring(0, 8);
+  }
+
+  /// Combined cache key ensuring changes to imageUrl trigger cache invalidation.
+  String _cacheKey(String itemId, [String? imageUrl]) {
+    if (imageUrl == null || imageUrl.trim().isEmpty) {
+      return itemId;
+    }
+    return '${itemId}_${_urlHash(imageUrl)}';
+  }
+
   /// Synchronously retrieve a cached file without disk I/O async delay.
-  File? localFileForSync(String itemId) {
+  File? localFileForSync(String itemId, [String? imageUrl]) {
     if (itemId.isEmpty) return null;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      final key = _cacheKey(itemId, imageUrl);
+      if (_fileCache.containsKey(key)) return _fileCache[key];
+    }
     return _fileCache[itemId];
   }
 
@@ -65,9 +82,17 @@ class MenuImageCache {
         for (final entity in entities) {
           if (entity is File && entity.path.endsWith('.img')) {
             final fileName = entity.path.split(Platform.pathSeparator).last;
-            final itemId = fileName.replaceAll('.img', '');
+            final key = fileName.replaceAll('.img', '');
             if (await entity.length() > 0) {
-              _fileCache[itemId] = entity;
+              _fileCache[key] = entity;
+              // If file is formatted like "itemId_hash", also map by itemId
+              // as a fallback if hash isn't passed
+              if (key.contains('_')) {
+                final baseId = key.substring(0, key.lastIndexOf('_'));
+                _fileCache.putIfAbsent(baseId, () => entity);
+              } else {
+                _fileCache[key] = entity;
+              }
             }
           }
         }
@@ -91,23 +116,31 @@ class MenuImageCache {
   }
 
   /// Local on-disk file for a given item, or null if not yet cached.
-  /// Async variant used during initial priming.
-  Future<File?> localFileFor(String itemId) async {
+  Future<File?> localFileFor(String itemId, [String? imageUrl]) async {
     if (itemId.isEmpty) return null;
-    if (_fileCache.containsKey(itemId)) {
-      return _fileCache[itemId];
-    }
+    final syncMatch = localFileForSync(itemId, imageUrl);
+    if (syncMatch != null) return syncMatch;
+
     final dir = await _ensureDir();
-    final f = File('${dir.path}/$itemId.img');
+    final key = _cacheKey(itemId, imageUrl);
+    final f = File('${dir.path}/$key.img');
     if (await f.exists() && await f.length() > 0) {
+      _fileCache[key] = f;
       _fileCache[itemId] = f;
       return f;
     }
+
+    // Fallback check for legacy non-hashed filename
+    final legacyFile = File('${dir.path}/$itemId.img');
+    if (await legacyFile.exists() && await legacyFile.length() > 0) {
+      _fileCache[itemId] = legacyFile;
+      return legacyFile;
+    }
+
     return null;
   }
 
-  /// Iterate the menu and download every missing image. Skips items that
-  /// already have a local file. Returns the number of NEW images downloaded.
+  /// Iterate the menu and download every missing or updated image.
   Future<int> primeFromMenu(List<MenuItem> items) {
     final future = _doPrime(items);
     _priming = future;
@@ -127,7 +160,7 @@ class MenuImageCache {
     final pending = <MenuItem>[];
     for (final item in items) {
       if (item.imageUrl.isEmpty) continue;
-      final cached = await localFileFor(item.itemId);
+      final cached = await localFileFor(item.itemId, item.imageUrl);
       if (cached != null) continue;
       pending.add(item);
     }
@@ -140,7 +173,7 @@ class MenuImageCache {
     int newCount = 0;
     for (final item in pending) {
       final url = _resolveUrl(item.imageUrl);
-      final ok = await _downloadOne(item.itemId, url);
+      final ok = await _downloadOne(item.itemId, url, item.imageUrl);
       progress[item.itemId] = 1.0;
       if (ok) {
         newCount++;
@@ -151,19 +184,42 @@ class MenuImageCache {
     return newCount;
   }
 
-  Future<bool> _downloadOne(String itemId, String url) async {
+  Future<bool> _downloadOne(String itemId, String url, String rawImageUrl) async {
     if (url.isEmpty) return false;
     try {
       final dir = await _ensureDir();
-      final target = File('${dir.path}/$itemId.img.tmp');
+      final key = _cacheKey(itemId, rawImageUrl);
+      final target = File('${dir.path}/$key.img.tmp');
       if (await target.exists()) await target.delete();
+
       final resp = await _client.get(Uri.parse(url));
       if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) return false;
       await target.writeAsBytes(resp.bodyBytes, flush: true);
-      final finalFile = File('${dir.path}/$itemId.img');
+
+      // Clean up any older cached images for this itemId (e.g. previous photo versions)
+      try {
+        final existingFiles = await dir.list().toList();
+        for (final entity in existingFiles) {
+          if (entity is File && entity.path.endsWith('.img')) {
+            final fName = entity.path.split(Platform.pathSeparator).last;
+            if (fName == '$itemId.img' || (fName.startsWith('${itemId}_') && fName != '$key.img')) {
+              await entity.delete();
+            }
+          }
+        }
+      } catch (cleanErr) {
+        debugPrint('[MENU_IMG] Error cleaning old cache files for $itemId: $cleanErr');
+      }
+
+      final finalFile = File('${dir.path}/$key.img');
       if (await finalFile.exists()) await finalFile.delete();
       await target.rename(finalFile.path);
+
+      _fileCache[key] = finalFile;
       _fileCache[itemId] = finalFile;
+
+      // Broadcast update so any mounted CachedMenuImage widgets update immediately
+      notifyListeners();
       return true;
     } catch (e) {
       debugPrint('[MENU_IMG] failed $itemId: $e');
@@ -182,9 +238,12 @@ class MenuImageCache {
         } catch (_) {}
       }
     }
+    notifyListeners();
   }
 
+  @override
   void dispose() {
     _client.close();
+    super.dispose();
   }
 }
