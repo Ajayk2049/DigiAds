@@ -1,0 +1,237 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import '../models/menu_models.dart';
+import '../services/api_service.dart';
+
+class MenuProvider extends ChangeNotifier {
+  final ApiService _api = ApiService();
+
+  MenuModel? _menu;
+  List<MenuItemModel> _draftItems = [];
+  List<String> _categories = ['Starters', 'Main Course', 'Dessert', 'Beverages'];
+  List<String> _shifts = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
+  String _activeShift = 'Breakfast';
+  String _selectedViewingShift = 'Breakfast';
+
+  bool _isLoading = false;
+  bool _isSwitchingShift = false;
+  bool _isSaving = false;
+  bool _hasChanges = false;
+  String? _error;
+
+  MenuModel? get menu => _menu;
+  List<MenuItemModel> get items => _draftItems;
+  List<String> get categories => _categories;
+  List<String> get shifts => _shifts;
+  String get activeShift => _activeShift;
+  String get selectedViewingShift => _selectedViewingShift;
+  bool get isLoading => _isLoading;
+  bool get isSwitchingShift => _isSwitchingShift;
+  bool get isSaving => _isSaving;
+  bool get hasChanges => _hasChanges;
+  String? get error => _error;
+
+  void markDirty() {
+    _hasChanges = true;
+    notifyListeners();
+  }
+
+  void resetDirty() {
+    _hasChanges = false;
+    notifyListeners();
+  }
+
+  void setSelectedViewingShift(String shift) {
+    _selectedViewingShift = shift;
+    notifyListeners();
+  }
+
+  Future<void> fetchMenu(String hostApplicationId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final res = await _api.get('/host/menu', queryParameters: {'hostApplicationId': hostApplicationId});
+      if (res.data['success'] == true && res.data['data'] != null) {
+        _menu = MenuModel.fromJson(res.data['data']);
+        _draftItems = List.from(_menu!.items);
+        _categories = List.from(_menu!.categories);
+        _shifts = List.from(_menu!.shifts);
+        _activeShift = _menu!.activeShift;
+        _selectedViewingShift = _activeShift;
+        _hasChanges = false;
+      }
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> switchLiveShift(String hostApplicationId, String targetShift) async {
+    _isSwitchingShift = true;
+    notifyListeners();
+
+    try {
+      final res = await _api.post('/host/menu/switch-shift', data: {
+        'hostApplicationId': hostApplicationId,
+        'activeShift': targetShift,
+        'shift': targetShift,
+      });
+
+      if (res.data['success'] == true) {
+        _activeShift = targetShift;
+        _selectedViewingShift = targetShift;
+        _isSwitchingShift = false;
+        notifyListeners();
+        return true;
+      }
+      _isSwitchingShift = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _isSwitchingShift = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> saveMenu(String hostApplicationId) async {
+    _isSaving = true;
+    notifyListeners();
+
+    try {
+      final payload = {
+        'hostApplicationId': hostApplicationId,
+        'items': _draftItems.map((e) => e.toJson()).toList(),
+        'categories': _categories,
+        'shifts': _shifts,
+        'activeShift': _activeShift,
+      };
+
+      final res = await _api.post('/host/menu', data: payload);
+      if (res.data['success'] == true) {
+        _menu = MenuModel.fromJson(res.data['data']);
+        _draftItems = List.from(_menu!.items);
+        _hasChanges = false;
+        _isSaving = false;
+        notifyListeners();
+        return true;
+      }
+      _isSaving = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _isSaving = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<String?> uploadImage(String filePath, String hostApplicationId) async {
+    try {
+      final file = File(filePath);
+      final filename = file.path.split(Platform.pathSeparator).last;
+      final bytes = await file.readAsBytes();
+      final ext = filename.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+
+      final res = await _api.post(
+        '/host/menu/upload-image',
+        data: bytes,
+        options: Options(
+          headers: {
+            'Content-Type': ext == '.png' ? 'image/png' : 'image/jpeg',
+            'X-Filename': filename,
+            'X-Host-Application-Id': hostApplicationId,
+          },
+        ),
+      );
+
+      if (res.data['success'] == true && res.data['data'] != null) {
+        return res.data['data']['url'];
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  void addItem(MenuItemModel item) {
+    _draftItems.add(item);
+    _hasChanges = true;
+    notifyListeners();
+  }
+
+  void updateItem(int index, MenuItemModel updated) {
+    if (index >= 0 && index < _draftItems.length) {
+      _draftItems[index] = updated;
+      _hasChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void removeItem(int index) {
+    if (index >= 0 && index < _draftItems.length) {
+      _draftItems.removeAt(index);
+      _hasChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void addCategory(String categoryName) {
+    if (!_categories.contains(categoryName)) {
+      _categories.add(categoryName);
+      _hasChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void removeCategory(String categoryName) {
+    _categories.remove(categoryName);
+    _hasChanges = true;
+    notifyListeners();
+  }
+
+  void addShift(String shiftName) {
+    if (!_shifts.contains(shiftName)) {
+      _shifts.add(shiftName);
+      _hasChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void renameShift(String oldName, String newName) {
+    final idx = _shifts.indexOf(oldName);
+    if (idx != -1) {
+      _shifts[idx] = newName;
+      if (_activeShift == oldName) _activeShift = newName;
+      if (_selectedViewingShift == oldName) _selectedViewingShift = newName;
+
+      // Update shifts in items
+      for (final item in _draftItems) {
+        final itemShiftIdx = item.shifts.indexOf(oldName);
+        if (itemShiftIdx != -1) {
+          item.shifts[itemShiftIdx] = newName;
+        }
+      }
+      _hasChanges = true;
+      notifyListeners();
+    }
+  }
+
+  void deleteShift(String shiftName) {
+    if (_shifts.length <= 1) return;
+    _shifts.remove(shiftName);
+    if (_activeShift == shiftName) {
+      _activeShift = _shifts.first;
+    }
+    if (_selectedViewingShift == shiftName) {
+      _selectedViewingShift = _shifts.first;
+    }
+    _hasChanges = true;
+    notifyListeners();
+  }
+}

@@ -101,7 +101,6 @@ server/scratch/**
 
 
 # Confidential & Unreleased Software
-Software/
 
 # Uploaded media assets (ignore files, keep folder structure via .gitkeep)
 server/uploads/*
