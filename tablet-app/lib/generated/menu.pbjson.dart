@@ -40,6 +40,9 @@ const MenuItem$json = {
     {'1': 'category', '3': 5, '4': 1, '5': 9, '10': 'category'},
     {'1': 'isAvailable', '3': 6, '4': 1, '5': 8, '10': 'isAvailable'},
     {'1': 'imageUrl', '3': 7, '4': 1, '5': 9, '10': 'imageUrl'},
+    {'1': 'isVeg', '3': 8, '4': 1, '5': 8, '10': 'isVeg'},
+    {'1': 'isPopular', '3': 9, '4': 1, '5': 8, '10': 'isPopular'},
+    {'1': 'customizations', '3': 10, '4': 1, '5': 9, '10': 'customizations'},
   ],
 };
 
@@ -48,7 +51,22 @@ final $typed_data.Uint8List menuItemDescriptor = $convert.base64Decode(
     'CghNZW51SXRlbRIWCgZpdGVtSWQYASABKAlSBml0ZW1JZBISCgRuYW1lGAIgASgJUgRuYW1lEi'
     'AKC2Rlc2NyaXB0aW9uGAMgASgJUgtkZXNjcmlwdGlvbhIUCgVwcmljZRgEIAEoA1IFcHJpY2US'
     'GgoIY2F0ZWdvcnkYBSABKAlSCGNhdGVnb3J5EiAKC2lzQXZhaWxhYmxlGAYgASgIUgtpc0F2YW'
-    'lsYWJsZRIaCghpbWFnZVVybBgHIAEoCVIIaW1hZ2VVcmw=');
+    'lsYWJsZRIaCghpbWFnZVVybBgHIAEoCVIIaW1hZ2VVcmwSFAoFaXNWZWcYCCABKAhSBWlzVmVn'
+    'EhwKCWlzUG9wdWxhchgJIAEoCFIJaXNQb3B1bGFyEiYKDmN1c3RvbWl6YXRpb25zGAogASgJUg'
+    '5jdXN0b21pemF0aW9ucw==');
+
+@$core.Deprecated('Use menuCategoryDescriptor instead')
+const MenuCategory$json = {
+  '1': 'MenuCategory',
+  '2': [
+    {'1': 'name', '3': 1, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'icon', '3': 2, '4': 1, '5': 9, '10': 'icon'},
+  ],
+};
+
+/// Descriptor for `MenuCategory`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List menuCategoryDescriptor = $convert.base64Decode(
+    'CgxNZW51Q2F0ZWdvcnkSEgoEbmFtZRgBIAEoCVIEbmFtZRISCgRpY29uGAIgASgJUgRpY29u');
 
 @$core.Deprecated('Use getMenuResponseDescriptor instead')
 const GetMenuResponse$json = {
@@ -64,10 +82,19 @@ const GetMenuResponse$json = {
       '6': '.menu.MenuItem',
       '10': 'items'
     },
+    {
+      '1': 'categories',
+      '3': 4,
+      '4': 3,
+      '5': 11,
+      '6': '.menu.MenuCategory',
+      '10': 'categories'
+    },
   ],
 };
 
 /// Descriptor for `GetMenuResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List getMenuResponseDescriptor = $convert.base64Decode(
     'Cg9HZXRNZW51UmVzcG9uc2USGAoHc3VjY2VzcxgBIAEoCFIHc3VjY2VzcxIYCgdtZXNzYWdlGA'
-    'IgASgJUgdtZXNzYWdlEiQKBWl0ZW1zGAMgAygLMg4ubWVudS5NZW51SXRlbVIFaXRlbXM=');
+    'IgASgJUgdtZXNzYWdlEiQKBWl0ZW1zGAMgAygLMg4ubWVudS5NZW51SXRlbVIFaXRlbXMSMgoK'
+    'Y2F0ZWdvcmllcxgEIAMoCzISLm1lbnUuTWVudUNhdGVnb3J5UgpjYXRlZ29yaWVz');

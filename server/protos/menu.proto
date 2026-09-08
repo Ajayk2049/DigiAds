@@ -24,8 +24,14 @@ message MenuItem {
   string customizations = 10;
 }
 
+message MenuCategory {
+  string name = 1;
+  string icon = 2;
+}
+
 message GetMenuResponse {
   bool success = 1;
   string message = 2;
   repeated MenuItem items = 3;
+  repeated MenuCategory categories = 4;
 }

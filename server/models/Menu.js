@@ -101,8 +101,13 @@ const MenuSchema = new mongoose.Schema({
   },
   items: [MenuItemSchema],
   categories: {
-    type: [String],
-    default: ['Starters', 'Main Course', 'Dessert', 'Beverages']
+    type: [mongoose.Schema.Types.Mixed],
+    default: [
+      { name: 'Starters', icon: 'fastfood' },
+      { name: 'Main Course', icon: 'dinner' },
+      { name: 'Dessert', icon: 'cookie' },
+      { name: 'Beverages', icon: 'coffee' }
+    ]
   },
   defaultGst: {
     type: Number,

@@ -433,13 +433,31 @@ class HostController {
       }
 
       let menu = await Menu.findOne({ hostApplicationId });
+      const defaultCategories = [
+        { name: 'Starters', icon: 'fastfood' },
+        { name: 'Main Course', icon: 'dinner' },
+        { name: 'Dessert', icon: 'cookie' },
+        { name: 'Beverages', icon: 'coffee' }
+      ];
+
+      const normalizeCategories = (rawCats) => {
+        if (!Array.isArray(rawCats) || rawCats.length === 0) return defaultCategories;
+        return rawCats.map(cat => {
+          if (typeof cat === 'string') return { name: cat.trim(), icon: '' };
+          if (cat && typeof cat === 'object') {
+            return { name: (cat.name || '').trim(), icon: (cat.icon || '').trim() };
+          }
+          return { name: String(cat).trim(), icon: '' };
+        }).filter(c => c.name.length > 0);
+      };
+
       if (!menu) {
         // Return empty menu format if not initialized yet
         return res.status(200).send({
           success: true,
           data: {
             items: [],
-            categories: ['Starters', 'Main Course', 'Dessert', 'Beverages'],
+            categories: defaultCategories,
             shifts: ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
             activeShift: 'Breakfast',
             hostApplicationId
@@ -453,7 +471,7 @@ class HostController {
           hostApplicationId: menu.hostApplicationId,
           merchantId: menu.merchantId,
           items: menu.items,
-          categories: menu.categories && menu.categories.length > 0 ? menu.categories : ['Starters', 'Main Course', 'Dessert', 'Beverages'],
+          categories: normalizeCategories(menu.categories),
           shifts: menu.shifts && menu.shifts.length > 0 ? menu.shifts : ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
           activeShift: menu.activeShift || 'Breakfast',
           defaultGst: menu.defaultGst || 0,
@@ -525,10 +543,21 @@ class HostController {
         }
       }
 
+      let normalizedCategories = undefined;
+      if (Array.isArray(categories)) {
+        normalizedCategories = categories.map(cat => {
+          if (typeof cat === 'string') return { name: cat.trim(), icon: '' };
+          if (cat && typeof cat === 'object') {
+            return { name: (cat.name || '').trim(), icon: (cat.icon || '').trim() };
+          }
+          return { name: String(cat).trim(), icon: '' };
+        }).filter(c => c.name.length > 0);
+      }
+
       const updateData = { 
         merchantId: req.user.uid, 
         items, 
-        categories, 
+        categories: normalizedCategories !== undefined ? normalizedCategories : undefined, 
         defaultGst: defaultGst !== undefined ? Number(defaultGst) : undefined,
         defaultOtherCharges: defaultOtherCharges !== undefined ? Number(defaultOtherCharges) : undefined,
         defaultOtherChargesType: defaultOtherChargesType || undefined,

@@ -10,6 +10,7 @@ class MenuProvider extends ChangeNotifier {
   MenuModel? _menu;
   List<MenuItemModel> _draftItems = [];
   List<String> _categories = ['Starters', 'Main Course', 'Dessert', 'Beverages'];
+  Map<String, String> _categoryIcons = {};
   List<String> _shifts = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
   String _activeShift = 'Breakfast';
   String _selectedViewingShift = 'Breakfast';
@@ -23,6 +24,8 @@ class MenuProvider extends ChangeNotifier {
   MenuModel? get menu => _menu;
   List<MenuItemModel> get items => _draftItems;
   List<String> get categories => _categories;
+  Map<String, String> get categoryIcons => _categoryIcons;
+  String getCategoryIcon(String catName) => _categoryIcons[catName.toLowerCase()] ?? '';
   List<String> get shifts => _shifts;
   String get activeShift => _activeShift;
   String get selectedViewingShift => _selectedViewingShift;
@@ -58,6 +61,7 @@ class MenuProvider extends ChangeNotifier {
         _menu = MenuModel.fromJson(res.data['data']);
         _draftItems = List.from(_menu!.items);
         _categories = List.from(_menu!.categories);
+        _categoryIcons = Map.from(_menu!.categoryIcons);
         _shifts = List.from(_menu!.shifts);
         _activeShift = _menu!.activeShift;
         _selectedViewingShift = _activeShift;
@@ -107,7 +111,10 @@ class MenuProvider extends ChangeNotifier {
       final payload = {
         'hostApplicationId': hostApplicationId,
         'items': _draftItems.map((e) => e.toJson()).toList(),
-        'categories': _categories,
+        'categories': _categories.map((c) => {
+          'name': c,
+          'icon': _categoryIcons[c.toLowerCase()] ?? '',
+        }).toList(),
         'shifts': _shifts,
         'activeShift': _activeShift,
       };
@@ -116,6 +123,8 @@ class MenuProvider extends ChangeNotifier {
       if (res.data['success'] == true) {
         _menu = MenuModel.fromJson(res.data['data']);
         _draftItems = List.from(_menu!.items);
+        _categories = List.from(_menu!.categories);
+        _categoryIcons = Map.from(_menu!.categoryIcons);
         _hasChanges = false;
         _isSaving = false;
         notifyListeners();
@@ -181,16 +190,26 @@ class MenuProvider extends ChangeNotifier {
     }
   }
 
-  void addCategory(String categoryName) {
+  void addCategory(String categoryName, [String iconKey = '']) {
     if (!_categories.contains(categoryName)) {
       _categories.add(categoryName);
+      if (iconKey.isNotEmpty) {
+        _categoryIcons[categoryName.toLowerCase()] = iconKey;
+      }
       _hasChanges = true;
       notifyListeners();
     }
   }
 
+  void setCategoryIcon(String categoryName, String iconKey) {
+    _categoryIcons[categoryName.toLowerCase()] = iconKey;
+    _hasChanges = true;
+    notifyListeners();
+  }
+
   void removeCategory(String categoryName) {
     _categories.remove(categoryName);
+    _categoryIcons.remove(categoryName.toLowerCase());
     _hasChanges = true;
     notifyListeners();
   }

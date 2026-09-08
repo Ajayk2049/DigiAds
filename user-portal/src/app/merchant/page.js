@@ -52,7 +52,33 @@ import {
   Navigation,
   Compass,
   Sparkles,
-  Sliders
+  Sliders,
+  Wheat,
+  Package,
+  Utensils,
+  Pizza,
+  Sandwich,
+  Soup,
+  CookingPot,
+  Croissant,
+  Coffee,
+  CupSoda,
+  Wine,
+  Beer,
+  IceCream2,
+  Cookie,
+  Cake,
+  Flame,
+  Fish,
+  Egg,
+  Tag,
+  Apple,
+  Popcorn,
+  Baby,
+  Store,
+  Leaf,
+  ShieldCheck,
+  Sparkle
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -220,6 +246,89 @@ const normalizeCity = (city) => {
     .split(' ')
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ');
+};
+
+const CATEGORY_ICON_PACK = [
+  { key: 'wheat', label: 'Grains, Cereals & Millets', icon: Wheat },
+  { key: 'package', label: 'Packaged Goods & Retail', icon: Package },
+  { key: 'fastfood', label: 'Starters & Fast Food', icon: Utensils },
+  { key: 'pizza', label: 'Pizzas & Calzones', icon: Pizza },
+  { key: 'burger', label: 'Burgers & Sandwiches', icon: Sandwich },
+  { key: 'soup', label: 'Soups, Broths & Noodles', icon: Soup },
+  { key: 'dinner', label: 'Main Course & Curries', icon: UtensilsCrossed },
+  { key: 'rice', label: 'Rice, Biryani & Thalis', icon: CookingPot },
+  { key: 'croissant', label: 'Bakery, Breads & Roti', icon: Croissant },
+  { key: 'coffee', label: 'Tea, Coffee & Warm Drinks', icon: Coffee },
+  { key: 'drink', label: 'Cold Drinks, Juices & Shakes', icon: CupSoda },
+  { key: 'bar', label: 'Cocktails & Bar', icon: Wine },
+  { key: 'beer', label: 'Beers & Ciders', icon: Beer },
+  { key: 'icecream', label: 'Ice Creams & Sundaes', icon: IceCream2 },
+  { key: 'cookie', label: 'Desserts & Sweets', icon: Cookie },
+  { key: 'cake', label: 'Cakes & Celebrations', icon: Cake },
+  { key: 'salad', label: 'Salads & Healthy Bowls', icon: Salad },
+  { key: 'flame', label: 'Tandoor, BBQ & Grills', icon: Flame },
+  { key: 'fish', label: 'Seafood & Fish', icon: Fish },
+  { key: 'egg', label: 'Breakfast & Eggs', icon: Egg },
+  { key: 'sparkles', label: "Chef's Specials & Featured", icon: Sparkles },
+  { key: 'star', label: 'Popular & Bestsellers', icon: Star },
+  { key: 'tag', label: 'Combos, Packs & Offers', icon: Tag },
+  { key: 'apple', label: 'Fresh Fruits & Organic', icon: Apple },
+  { key: 'popcorn', label: 'Snacks & Munchies', icon: Popcorn },
+  { key: 'baby', label: 'Kids Menu & Portions', icon: Baby },
+  { key: 'sauce', label: 'Dips, Sauces & Extras', icon: Sparkle },
+  { key: 'bell', label: 'Quick Bites & Street Food', icon: Bell },
+  { key: 'store', label: 'Grocery & Essentials', icon: Store },
+  { key: 'leaf', label: 'Pure Veg & Vegan', icon: Leaf },
+  { key: 'shield', label: 'Health & Wellness', icon: ShieldCheck },
+  { key: 'utensils', label: 'General / Multi-cuisine', icon: UtensilsCrossed },
+];
+
+const getCategoryName = (c) => (typeof c === 'object' && c ? c.name : String(c || ''));
+const getCategoryIconKey = (c) => (typeof c === 'object' && c ? c.icon : '');
+
+const getSuggestedIconKey = (name) => {
+  const cat = (name || '').toLowerCase().trim();
+  if (cat.includes('wheat') || cat.includes('millet') || cat.includes('flake') || cat.includes('grain') || cat.includes('oat') || cat.includes('cereal')) return 'wheat';
+  if (cat.includes('package') || cat.includes('box') || cat.includes('retail') || cat.includes('ready') || cat.includes('pack')) return 'package';
+  if (cat.includes('pizza')) return 'pizza';
+  if (cat.includes('burger') || cat.includes('sandwich') || cat.includes('wrap') || cat.includes('roll')) return 'burger';
+  if (cat.includes('soup') || cat.includes('noodle') || cat.includes('maggi') || cat.includes('pasta') || cat.includes('chowmein')) return 'soup';
+  if (cat.includes('rice') || cat.includes('biryani') || cat.includes('pulao') || cat.includes('thali') || cat.includes('bowl')) return 'rice';
+  if (cat.includes('bread') || cat.includes('roti') || cat.includes('naan') || cat.includes('bakery') || cat.includes('paratha')) return 'croissant';
+  if (cat.includes('main') || cat.includes('curry') || cat.includes('gravy') || cat.includes('paneer') || cat.includes('dal') || cat.includes('sabzi')) return 'dinner';
+  if (cat.includes('coffee') || cat.includes('tea') || cat.includes('chai') || cat.includes('latte')) return 'coffee';
+  if (cat.includes('drink') || cat.includes('beverage') || cat.includes('juice') || cat.includes('soda') || cat.includes('shake') || cat.includes('smoothie')) return 'drink';
+  if (cat.includes('bar') || cat.includes('cocktail') || cat.includes('wine')) return 'bar';
+  if (cat.includes('beer')) return 'beer';
+  if (cat.includes('ice cream') || cat.includes('icecream') || cat.includes('sundae') || cat.includes('kulfi')) return 'icecream';
+  if (cat.includes('dessert') || cat.includes('sweet') || cat.includes('cookie') || cat.includes('mithai') || cat.includes('halwa')) return 'cookie';
+  if (cat.includes('cake') || cat.includes('pastry')) return 'cake';
+  if (cat.includes('salad') || cat.includes('healthy') || cat.includes('diet') || cat.includes('raw')) return 'salad';
+  if (cat.includes('bbq') || cat.includes('grill') || cat.includes('tandoor') || cat.includes('tikka') || cat.includes('kebab') || cat.includes('kabab')) return 'flame';
+  if (cat.includes('fish') || cat.includes('seafood') || cat.includes('prawn') || cat.includes('crab')) return 'fish';
+  if (cat.includes('breakfast') || cat.includes('egg') || cat.includes('omelette') || cat.includes('dosa') || cat.includes('idli')) return 'egg';
+  if (cat.includes('starter') || cat.includes('appetizer') || cat.includes('snack') || cat.includes('chaat') || cat.includes('finger')) return 'fastfood';
+  if (cat.includes('combo') || cat.includes('deal') || cat.includes('offer')) return 'tag';
+  if (cat.includes('special') || cat.includes('chef') || cat.includes('signature')) return 'sparkles';
+  if (cat.includes('popular') || cat.includes('bestseller') || cat.includes('top')) return 'star';
+  return 'utensils';
+};
+
+const normalizeCategoryObj = (c) => {
+  if (!c) return { name: 'Starters', icon: 'fastfood' };
+  if (typeof c === 'string') {
+    return { name: c.trim(), icon: getSuggestedIconKey(c) };
+  }
+  return {
+    name: (c.name || '').trim(),
+    icon: (c.icon || '').trim() || getSuggestedIconKey(c.name || '')
+  };
+};
+
+const renderCategoryIcon = (iconKey, size = 16, className = '') => {
+  const found = CATEGORY_ICON_PACK.find(item => item.key === (iconKey || '').toLowerCase());
+  const IconComponent = found ? found.icon : UtensilsCrossed;
+  return <IconComponent className={className} style={{ width: size, height: size }} />;
 };
 
 export default function MerchantDashboard() {
@@ -817,11 +926,23 @@ export default function MerchantDashboard() {
   const fileInputRef = useRef(null);
   const userMenuRef = useRef(null);
 
-  const [menuCategories, setMenuCategories] = useState(['Starters', 'Main Course', 'Dessert', 'Beverages']);
-  const [draftCategories, setDraftCategories] = useState(['Starters', 'Main Course', 'Dessert', 'Beverages']);
+  const [menuCategories, setMenuCategories] = useState([
+    { name: 'Starters', icon: 'fastfood' },
+    { name: 'Main Course', icon: 'dinner' },
+    { name: 'Dessert', icon: 'cookie' },
+    { name: 'Beverages', icon: 'coffee' }
+  ]);
+  const [draftCategories, setDraftCategories] = useState([
+    { name: 'Starters', icon: 'fastfood' },
+    { name: 'Main Course', icon: 'dinner' },
+    { name: 'Dessert', icon: 'cookie' },
+    { name: 'Beverages', icon: 'coffee' }
+  ]);
   const [draftMenuItems, setDraftMenuItems] = useState([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('utensils');
+  const [openIconPickerIndex, setOpenIconPickerIndex] = useState(null);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState('');
   const [isSavingCategories, setIsSavingCategories] = useState(false);
@@ -1941,7 +2062,10 @@ export default function MerchantDashboard() {
       if (res.data?.success && res.data?.data) {
         const menuData = res.data.data;
         const loadedItems = menuData.items || [];
-        const loadedCategories = (menuData.categories && menuData.categories.length > 0) ? menuData.categories : ['Starters', 'Main Course', 'Dessert', 'Beverages'];
+        const rawCats = (menuData.categories && menuData.categories.length > 0)
+          ? menuData.categories
+          : ['Starters', 'Main Course', 'Dessert', 'Beverages'];
+        const loadedCategories = rawCats.map(normalizeCategoryObj);
         setMenuItems(loadedItems);
         setDraftMenuItems(loadedItems);
         setMenuCategories(loadedCategories);
@@ -2009,10 +2133,11 @@ export default function MerchantDashboard() {
     }
     try {
       setIsSavingCategories(true);
+      const normalizedUpdated = updatedCategories.map(normalizeCategoryObj);
       await axios.post(`${API_BASE}/host/menu`, {
         hostApplicationId: selectedOutletId,
         items: updatedItems,
-        categories: updatedCategories,
+        categories: normalizedUpdated,
         shifts: menuShifts,
         activeShift: activeShift,
         defaultGst: menuDefaultGst,
@@ -2021,14 +2146,14 @@ export default function MerchantDashboard() {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setMenuCategories(updatedCategories);
-      setDraftCategories([...updatedCategories]);
+      setMenuCategories(normalizedUpdated);
+      setDraftCategories(normalizedUpdated);
       setMenuItems([...updatedItems]);
       setDraftMenuItems([...updatedItems]);
 
       originalMenuRef.current = JSON.stringify({
         items: updatedItems,
-        categories: updatedCategories
+        categories: normalizedUpdated
       });
 
       showToast('Menu categories saved successfully!', 'success');
@@ -2040,11 +2165,14 @@ export default function MerchantDashboard() {
   };
 
   const openCategoryModal = (editIndex = null, editName = '') => {
-    setDraftCategories([...menuCategories]);
+    const normalized = menuCategories.map(normalizeCategoryObj);
+    setDraftCategories(normalized);
     setDraftMenuItems([...menuItems]);
     setEditingCategoryIndex(editIndex);
-    setEditingCategoryValue(editName);
+    setEditingCategoryValue(typeof editName === 'object' && editName ? editName.name : (editName || ''));
     setNewCategoryName('');
+    setNewCategoryIcon('utensils');
+    setOpenIconPickerIndex(null);
     setIsCategoryModalOpen(true);
   };
 
@@ -2055,8 +2183,25 @@ export default function MerchantDashboard() {
       }
     }
     setIsCategoryModalOpen(false);
+    setOpenIconPickerIndex(null);
     setNewCategoryName('');
+    setNewCategoryIcon('utensils');
     handleCancelEditCategory();
+  };
+
+  const handleSelectCategoryIcon = (targetIndex, iconKey) => {
+    if (targetIndex === 'new') {
+      setNewCategoryIcon(iconKey);
+    } else {
+      const updated = [...draftCategories];
+      const cur = updated[targetIndex];
+      updated[targetIndex] = {
+        name: getCategoryName(cur),
+        icon: iconKey
+      };
+      setDraftCategories(updated);
+    }
+    setOpenIconPickerIndex(null);
   };
 
   const handleMoveDraftCategory = (index, direction) => {
@@ -2067,6 +2212,9 @@ export default function MerchantDashboard() {
     const [moved] = reordered.splice(index, 1);
     reordered.splice(targetIndex, 0, moved);
     setDraftCategories(reordered);
+    if (openIconPickerIndex === index) {
+      setOpenIconPickerIndex(targetIndex);
+    }
   };
 
   const handleMoveMainCategory = (index, direction) => {
@@ -2079,9 +2227,10 @@ export default function MerchantDashboard() {
     setMenuCategories(reordered);
   };
 
-  const handleStartEditCategory = (index, currentName) => {
+  const handleStartEditCategory = (index, cat) => {
     setEditingCategoryIndex(index);
-    setEditingCategoryValue(currentName);
+    setEditingCategoryValue(getCategoryName(cat));
+    setOpenIconPickerIndex(null);
   };
 
   const handleCancelEditCategory = () => {
@@ -2095,25 +2244,28 @@ export default function MerchantDashboard() {
       showToast('Category name cannot be empty.', 'error');
       return;
     }
-    const oldName = draftCategories[index];
+    const oldCat = draftCategories[index];
+    const oldName = getCategoryName(oldCat);
+    const oldIcon = getCategoryIconKey(oldCat) || getSuggestedIconKey(trimmed);
+
     if (trimmed.toLowerCase() === oldName.toLowerCase()) {
       if (trimmed !== oldName) {
         const updatedCats = [...draftCategories];
-        updatedCats[index] = trimmed;
+        updatedCats[index] = { name: trimmed, icon: oldIcon };
         setDraftCategories(updatedCats);
       }
       handleCancelEditCategory();
       return;
     }
 
-    const isDuplicate = draftCategories.some((cat, i) => i !== index && cat.toLowerCase() === trimmed.toLowerCase());
+    const isDuplicate = draftCategories.some((cat, i) => i !== index && getCategoryName(cat).toLowerCase() === trimmed.toLowerCase());
     if (isDuplicate) {
       showToast('A category with this name already exists.', 'error');
       return;
     }
 
     const updatedCategories = [...draftCategories];
-    updatedCategories[index] = trimmed;
+    updatedCategories[index] = { name: trimmed, icon: oldIcon };
     setDraftCategories(updatedCategories);
 
     // Atomically rename category for all dishes assigned to old category in draft items
@@ -2131,12 +2283,15 @@ export default function MerchantDashboard() {
   const handleAddDraftCategory = () => {
     const trimmed = newCategoryName.trim();
     if (!trimmed) return;
-    if (draftCategories.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+    if (draftCategories.some(c => getCategoryName(c).toLowerCase() === trimmed.toLowerCase())) {
       showToast('Category already exists!', 'error');
       return;
     }
-    setDraftCategories([...draftCategories, trimmed]);
+    const iconToUse = newCategoryIcon || getSuggestedIconKey(trimmed);
+    setDraftCategories([...draftCategories, { name: trimmed, icon: iconToUse }]);
     setNewCategoryName('');
+    setNewCategoryIcon('utensils');
+    setOpenIconPickerIndex(null);
   };
 
   const handleDeleteDraftCategory = (index) => {
@@ -2145,13 +2300,15 @@ export default function MerchantDashboard() {
       return;
     }
     const cat = draftCategories[index];
-    const itemCount = draftMenuItems.filter(i => (i.category || '').toLowerCase() === cat.toLowerCase()).length;
+    const catName = getCategoryName(cat);
+    const itemCount = draftMenuItems.filter(i => (i.category || '').toLowerCase() === catName.toLowerCase()).length;
     const msg = itemCount > 0
-      ? `Category "${cat}" contains ${itemCount} dish(es). Deleting this category will remove it from the categories list (dishes will remain in database). Are you sure?`
-      : `Are you sure you want to delete category "${cat}"?`;
+      ? `Category "${catName}" contains ${itemCount} dish(es). Deleting this category will remove it from the categories list (dishes will remain in database). Are you sure?`
+      : `Are you sure you want to delete category "${catName}"?`;
     if (window.confirm(msg)) {
       const updated = draftCategories.filter((_, i) => i !== index);
       setDraftCategories(updated);
+      if (openIconPickerIndex === index) setOpenIconPickerIndex(null);
     }
   };
 
@@ -4282,8 +4439,10 @@ export default function MerchantDashboard() {
               <>
                 <div className="space-y-12">
                   {menuCategories.map((category, catIndex) => {
+                    const catName = getCategoryName(category);
+                    const catIconKey = getCategoryIconKey(category);
                     const items = menuItems.filter(item => {
-                      const matchesCat = (item.category || '').toLowerCase() === category.toLowerCase();
+                      const matchesCat = (item.category || '').toLowerCase() === catName.toLowerCase();
                       if (!matchesCat) return false;
                       if (item.isAllShifts === true) return true;
                       if (Array.isArray(item.shifts) && item.shifts.length > 0) {
@@ -4292,10 +4451,12 @@ export default function MerchantDashboard() {
                       return true;
                     });
                     return (
-                      <div key={category} className="space-y-4">
+                      <div key={`${catName}-${catIndex}`} className="space-y-4">
                         <div className="flex items-center space-x-3 bg-muted/20 dark:bg-muted/5 border border-border/40 px-4 py-3 rounded-xl shadow-sm">
-                          <span className={`w-3 h-3 rounded-full ${getCategoryDotColor(category)} shadow-sm`} />
-                          <h3 className="font-outfit text-base md:text-lg font-black text-foreground tracking-widest uppercase">{category}</h3>
+                          <span className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 shadow-xs">
+                            {renderCategoryIcon(catIconKey, 16)}
+                          </span>
+                          <h3 className="font-outfit text-base md:text-lg font-black text-foreground tracking-widest uppercase">{catName}</h3>
                           <span className="text-[10px] text-muted-foreground font-bold px-2 py-0.5 rounded-md bg-muted/50 dark:bg-muted/10 border border-border/20">
                             {items.length} {items.length === 1 ? 'Item' : 'Items'}
                           </span>
@@ -4319,9 +4480,9 @@ export default function MerchantDashboard() {
                               <ChevronDown className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => openCategoryModal(catIndex, category)}
+                              onClick={() => openCategoryModal(catIndex, catName)}
                               className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 disabled:opacity-20 disabled:pointer-events-none rounded-lg transition-all cursor-pointer"
-                              title={`Rename category "${category}"`}
+                              title={`Rename category "${catName}"`}
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -4331,7 +4492,7 @@ export default function MerchantDashboard() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                           {/* CREATE NEW Card */}
                           <div
-                            onClick={() => openCreateModal(category)}
+                            onClick={() => openCreateModal(catName)}
                             className="border border-dashed border-border/60 hover:border-primary/80 bg-card/5 hover:bg-card/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[280px] transition-all duration-300 group"
                           >
                             <div className="w-10 h-10 rounded-full border border-border/40 flex items-center justify-center mb-4 group-hover:border-primary/80 group-hover:bg-primary/5 transition-colors">
@@ -4339,7 +4500,7 @@ export default function MerchantDashboard() {
                             </div>
                             <span className="font-outfit text-xs font-bold text-foreground tracking-wide group-hover:text-primary transition-colors">CREATE NEW</span>
                             <span className="text-[10px] text-muted-foreground mt-2 max-w-[150px] leading-relaxed font-semibold">
-                              Add food item to dynamic {category.toLowerCase()} menu
+                              Add food item to dynamic {catName.toLowerCase()} menu
                             </span>
                           </div>
 
@@ -5563,11 +5724,14 @@ export default function MerchantDashboard() {
                     onChange={(e) => setModalForm(prev => ({ ...prev, category: e.target.value }))}
                     className="w-full bg-background dark:bg-black/20 border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer"
                   >
-                    {menuCategories.map(cat => (
-                      <option key={cat} value={cat} className="bg-card text-foreground">
-                        {cat}
-                      </option>
-                    ))}
+                    {menuCategories.map(cat => {
+                      const cName = getCategoryName(cat);
+                      return (
+                        <option key={cName} value={cName} className="bg-card text-foreground">
+                          {cName}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -6115,195 +6279,293 @@ export default function MerchantDashboard() {
 
       {/* Category Management Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-6">
-            <button
-              onClick={handleCloseCategoryModal}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
+          <div className="flex items-start justify-center space-x-4 max-w-5xl w-full my-auto">
+            {/* Main Category Modal */}
+            <div className="w-full max-w-md bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-6 shrink-0">
+              <button
+                onClick={handleCloseCategoryModal}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
 
-            <div className="flex items-center space-x-3 border-b border-border/40 pb-4">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
-                <Settings className="w-5 h-5" />
+              <div className="flex items-center space-x-3 border-b border-border/40 pb-4">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-outfit text-md font-bold tracking-tight">Manage Menu Categories</h3>
+                  <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Click icon to change, edit names, reorder, and save when done.</p>
+                </div>
               </div>
-              <div className="text-left">
-                <h3 className="font-outfit text-md font-bold tracking-tight">Manage Menu Categories</h3>
-                <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">Edit names, reorder display order, and click Save Categories when done.</p>
-              </div>
-            </div>
 
-            {/* List of categories */}
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {draftCategories.map((cat, index) => {
-                const isEditing = editingCategoryIndex === index;
-                const isFirst = index === 0;
-                const isLast = index === draftCategories.length - 1;
-                const itemCount = draftMenuItems.filter(i => (i.category || '').toLowerCase() === cat.toLowerCase()).length;
+              {/* List of categories */}
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {draftCategories.map((cat, index) => {
+                  const isEditing = editingCategoryIndex === index;
+                  const isFirst = index === 0;
+                  const isLast = index === draftCategories.length - 1;
+                  const catName = getCategoryName(cat);
+                  const catIcon = getCategoryIconKey(cat);
+                  const itemCount = draftMenuItems.filter(i => (i.category || '').toLowerCase() === catName.toLowerCase()).length;
+                  const isPickerActive = openIconPickerIndex === index;
 
-                return (
-                  <div
-                    key={`${cat}-${index}`}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
-                      isEditing
-                        ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/30'
-                        : 'bg-muted/20 border-border/30 hover:border-border/60'
-                    }`}
-                  >
-                    {isEditing ? (
-                      <div className="flex items-center space-x-2 w-full">
-                        <span className="text-[11px] font-mono font-bold text-muted-foreground shrink-0 w-6">
-                          #{index + 1}
-                        </span>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={editingCategoryValue}
-                          onChange={(e) => setEditingCategoryValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEditDraftCategory(index);
-                            if (e.key === 'Escape') handleCancelEditCategory();
-                          }}
-                          className="flex-1 bg-background border border-primary/50 rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                          placeholder="Category name"
-                        />
-                        <button
-                          onClick={() => handleSaveEditDraftCategory(index)}
-                          className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all cursor-pointer shadow-xs"
-                          title="Apply rename"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={handleCancelEditCategory}
-                          className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all cursor-pointer"
-                          title="Cancel"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center space-x-2.5 min-w-0 pr-2">
-                          <span className="text-[11px] font-mono font-bold text-muted-foreground shrink-0 w-6">
+                  return (
+                    <div
+                      key={`${catName}-${index}`}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                        isEditing
+                          ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/30'
+                          : isPickerActive
+                          ? 'bg-primary/5 border-primary/40'
+                          : 'bg-muted/20 border-border/30 hover:border-border/60'
+                      }`}
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center space-x-2 w-full">
+                          <span className="text-[11px] font-mono font-bold text-muted-foreground shrink-0 w-5">
                             #{index + 1}
                           </span>
-                          <span className="text-xs font-bold text-foreground truncate">{cat}</span>
-                          <span className="text-[9px] text-muted-foreground font-semibold px-1.5 py-0.5 rounded bg-muted/40 border border-border/20 shrink-0">
-                            {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-1 shrink-0">
-                          {/* Move Up */}
                           <button
                             type="button"
-                            onClick={() => handleMoveDraftCategory(index, -1)}
-                            disabled={isFirst}
-                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 disabled:pointer-events-none rounded-lg transition-all cursor-pointer"
-                            title="Move up"
+                            onClick={() => setOpenIconPickerIndex(openIconPickerIndex === index ? null : index)}
+                            className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs ${
+                              isPickerActive
+                                ? 'border-primary bg-primary/15 text-primary ring-2 ring-primary/30'
+                                : 'border-border/60 bg-muted/40 hover:bg-muted text-foreground hover:border-primary/50'
+                            }`}
+                            title={`Change icon for "${catName}"`}
                           >
-                            <ChevronUp className="w-4 h-4" />
+                            {renderCategoryIcon(catIcon, 14)}
                           </button>
-
-                          {/* Move Down */}
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingCategoryValue}
+                            onChange={(e) => setEditingCategoryValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEditDraftCategory(index);
+                              if (e.key === 'Escape') handleCancelEditCategory();
+                            }}
+                            className="flex-1 bg-background border border-primary/50 rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Category name"
+                          />
                           <button
-                            type="button"
-                            onClick={() => handleMoveDraftCategory(index, 1)}
-                            disabled={isLast}
-                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 disabled:pointer-events-none rounded-lg transition-all cursor-pointer"
-                            title="Move down"
+                            onClick={() => handleSaveEditDraftCategory(index)}
+                            className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all cursor-pointer shadow-xs"
+                            title="Apply rename"
                           >
-                            <ChevronDown className="w-4 h-4" />
+                            <Check className="w-3.5 h-3.5" />
                           </button>
-
-                          {/* Rename / Edit */}
                           <button
-                            type="button"
-                            onClick={() => handleStartEditCategory(index, cat)}
-                            className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer"
-                            title={`Rename category "${cat}"`}
+                            onClick={handleCancelEditCategory}
+                            className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all cursor-pointer"
+                            title="Cancel"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDraftCategory(index)}
-                            className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
-                            title={`Delete category "${cat}"`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center space-x-2 min-w-0 pr-2">
+                            <span className="text-[11px] font-mono font-bold text-muted-foreground shrink-0 w-5">
+                              #{index + 1}
+                            </span>
+                            {/* Small Icon Button directly to the right of #1, #2 */}
+                            <button
+                              type="button"
+                              onClick={() => setOpenIconPickerIndex(openIconPickerIndex === index ? null : index)}
+                              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs ${
+                                isPickerActive
+                                  ? 'border-primary bg-primary/15 text-primary ring-2 ring-primary/30'
+                                  : 'border-border/60 bg-muted/40 hover:bg-muted text-foreground hover:border-primary/50'
+                              }`}
+                              title={`Change icon for "${catName}"`}
+                            >
+                              {renderCategoryIcon(catIcon, 14)}
+                            </button>
+                            <span className="text-xs font-bold text-foreground truncate">{catName}</span>
+                            <span className="text-[9px] text-muted-foreground font-semibold px-1.5 py-0.5 rounded bg-muted/40 border border-border/20 shrink-0">
+                              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
 
-            {/* Add new category form */}
-            <div className="space-y-3 pt-2 border-t border-border/40">
-              <span className="text-[10px] font-black uppercase text-muted-foreground">Add New Category</span>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  placeholder="Category Name (e.g. Soup)"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddDraftCategory();
-                    }
-                  }}
-                  className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
-                />
+                          <div className="flex items-center space-x-1 shrink-0">
+                            {/* Move Up */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveDraftCategory(index, -1)}
+                              disabled={isFirst}
+                              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 disabled:pointer-events-none rounded-lg transition-all cursor-pointer"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+
+                            {/* Move Down */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveDraftCategory(index, 1)}
+                              disabled={isLast}
+                              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-20 disabled:pointer-events-none rounded-lg transition-all cursor-pointer"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+
+                            {/* Rename / Edit */}
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditCategory(index, cat)}
+                              className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer"
+                              title={`Rename category "${catName}"`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDraftCategory(index)}
+                              className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
+                              title={`Delete category "${catName}"`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add new category form */}
+              <div className="space-y-3 pt-2 border-t border-border/40">
+                <span className="text-[10px] font-black uppercase text-muted-foreground">Add New Category</span>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenIconPickerIndex(openIconPickerIndex === 'new' ? null : 'new')}
+                    className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs ${
+                      openIconPickerIndex === 'new'
+                        ? 'border-primary bg-primary/15 text-primary ring-2 ring-primary/30'
+                        : 'border-border/60 bg-muted/40 hover:bg-muted text-foreground hover:border-primary/50'
+                    }`}
+                    title="Choose icon for new category"
+                  >
+                    {renderCategoryIcon(newCategoryIcon, 16)}
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Category Name (e.g. Soup)"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddDraftCategory();
+                      }
+                    }}
+                    className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddDraftCategory}
+                    className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-4 rounded-xl text-xs flex items-center justify-center cursor-pointer transition-all shadow-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Actions Footer */}
+              <div className="flex items-center justify-between pt-3 border-t border-border/40">
                 <button
                   type="button"
-                  onClick={handleAddDraftCategory}
-                  className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-4 rounded-xl text-xs flex items-center justify-center cursor-pointer transition-all shadow-sm"
+                  onClick={handleCloseCategoryModal}
+                  className="px-5 py-2.5 border border-border/40 hover:bg-muted text-foreground font-bold rounded-xl transition-all text-xs cursor-pointer"
                 >
-                  Add
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveModalCategories}
+                  disabled={!hasCategoryChanges || isSavingCategories}
+                  className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all shadow-md ${
+                    !hasCategoryChanges || isSavingCategories
+                      ? 'opacity-40 cursor-not-allowed bg-muted text-muted-foreground pointer-events-none'
+                      : 'bg-primary hover:bg-primary/95 text-primary-foreground cursor-pointer glow-hover'
+                  }`}
+                >
+                  {isSavingCategories ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Categories...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Categories</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Modal Actions Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-border/40">
-              <button
-                type="button"
-                onClick={handleCloseCategoryModal}
-                className="px-5 py-2.5 border border-border/40 hover:bg-muted text-foreground font-bold rounded-xl transition-all text-xs cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveModalCategories}
-                disabled={!hasCategoryChanges || isSavingCategories}
-                className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all shadow-md ${
-                  !hasCategoryChanges || isSavingCategories
-                    ? 'opacity-40 cursor-not-allowed bg-muted text-muted-foreground pointer-events-none'
-                    : 'bg-primary hover:bg-primary/95 text-primary-foreground cursor-pointer glow-hover'
-                }`}
-              >
-                {isSavingCategories ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving Categories...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Save Categories</span>
-                  </>
-                )}
-              </button>
-            </div>
+            {/* Side-Docked Windows-Emoji-Style Icon Selector Flyout */}
+            {openIconPickerIndex !== null && (
+              <div className="w-80 bg-card border border-border/60 p-4 rounded-2xl shadow-2xl animate-fade-in shrink-0 space-y-3 relative">
+                <div className="flex items-center justify-between border-b border-border/40 pb-3">
+                  <div>
+                    <h4 className="font-outfit text-xs font-black uppercase tracking-wider text-foreground">
+                      Category Icons
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground font-semibold">
+                      {openIconPickerIndex === 'new'
+                        ? 'Select icon for new category'
+                        : `Select icon for "${getCategoryName(draftCategories[openIconPickerIndex])}"`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpenIconPickerIndex(null)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                    title="Close icon selector"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Monochrome Icon Grid (No Search Bar, No Back Button) */}
+                <div className="grid grid-cols-5 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                  {CATEGORY_ICON_PACK.map((item) => {
+                    const IconComp = item.icon;
+                    const currentSelectedKey = openIconPickerIndex === 'new'
+                      ? newCategoryIcon
+                      : getCategoryIconKey(draftCategories[openIconPickerIndex]);
+                    const isSelected = (currentSelectedKey || '').toLowerCase() === item.key.toLowerCase();
+
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleSelectCategoryIcon(openIconPickerIndex, item.key)}
+                        title={item.label}
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer group relative ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground shadow-md ring-2 ring-primary/40'
+                            : 'bg-muted/30 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/60'
+                        }`}
+                      >
+                        <IconComp className="w-5 h-5 transition-transform group-hover:scale-110" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -8144,19 +8406,26 @@ export default function MerchantDashboard() {
 
                 {/* Category Pills */}
                 <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
-                  {menuCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setTakeoutActiveCategory(cat)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${takeoutActiveCategory.toLowerCase() === cat.toLowerCase()
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted'
+                  {menuCategories.map((cat) => {
+                    const cName = getCategoryName(cat);
+                    const cIcon = getCategoryIconKey(cat);
+                    const isSelected = takeoutActiveCategory.toLowerCase() === cName.toLowerCase();
+                    return (
+                      <button
+                        key={cName}
+                        type="button"
+                        onClick={() => setTakeoutActiveCategory(cName)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1.5 ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted'
                         }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                      >
+                        {renderCategoryIcon(cIcon, 13)}
+                        <span>{cName}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Items List - Simplified Compact Rows */}

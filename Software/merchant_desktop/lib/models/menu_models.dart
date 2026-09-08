@@ -97,6 +97,7 @@ class MenuModel {
   final String hostApplicationId;
   final List<MenuItemModel> items;
   final List<String> categories;
+  final Map<String, String> categoryIcons;
   final List<String> shifts;
   final String activeShift;
 
@@ -105,6 +106,7 @@ class MenuModel {
     required this.hostApplicationId,
     required this.items,
     required this.categories,
+    required this.categoryIcons,
     required this.shifts,
     required this.activeShift,
   });
@@ -114,7 +116,24 @@ class MenuModel {
     final itemsList = rawItems.map((e) => MenuItemModel.fromJson(e as Map<String, dynamic>)).toList();
 
     final rawCats = json['categories'] as List<dynamic>? ?? [];
-    final catsList = rawCats.map((e) => e.toString()).toList();
+    final catsList = <String>[];
+    final iconsMap = <String, String>{};
+
+    for (final c in rawCats) {
+      if (c is Map) {
+        final name = (c['name'] as String? ?? '').trim();
+        final icon = (c['icon'] as String? ?? '').trim();
+        if (name.isNotEmpty) {
+          catsList.add(name);
+          if (icon.isNotEmpty) {
+            iconsMap[name.toLowerCase()] = icon;
+          }
+        }
+      } else if (c != null) {
+        final name = c.toString().trim();
+        if (name.isNotEmpty) catsList.add(name);
+      }
+    }
 
     final rawShifts = json['shifts'] as List<dynamic>? ?? [];
     final shiftsList = rawShifts.map((e) => e.toString()).toList();
@@ -124,6 +143,7 @@ class MenuModel {
       hostApplicationId: json['hostApplicationId'] ?? '',
       items: itemsList,
       categories: catsList.isNotEmpty ? catsList : ['Starters', 'Main Course', 'Dessert', 'Beverages'],
+      categoryIcons: iconsMap,
       shifts: shiftsList.isNotEmpty ? shiftsList : ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
       activeShift: json['activeShift'] ?? 'Breakfast',
     );

@@ -337,11 +337,60 @@ const double kVideoOverflowPx = 80.0;
 
 // ───────────────────────── Dynamic Category Helpers ─────────────────────────
 
-/// Smart culinary keyword mapper returning the most suitable icon for any
-/// custom category created by venue admins.
-IconData getCategoryIcon(String category) {
+/// Standard Category Icon Pack mapping unique icon keys to Material Icons
+const Map<String, IconData> kCategoryIconPack = {
+  'wheat': Icons.grain,
+  'package': Icons.inventory_2_outlined,
+  'fastfood': Icons.fastfood,
+  'pizza': Icons.local_pizza,
+  'burger': Icons.lunch_dining,
+  'soup': Icons.soup_kitchen,
+  'dinner': Icons.dinner_dining,
+  'rice': Icons.rice_bowl,
+  'croissant': Icons.bakery_dining,
+  'coffee': Icons.local_cafe,
+  'drink': Icons.local_drink,
+  'bar': Icons.local_bar,
+  'beer': Icons.sports_bar,
+  'icecream': Icons.icecream,
+  'cookie': Icons.cookie,
+  'cake': Icons.cake,
+  'salad': Icons.eco,
+  'flame': Icons.outdoor_grill,
+  'fish': Icons.set_meal,
+  'egg': Icons.breakfast_dining,
+  'sparkles': Icons.auto_awesome,
+  'star': Icons.star_rounded,
+  'tag': Icons.local_offer,
+  'apple': Icons.apple,
+  'popcorn': Icons.movie,
+  'baby': Icons.child_care,
+  'sauce': Icons.add_circle_outline,
+  'bell': Icons.notifications_active,
+  'store': Icons.storefront,
+  'leaf': Icons.spa,
+  'shield': Icons.health_and_safety,
+  'utensils': Icons.restaurant,
+};
+
+/// Returns the icon for a category, prioritizing the explicitly chosen icon key
+/// from the Icon Selector pack, with smart keyword heuristics as a resilient fallback.
+IconData getCategoryIcon(String category, [String? explicitIconKey]) {
+  if (explicitIconKey != null && explicitIconKey.trim().isNotEmpty) {
+    final key = explicitIconKey.trim().toLowerCase();
+    if (kCategoryIconPack.containsKey(key)) {
+      return kCategoryIconPack[key]!;
+    }
+  }
+
   final cat = category.toLowerCase().trim();
 
+  if (cat.contains('wheat') || cat.contains('millet') || cat.contains('flake') || cat.contains('grain') || cat.contains('oat') || cat.contains('cereal')) {
+    return Icons.grain;
+  }
+  if (cat.contains('package') || cat.contains('box') || cat.contains('retail') || cat.contains('ready')) {
+    return Icons.inventory_2_outlined;
+  }
   if (cat.contains('popular') || cat.contains('trending') || cat.contains('bestseller') || cat.contains('top')) {
     return Icons.insights;
   }

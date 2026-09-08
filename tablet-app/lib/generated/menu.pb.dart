@@ -110,13 +110,14 @@ class MenuItem extends $pb.GeneratedMessage {
     return result;
   }
 
-  MenuItem._() : super();
-  factory MenuItem.fromBuffer($core.List<$core.int> i,
-          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(i, r);
-  factory MenuItem.fromJson($core.String i,
-          [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(i, r);
+  MenuItem._();
+
+  factory MenuItem.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MenuItem.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'MenuItem',
@@ -243,16 +244,84 @@ class MenuItem extends $pb.GeneratedMessage {
   void clearCustomizations() => $_clearField(10);
 }
 
+class MenuCategory extends $pb.GeneratedMessage {
+  factory MenuCategory({
+    $core.String? name,
+    $core.String? icon,
+  }) {
+    final result = create();
+    if (name != null) result.name = name;
+    if (icon != null) result.icon = icon;
+    return result;
+  }
+
+  MenuCategory._();
+
+  factory MenuCategory.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory MenuCategory.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'MenuCategory',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'menu'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'name')
+    ..aOS(2, _omitFieldNames ? '' : 'icon')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MenuCategory clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  MenuCategory copyWith(void Function(MenuCategory) updates) =>
+      super.copyWith((message) => updates(message as MenuCategory))
+          as MenuCategory;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static MenuCategory create() => MenuCategory._();
+  @$core.override
+  MenuCategory createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static MenuCategory getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<MenuCategory>(create);
+  static MenuCategory? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get name => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set name($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasName() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearName() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get icon => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set icon($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasIcon() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearIcon() => $_clearField(2);
+}
+
 class GetMenuResponse extends $pb.GeneratedMessage {
   factory GetMenuResponse({
     $core.bool? success,
     $core.String? message,
     $core.Iterable<MenuItem>? items,
+    $core.Iterable<MenuCategory>? categories,
   }) {
     final result = create();
     if (success != null) result.success = success;
     if (message != null) result.message = message;
     if (items != null) result.items.addAll(items);
+    if (categories != null) result.categories.addAll(categories);
     return result;
   }
 
@@ -273,6 +342,8 @@ class GetMenuResponse extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'message')
     ..pPM<MenuItem>(3, _omitFieldNames ? '' : 'items',
         subBuilder: MenuItem.create)
+    ..pPM<MenuCategory>(4, _omitFieldNames ? '' : 'categories',
+        subBuilder: MenuCategory.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -314,6 +385,9 @@ class GetMenuResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(3)
   $pb.PbList<MenuItem> get items => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $pb.PbList<MenuCategory> get categories => $_getList(3);
 }
 
 const $core.bool _omitFieldNames =

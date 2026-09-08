@@ -67,6 +67,8 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   bool _pendingMenuReload = false;
   String _outletName = '';
   String _selectedCategory = 'Popular';
+  final Map<String, String> _categoryIcons = {};
+  final List<String> _orderedCategories = [];
   late String _tableNumber;
   bool _showWaiterStatus = false;
   String _waiterStatusText = '';
@@ -499,6 +501,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _outletName = response.message; // server's outlet name; may be empty
+          if (response.categories.isNotEmpty) {
+            _categoryIcons.clear();
+            _orderedCategories.clear();
+            for (final c in response.categories) {
+              if (c.name.trim().isNotEmpty) {
+                _categoryIcons[c.name.trim().toLowerCase()] = c.icon.trim();
+                _orderedCategories.add(c.name.trim());
+              }
+            }
+          }
           if (_selectedCategory.isEmpty && response.items.isNotEmpty) {
             _selectedCategory = 'Popular';
           }
@@ -527,6 +539,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       final prefs = await SharedPreferences.getInstance();
       final menuJson = {
         'outletName': outletName,
+        'categories': _orderedCategories.map((name) => {
+          'name': name,
+          'icon': _categoryIcons[name.toLowerCase()] ?? '',
+        }).toList(),
         'items': items.map((item) => {
           'itemId': item.itemId,
           'name': item.name,
@@ -561,6 +577,21 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       if (decoded is Map<String, dynamic>) {
         cachedOutletName = decoded['outletName'] as String?;
         menuData = decoded['items'] as List<dynamic>? ?? const [];
+        final cachedCats = decoded['categories'] as List<dynamic>?;
+        if (cachedCats != null && cachedCats.isNotEmpty) {
+          _categoryIcons.clear();
+          _orderedCategories.clear();
+          for (final c in cachedCats) {
+            if (c is Map) {
+              final n = (c['name'] as String? ?? '').trim();
+              final ic = (c['icon'] as String? ?? '').trim();
+              if (n.isNotEmpty) {
+                _categoryIcons[n.toLowerCase()] = ic;
+                _orderedCategories.add(n);
+              }
+            }
+          }
+        }
       } else if (decoded is List) {
         menuData = decoded;
       } else {
@@ -1972,21 +2003,28 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   List<String> _computeCategories() {
-    const defaultCategoriesOrder = ['Popular', 'Starters', 'Main Course', 'Dessert', 'Beverages'];
     final categories = <String>['Popular']; // Always include 'Popular' as category #1
 
-    for (final cat in ['Starters', 'Main Course', 'Dessert', 'Beverages']) {
-      if (_menu.value.items.any((item) => item.category.toLowerCase() == cat.toLowerCase())) {
-        categories.add(cat);
+    if (_orderedCategories.isNotEmpty) {
+      for (final cat in _orderedCategories) {
+        if (cat.toLowerCase() != 'popular' && !categories.contains(cat)) {
+          categories.add(cat);
+        }
+      }
+    } else {
+      const defaultCategoriesOrder = ['Starters', 'Main Course', 'Dessert', 'Beverages'];
+      for (final cat in defaultCategoriesOrder) {
+        if (_menu.value.items.any((item) => item.category.toLowerCase() == cat.toLowerCase())) {
+          categories.add(cat);
+        }
       }
     }
     for (final item in _menu.value.items) {
-      if (!defaultCategoriesOrder.any((cat) => cat.toLowerCase() == item.category.toLowerCase()) &&
-          !categories.contains(item.category)) {
+      if (!categories.any((c) => c.toLowerCase() == item.category.toLowerCase())) {
         categories.add(item.category);
       }
     }
-    if (categories.isEmpty) categories.addAll(defaultCategoriesOrder);
+    if (categories.isEmpty) categories.addAll(['Popular', 'Starters', 'Main Course', 'Dessert', 'Beverages']);
 
     // If active category not in available list, default to first category
     if (!categories.any((c) => c.toLowerCase() == _selectedCategory.toLowerCase())) {
@@ -2010,7 +2048,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         itemBuilder: (context, index) {
           final cat = categories[index];
           final isSelected = cat.toLowerCase() == _selectedCategory.toLowerCase();
-          final iconData = getCategoryIcon(cat);
+          final iconData = getCategoryIcon(cat, _categoryIcons[cat.toLowerCase()]);
 
           return Material(
             color: Colors.transparent,
@@ -2090,7 +2128,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                 final cat = categories[index];
                 final isSelected = cat.toLowerCase() == _selectedCategory.toLowerCase();
 
-                final iconData = getCategoryIcon(cat);
+                final iconData = getCategoryIcon(cat, _categoryIcons[cat.toLowerCase()]);
 
                 return Material(
                   color: Colors.transparent,

@@ -321,10 +321,10 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
+                                Icon(
+                                  getDesktopCategoryIcon(category, menuProv.getCategoryIcon(category)),
+                                  size: 14,
+                                  color: AppColors.primary,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(

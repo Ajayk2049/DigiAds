@@ -1098,10 +1098,22 @@ const menuServiceHandlers = {
             : ''
         })) : [];
 
+      const rawCategories = menu?.categories;
+      const categories = (Array.isArray(rawCategories) && rawCategories.length > 0)
+        ? rawCategories.map(cat => {
+            if (typeof cat === 'string') return { name: cat.trim(), icon: '' };
+            if (cat && typeof cat === 'object') {
+              return { name: (cat.name || '').trim(), icon: (cat.icon || '').trim() };
+            }
+            return { name: String(cat).trim(), icon: '' };
+          }).filter(c => c.name.length > 0)
+        : [];
+
       callback(null, {
         success: true,
         message: outletName,
-        items
+        items,
+        categories
       });
     } catch (err) {
       const code = err.code || grpc.status.INTERNAL;
