@@ -120,7 +120,14 @@ class ThermalReceiptPreview extends StatelessWidget {
                     children: [
                       Expanded(
                         flex: 5,
-                        child: Text('${i.name}${i.isPacked ? " (PACK)" : ""}', style: const TextStyle(fontSize: 11, color: Colors.black)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${i.name}${i.isPacked ? " (PACK)" : ""}', style: const TextStyle(fontSize: 11, color: Colors.black)),
+                            if (i.customization.isNotEmpty)
+                              Text('* ${i.customization}', style: const TextStyle(fontSize: 9.5, fontStyle: FontStyle.italic, color: Colors.black87)),
+                          ],
+                        ),
                       ),
                       Expanded(
                         flex: 2,

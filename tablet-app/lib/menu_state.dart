@@ -13,6 +13,49 @@ library;
 import 'package:flutter/foundation.dart';
 import 'generated/menu.pbgrpc.dart';
 
+/// Information parsed from a cart line item key.
+class CartLineKeyInfo {
+  final String rawItemId;
+  final String customization;
+  final int extraPaise;
+  final String baseKey;
+
+  CartLineKeyInfo({
+    required this.rawItemId,
+    required this.customization,
+    required this.extraPaise,
+    required this.baseKey,
+  });
+
+  static CartLineKeyInfo parse(String key) {
+    final withoutPack = key.endsWith(':pack') ? key.substring(0, key.length - 5) : key;
+    if (withoutPack.contains('::cust::')) {
+      final parts = withoutPack.split('::cust::');
+      final itemId = parts[0];
+      final custParts = parts[1].split('::');
+      final extraPaise = int.tryParse(custParts[0]) ?? 0;
+      final customization = custParts.sublist(1).join('::');
+      return CartLineKeyInfo(
+        rawItemId: itemId,
+        customization: customization,
+        extraPaise: extraPaise,
+        baseKey: withoutPack,
+      );
+    }
+    return CartLineKeyInfo(
+      rawItemId: withoutPack,
+      customization: '',
+      extraPaise: 0,
+      baseKey: withoutPack,
+    );
+  }
+
+  static String buildBaseKey(String itemId, {String customization = '', int extraPaise = 0}) {
+    if (customization.isEmpty) return itemId;
+    return '$itemId::cust::$extraPaise::$customization';
+  }
+}
+
 /// Immutable snapshot of the cart state, emitted by [CartNotifier].
 class CartSnapshot {
   final Map<String, int> items;
@@ -23,15 +66,30 @@ class CartSnapshot {
   bool get isNotEmpty => items.isNotEmpty;
 
   int quantityOf(String itemId) {
-    int total = items[itemId] ?? 0;
-    total += items['$itemId:pack'] ?? 0;
+    int total = 0;
+    for (final entry in items.entries) {
+      final info = CartLineKeyInfo.parse(entry.key);
+      if (info.rawItemId == itemId) {
+        total += entry.value;
+      }
+    }
     return total;
   }
 
   static bool isPackedKey(String cartKey) => cartKey.endsWith(':pack');
-  static String rawItemId(String cartKey) => cartKey.split(':pack').first;
+  static String rawItemId(String cartKey) => CartLineKeyInfo.parse(cartKey).rawItemId;
+  static String baseKey(String cartKey) => CartLineKeyInfo.parse(cartKey).baseKey;
 
-  /// Unique raw item IDs in the cart
+  /// Unique base line keys in the cart (each unique combination of dish + customization)
+  List<String> get uniqueLineKeys {
+    final set = <String>{};
+    for (final k in items.keys) {
+      set.add(CartLineKeyInfo.parse(k).baseKey);
+    }
+    return set.toList();
+  }
+
+  /// Unique raw item IDs in the cart (for backwards compatibility)
   List<String> get uniqueItemIds {
     final set = <String>{};
     for (final k in items.keys) {
@@ -40,9 +98,9 @@ class CartSnapshot {
     return set.toList();
   }
 
-  int dineInQtyOf(String rawItemId) => items[rawItemId] ?? 0;
-  int packedQtyOf(String rawItemId) => items['$rawItemId:pack'] ?? 0;
-  int totalQtyOf(String rawItemId) => dineInQtyOf(rawItemId) + packedQtyOf(rawItemId);
+  int dineInQtyOf(String baseKey) => items[baseKey] ?? 0;
+  int packedQtyOf(String baseKey) => items['$baseKey:pack'] ?? 0;
+  int totalQtyOf(String baseKey) => dineInQtyOf(baseKey) + packedQtyOf(baseKey);
 
   bool get isAllPacked => items.isNotEmpty && items.keys.every((k) => isPackedKey(k));
 
@@ -51,9 +109,10 @@ class CartSnapshot {
     double total = 0;
     for (final entry in items.entries) {
       try {
-        final rawId = rawItemId(entry.key);
-        final item = menuItems.firstWhere((i) => i.itemId == rawId);
-        total += (item.price.toDouble() / 100.0) * entry.value;
+        final info = CartLineKeyInfo.parse(entry.key);
+        final item = menuItems.firstWhere((i) => i.itemId == info.rawItemId);
+        final unitPrice = (item.price.toInt() + info.extraPaise) / 100.0;
+        total += unitPrice * entry.value;
       } catch (_) {
         // item not found — skip
       }
@@ -75,23 +134,34 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
   /// Internal mutable map — only exposed as immutable snapshots.
   final Map<String, int> _items = {};
 
-  void addItem(String itemId, {bool isPacked = false}) {
-    final key = isPacked ? '$itemId:pack' : itemId;
-    _items[key] = (_items[key] ?? 0) + 1;
+  void addItem(
+    String itemId, {
+    bool isPacked = false,
+    String customization = '',
+    int extraPaise = 0,
+    int quantity = 1,
+  }) {
+    final baseKey = CartLineKeyInfo.buildBaseKey(
+      itemId,
+      customization: customization,
+      extraPaise: extraPaise,
+    );
+    final key = isPacked ? '$baseKey:pack' : baseKey;
+    _items[key] = (_items[key] ?? 0) + quantity;
     _emit();
   }
 
-  void removeItem(String rawItemId) {
+  void removeItem(String baseKey) {
     // Decrement dine-in first, then packed if dine-in is 0
-    if (_items.containsKey(rawItemId) && _items[rawItemId]! > 0) {
-      final current = _items[rawItemId]!;
+    if (_items.containsKey(baseKey) && _items[baseKey]! > 0) {
+      final current = _items[baseKey]!;
       if (current > 1) {
-        _items[rawItemId] = current - 1;
+        _items[baseKey] = current - 1;
       } else {
-        _items.remove(rawItemId);
+        _items.remove(baseKey);
       }
     } else {
-      final packedKey = '$rawItemId:pack';
+      final packedKey = '$baseKey:pack';
       if (_items.containsKey(packedKey) && _items[packedKey]! > 0) {
         final current = _items[packedKey]!;
         if (current > 1) {
@@ -104,15 +174,15 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
     _emit();
   }
 
-  void removeAllOfItem(String rawItemId) {
-    _items.remove(rawItemId);
-    _items.remove('$rawItemId:pack');
+  void removeAllOfItem(String baseKey) {
+    _items.remove(baseKey);
+    _items.remove('$baseKey:pack');
     _emit();
   }
 
-  void setPackedQuantity(String rawItemId, int targetPackedQty) {
-    final normalQty = _items[rawItemId] ?? 0;
-    final packedKey = '$rawItemId:pack';
+  void setPackedQuantity(String baseKey, int targetPackedQty) {
+    final normalQty = _items[baseKey] ?? 0;
+    final packedKey = '$baseKey:pack';
     final currentPackedQty = _items[packedKey] ?? 0;
     final totalQty = normalQty + currentPackedQty;
 
@@ -122,9 +192,9 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
     int newNormal = totalQty - newPacked;
 
     if (newNormal > 0) {
-      _items[rawItemId] = newNormal;
+      _items[baseKey] = newNormal;
     } else {
-      _items.remove(rawItemId);
+      _items.remove(baseKey);
     }
 
     if (newPacked > 0) {
@@ -136,22 +206,22 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
     _emit();
   }
 
-  void togglePacked(String rawItemId) {
-    final packedKey = '$rawItemId:pack';
+  void togglePacked(String baseKey) {
+    final packedKey = '$baseKey:pack';
     final packedQty = _items[packedKey] ?? 0;
-    final normalQty = _items[rawItemId] ?? 0;
+    final normalQty = _items[baseKey] ?? 0;
     final totalQty = packedQty + normalQty;
 
     if (totalQty <= 0) return;
 
     if (packedQty > 0) {
       // Convert all to dine-in
-      _items[rawItemId] = totalQty;
+      _items[baseKey] = totalQty;
       _items.remove(packedKey);
     } else {
       // Convert all to packed
       _items[packedKey] = totalQty;
-      _items.remove(rawItemId);
+      _items.remove(baseKey);
     }
     _emit();
   }
@@ -162,8 +232,10 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
     final Map<String, int> updated = {};
 
     for (final entry in _items.entries) {
-      final rawId = entry.key.split(':pack').first;
-      final newKey = isAllPacked ? rawId : '$rawId:pack';
+      final base = entry.key.endsWith(':pack')
+          ? entry.key.substring(0, entry.key.length - 5)
+          : entry.key;
+      final newKey = isAllPacked ? base : '$base:pack';
       updated[newKey] = (updated[newKey] ?? 0) + entry.value;
     }
 

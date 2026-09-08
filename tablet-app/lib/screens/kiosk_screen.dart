@@ -534,8 +534,10 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           'price': item.price.toInt(),
           'category': item.category,
           'imageUrl': item.imageUrl,
+          'isVeg': item.isVeg,
           'isAvailable': item.isAvailable,
           'isPopular': item.isPopular,
+          'customizations': item.customizations,
         }).toList(),
       };
       await prefs.setString('cachedMenu', jsonEncode(menuJson));
@@ -941,6 +943,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     if (!_isIdle) {
       _inactivityTimer = Timer(kInactivityTimeout, () {
         if (mounted) {
+          // Dismiss any open modals or dialogs (e.g., ItemDetailModal) before switching to idle ads
+          Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+
           // Preserve unsubmitted cart items across idle ad transitions
           setState(() {
             _isIdle = true;
@@ -1000,6 +1005,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   void _returnToAds() {
     _cancelAbandonedCartTimer();
     _cart.clear();
+    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
     setState(() {
       _isIdle = true;
       _showCart = false;
@@ -1627,6 +1633,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   selectedCategory: _selectedCategory,
                   imageCache: _imageCache,
                   isOnline: _isOnline,
+                  onUserActivity: _resetIdleTimer,
                 ),
               ),
             ],
@@ -1646,6 +1653,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   selectedCategory: _selectedCategory,
                   imageCache: _imageCache,
                   isOnline: _isOnline,
+                  onUserActivity: _resetIdleTimer,
                 ),
               ),
             ],

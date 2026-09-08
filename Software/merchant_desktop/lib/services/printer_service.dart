@@ -344,9 +344,19 @@ class PrinterService {
                     children: [
                       pw.Expanded(
                         flex: 5,
-                        child: pw.Text(
-                          '${item.name}${item.isPacked ? ' (PACK)' : ''}',
-                          style: pw.TextStyle(fontSize: is58mm ? 8 : 9),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              '${item.name}${item.isPacked ? ' (PACK)' : ''}',
+                              style: pw.TextStyle(fontSize: is58mm ? 8 : 9),
+                            ),
+                            if (item.customization.isNotEmpty)
+                              pw.Text(
+                                '* ${item.customization}',
+                                style: pw.TextStyle(fontSize: is58mm ? 6.5 : 7.5, fontStyle: pw.FontStyle.italic),
+                              ),
+                          ],
                         ),
                       ),
                       pw.Expanded(
@@ -537,9 +547,19 @@ class PrinterService {
                     children: [
                       pw.Expanded(
                         flex: 7,
-                        child: pw.Text(
-                          '${item.name}${item.isPacked ? ' [PACK]' : ''}',
-                          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              '${item.name}${item.isPacked ? ' [PACK]' : ''}',
+                              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                            ),
+                            if (item.customization.isNotEmpty)
+                              pw.Text(
+                                '* ${item.customization}',
+                                style: pw.TextStyle(fontSize: 9.5, fontStyle: pw.FontStyle.italic),
+                              ),
+                          ],
                         ),
                       ),
                       pw.Expanded(

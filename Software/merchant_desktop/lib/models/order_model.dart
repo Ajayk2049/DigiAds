@@ -5,6 +5,7 @@ class OrderItemModel {
   final int quantity;
   final bool isPacked;
   final bool isVeg;
+  final String customization;
 
   OrderItemModel({
     this.itemId,
@@ -13,6 +14,7 @@ class OrderItemModel {
     required this.quantity,
     this.isPacked = false,
     this.isVeg = true,
+    this.customization = '',
   });
 
   double get priceInRupees => price / 100.0;
@@ -26,6 +28,7 @@ class OrderItemModel {
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       isPacked: json['isPacked'] ?? false,
       isVeg: json['isVeg'] ?? true,
+      customization: json['customization'] ?? '',
     );
   }
 
@@ -37,6 +40,7 @@ class OrderItemModel {
       'quantity': quantity,
       'isPacked': isPacked,
       'isVeg': isVeg,
+      if (customization.isNotEmpty) 'customization': customization,
     };
   }
 }

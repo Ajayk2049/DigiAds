@@ -353,25 +353,46 @@ class LiveOrdersScreen extends StatelessWidget {
                 return Container(
                   constraints: const BoxConstraints(minHeight: 22),
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: item.isVeg ? AppColors.vegGreen : AppColors.nonVegRed,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: item.isVeg ? AppColors.vegGreen : AppColors.nonVegRed,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${item.name}${item.isPacked ? ' [PACK]' : ''}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          '${item.name}${item.isPacked ? ' [PACK]' : ''}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                      if (item.customization.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 14, top: 1),
+                          child: Text(
+                            '↳ ${item.customization}',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                              color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 );

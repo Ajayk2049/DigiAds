@@ -136,13 +136,16 @@ class OrderSummaryPanel extends StatelessWidget {
 
             Expanded(
               child: ListView.separated(
-                itemCount: cart.uniqueItemIds.length,
+                itemCount: cart.uniqueLineKeys.length,
                 separatorBuilder: (context, index) => SizedBox(height: isMobile ? 10 : 16),
                 itemBuilder: (context, index) {
-                  final rawId = cart.uniqueItemIds[index];
-                  final dineInQty = cart.dineInQtyOf(rawId);
-                  final packedQty = cart.packedQtyOf(rawId);
-                  final totalQty = cart.totalQtyOf(rawId);
+                  final lineKey = cart.uniqueLineKeys[index];
+                  final info = CartLineKeyInfo.parse(lineKey);
+                  final rawId = info.rawItemId;
+                  final customization = info.customization;
+                  final dineInQty = cart.dineInQtyOf(lineKey);
+                  final packedQty = cart.packedQtyOf(lineKey);
+                  final totalQty = cart.totalQtyOf(lineKey);
 
                   final item = menuItems.firstWhere(
                     (i) => i.itemId == rawId,
@@ -152,7 +155,7 @@ class OrderSummaryPanel extends StatelessWidget {
                       ..price = Int64(0),
                   );
 
-                  final unitPrice = item.price.toDouble() / 100.0;
+                  final unitPrice = (item.price.toInt() + info.extraPaise) / 100.0;
                   final lineTotal = unitPrice * totalQty;
 
                   // Mobile Layout (< 600px)
@@ -205,6 +208,20 @@ class OrderSummaryPanel extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    if (customization.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        customization,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: kAccentBlue.withValues(alpha: 0.9),
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                     const SizedBox(height: 3),
                                     Text(
                                       "Unit price: ₹${unitPrice.toStringAsFixed(2)}",
@@ -243,7 +260,7 @@ class OrderSummaryPanel extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   GestureDetector(
-                                    onTap: () => cartNotifier.removeAllOfItem(rawId),
+                                    onTap: () => cartNotifier.removeAllOfItem(lineKey),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
@@ -284,7 +301,7 @@ class OrderSummaryPanel extends StatelessWidget {
                                       constraints: const BoxConstraints(),
                                       padding: const EdgeInsets.all(6),
                                       icon: const Icon(Icons.remove, color: kAccentBlue, size: 16),
-                                      onPressed: () => cartNotifier.removeItem(rawId),
+                                      onPressed: () => cartNotifier.removeItem(lineKey),
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -297,7 +314,7 @@ class OrderSummaryPanel extends StatelessWidget {
                                       constraints: const BoxConstraints(),
                                       padding: const EdgeInsets.all(6),
                                       icon: const Icon(Icons.add, color: kAccentBlue, size: 16),
-                                      onPressed: () => cartNotifier.addItem(rawId),
+                                      onPressed: () => cartNotifier.addItem(rawId, customization: info.customization, extraPaise: info.extraPaise),
                                     ),
                                   ],
                                 ),
@@ -307,12 +324,12 @@ class OrderSummaryPanel extends StatelessWidget {
                                 onTap: () {
                                   HapticFeedback.lightImpact();
                                   if (totalQty == 1) {
-                                    cartNotifier.togglePacked(rawId);
+                                    cartNotifier.togglePacked(lineKey);
                                   } else {
                                     _showPackQuantityDialog(
                                       context,
                                       cartNotifier,
-                                      rawId,
+                                      lineKey,
                                       item.name,
                                       totalQty,
                                       packedQty,
@@ -429,6 +446,20 @@ class OrderSummaryPanel extends StatelessWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (customization.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  customization,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: kAccentBlue.withValues(alpha: 0.9),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                               const SizedBox(height: 4),
                               Text(
                                 "Unit price: ₹${unitPrice.toStringAsFixed(2)}",
@@ -477,7 +508,7 @@ class OrderSummaryPanel extends StatelessWidget {
                                           constraints: const BoxConstraints(),
                                           padding: const EdgeInsets.all(8),
                                           icon: const Icon(Icons.remove, color: kAccentBlue, size: 18),
-                                          onPressed: () => cartNotifier.removeItem(rawId),
+                                          onPressed: () => cartNotifier.removeItem(lineKey),
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
@@ -489,7 +520,7 @@ class OrderSummaryPanel extends StatelessWidget {
                                           constraints: const BoxConstraints(),
                                           padding: const EdgeInsets.all(8),
                                           icon: const Icon(Icons.add, color: kAccentBlue, size: 18),
-                                          onPressed: () => cartNotifier.addItem(rawId),
+                                          onPressed: () => cartNotifier.addItem(rawId, customization: info.customization, extraPaise: info.extraPaise),
                                         ),
                                       ],
                                     ),
@@ -500,12 +531,12 @@ class OrderSummaryPanel extends StatelessWidget {
                                     onTap: () {
                                       HapticFeedback.lightImpact();
                                       if (totalQty == 1) {
-                                        cartNotifier.togglePacked(rawId);
+                                        cartNotifier.togglePacked(lineKey);
                                       } else {
                                         _showPackQuantityDialog(
                                           context,
                                           cartNotifier,
-                                          rawId,
+                                          lineKey,
                                           item.name,
                                           totalQty,
                                           packedQty,
@@ -590,7 +621,7 @@ class OrderSummaryPanel extends StatelessWidget {
                             const SizedBox(height: 12),
                             // Trash Icon inside red-bordered circle
                             GestureDetector(
-                              onTap: () => cartNotifier.removeAllOfItem(rawId),
+                              onTap: () => cartNotifier.removeAllOfItem(lineKey),
                               child: Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,

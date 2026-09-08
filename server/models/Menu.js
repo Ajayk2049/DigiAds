@@ -60,6 +60,20 @@ const MenuItemSchema = new mongoose.Schema({
   isAllShifts: {
     type: Boolean,
     default: false
+  },
+  customizations: {
+    type: [{
+      title: { type: String, required: true },
+      pricingType: { type: String, enum: ['addon', 'direct'], default: 'addon' },
+      isMultiple: { type: Boolean, default: false },
+      isRequired: { type: Boolean, default: false },
+      options: [{
+        name: { type: String, required: true },
+        extraPrice: { type: Number, default: 0 }, // in paise
+        isDefault: { type: Boolean, default: false }
+      }]
+    }],
+    default: []
   }
 });
 

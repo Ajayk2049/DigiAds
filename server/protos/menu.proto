@@ -21,6 +21,7 @@ message MenuItem {
   string imageUrl = 7;
   bool isVeg = 8;
   bool isPopular = 9;
+  string customizations = 10;
 }
 
 message GetMenuResponse {

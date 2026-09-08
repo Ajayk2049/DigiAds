@@ -21,6 +21,10 @@ const OrderItemSchema = new mongoose.Schema({
   isPacked: {
     type: Boolean,
     default: false
+  },
+  customization: {
+    type: String,
+    default: ''
   }
 });
 

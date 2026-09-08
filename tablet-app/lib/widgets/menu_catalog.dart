@@ -5,6 +5,7 @@ import '../menu_state.dart';
 import '../menu_image_cache.dart';
 import '../generated/menu.pbgrpc.dart';
 import 'cached_menu_image.dart';
+import 'item_detail_modal.dart';
 
 class MenuCatalogWidget extends StatefulWidget {
   final MenuNotifier menuNotifier;
@@ -14,6 +15,7 @@ class MenuCatalogWidget extends StatefulWidget {
   final String selectedCategory;
   final MenuImageCache imageCache;
   final bool isOnline;
+  final VoidCallback? onUserActivity;
 
   const MenuCatalogWidget({
     super.key,
@@ -24,6 +26,7 @@ class MenuCatalogWidget extends StatefulWidget {
     required this.selectedCategory,
     required this.imageCache,
     this.isOnline = true,
+    this.onUserActivity,
   });
 
   @override
@@ -171,6 +174,7 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
                               serverHost: widget.serverHost,
                               imageCache: widget.imageCache,
                               isOnline: widget.isOnline,
+                              onUserActivity: widget.onUserActivity,
                             );
                           },
                         );
@@ -190,6 +194,7 @@ class _MenuCard extends StatelessWidget {
   final String serverHost;
   final MenuImageCache imageCache;
   final bool isOnline;
+  final VoidCallback? onUserActivity;
 
   const _MenuCard({
     super.key,
@@ -198,6 +203,7 @@ class _MenuCard extends StatelessWidget {
     required this.serverHost,
     required this.imageCache,
     required this.isOnline,
+    this.onUserActivity,
   });
 
   @override
@@ -215,117 +221,157 @@ class _MenuCard extends StatelessWidget {
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Image top frame — wrapped in ClipRRect for crisp corners
+          // Upper Clickable Area: Image & Details open ItemDetailModal
           Expanded(
-            flex: 5,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: CachedMenuImage(
-                    key: ValueKey(item.itemId),
-                    cache: imageCache,
-                    itemId: item.itemId,
-                    imageUrl: item.imageUrl,
-                    serverHost: serverHost,
-                    fallback: _buildImagePlaceholder(),
-                  ),
-                ),
+            child: InkWell(
+              onTap: () => _openItemDetail(context, isVeg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Image top frame — wrapped in ClipRRect for crisp corners
+                  Expanded(
+                    flex: 5,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: CachedMenuImage(
+                            key: ValueKey(item.itemId),
+                            cache: imageCache,
+                            itemId: item.itemId,
+                            imageUrl: item.imageUrl,
+                            serverHost: serverHost,
+                            fallback: _buildImagePlaceholder(),
+                          ),
+                        ),
 
-                // Dietary Badge (Slightly bigger: Dot for Veg, Triangle for Non-Veg)
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                        // Dietary Badge (Slightly bigger: Dot for Veg, Triangle for Non-Veg)
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                              ],
+                            ),
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Center(
+                                child: isVeg
+                                    ? Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF2E7D32),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    : SizedBox(
+                                        width: 8,
+                                        height: 8,
+                                        child: CustomPaint(
+                                          painter: const _TrianglePainter(color: Color(0xFFC62828)),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Price Tag Badge Overlay
+                        Positioned(
+                          bottom: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: kTextDark.withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              "₹${(item.price.toDouble() / 100.0).toStringAsFixed(0)}",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Customizable pill badge if options exist
+                        if (_hasAnyCustomizations)
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.tune_rounded, size: 11, color: Colors.amberAccent),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    "Customisable",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
-                          width: 2,
+                  ),
+
+                  // Content text frame (Title and Description)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Title
+                        Text(
+                          item.name,
+                          style: kCardTitleStyle.copyWith(fontSize: 15),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Center(
-                        child: isVeg
-                            ? Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF2E7D32),
-                                  shape: BoxShape.circle,
-                                ),
-                              )
-                            : SizedBox(
-                                width: 8,
-                                height: 8,
-                                child: CustomPaint(
-                                  painter: const _TrianglePainter(color: Color(0xFFC62828)),
-                                ),
-                              ),
-                      ),
+                        const SizedBox(height: 3),
+
+                        // Description
+                        Text(
+                          item.description.isNotEmpty
+                              ? item.description
+                              : "Fresh delicious ${item.name} prepared by our chefs.",
+                          style: kCardDescriptionStyle.copyWith(fontSize: 11, height: 1.25),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-
-                // Price Tag Badge Overlay
-                Positioned(
-                  bottom: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: kTextDark.withOpacity(0.85),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      "₹${(item.price.toDouble() / 100.0).toStringAsFixed(0)}",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content text frame (Title and Description)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                Text(
-                  item.name,
-                  style: kCardTitleStyle.copyWith(fontSize: 15),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-
-                // Description
-                Text(
-                  item.description.isNotEmpty
-                      ? item.description
-                      : "Fresh delicious ${item.name} prepared by our chefs.",
-                  style: kCardDescriptionStyle.copyWith(fontSize: 11, height: 1.25),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -335,9 +381,9 @@ class _MenuCard extends StatelessWidget {
             builder: (context, cart, _) {
               final qty = cart.quantityOf(item.itemId);
               if (qty > 0) {
-                return _buildFullWidthStepper(qty);
+                return _buildFullWidthStepper(context, isVeg, qty);
               }
-              return _buildFullWidthAddButton();
+              return _buildFullWidthAddButton(context, isVeg);
             },
           ),
         ],
@@ -371,7 +417,7 @@ class _MenuCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFullWidthStepper(int qty) {
+  Widget _buildFullWidthStepper(BuildContext context, bool isVeg, int qty) {
     return Container(
       height: 48,
       width: double.infinity,
@@ -436,8 +482,12 @@ class _MenuCard extends StatelessWidget {
                 borderRadius: const BorderRadius.only(bottomRight: Radius.circular(24)),
                 onTap: isOnline
                     ? () {
-                        HapticFeedback.lightImpact();
-                        cartNotifier.addItem(item.itemId);
+                        if (_hasRequiredCustomizations) {
+                          _openItemDetail(context, isVeg);
+                        } else {
+                          HapticFeedback.lightImpact();
+                          cartNotifier.addItem(item.itemId);
+                        }
                       }
                     : null,
                 child: const SizedBox(
@@ -458,8 +508,10 @@ class _MenuCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFullWidthAddButton() {
+  Widget _buildFullWidthAddButton(BuildContext context, bool isVeg) {
     final bool canAdd = item.isAvailable && isOnline;
+    final bool hasReq = _hasRequiredCustomizations;
+
     return SizedBox(
       height: 48,
       width: double.infinity,
@@ -471,26 +523,50 @@ class _MenuCard extends StatelessWidget {
           borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
           onTap: canAdd
               ? () {
-                  HapticFeedback.lightImpact();
-                  cartNotifier.addItem(item.itemId);
+                  if (hasReq) {
+                    _openItemDetail(context, isVeg);
+                  } else {
+                    HapticFeedback.lightImpact();
+                    final groups = parseCustomizations(item.customizations);
+                    CustomOption? defaultOpt;
+                    for (final g in groups) {
+                      if (g.isDirect && g.options.isNotEmpty) {
+                        defaultOpt = g.options.firstWhere(
+                          (o) => o.isDefault,
+                          orElse: () => g.options.first,
+                        );
+                        break;
+                      }
+                    }
+                    if (defaultOpt != null) {
+                      final extraPaise = defaultOpt.extraPrice - item.price.toInt();
+                      cartNotifier.addItem(
+                        item.itemId,
+                        customization: defaultOpt.name,
+                        extraPaise: extraPaise,
+                      );
+                    } else {
+                      cartNotifier.addItem(item.itemId);
+                    }
+                  }
                 }
               : null,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.add_rounded,
-                size: 22,
+                hasReq ? Icons.tune_rounded : Icons.add_rounded,
+                size: 20,
                 color: canAdd ? Colors.white : Colors.grey.shade600,
               ),
               const SizedBox(width: 6),
               Text(
-                "ADD TO CART",
+                hasReq ? "CUSTOMISE" : "ADD TO CART",
                 style: TextStyle(
                   color: canAdd ? Colors.white : Colors.grey.shade600,
                   fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  letterSpacing: 1.0,
+                  fontSize: 13.5,
+                  letterSpacing: 0.8,
                 ),
               ),
             ],
@@ -498,6 +574,29 @@ class _MenuCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openItemDetail(BuildContext context, bool isVeg) {
+    HapticFeedback.lightImpact();
+    ItemDetailModal.show(
+      context: context,
+      item: item,
+      cartNotifier: cartNotifier,
+      serverHost: serverHost,
+      imageCache: imageCache,
+      isVeg: isVeg,
+      onUserActivity: onUserActivity,
+    );
+  }
+
+  bool get _hasRequiredCustomizations {
+    final groups = parseCustomizations(item.customizations);
+    return groups.any((g) => g.isRequired);
+  }
+
+  bool get _hasAnyCustomizations {
+    final groups = parseCustomizations(item.customizations);
+    return groups.isNotEmpty;
   }
 }
 

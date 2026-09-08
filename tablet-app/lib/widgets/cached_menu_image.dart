@@ -62,7 +62,14 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
       old.cache.removeListener(_onCacheChanged);
       widget.cache.addListener(_onCacheChanged);
     }
-    if (old.itemId != widget.itemId || old.imageUrl != widget.imageUrl) {
+    if (old.itemId != widget.itemId || old.imageUrl != widget.imageUrl || old.serverHost != widget.serverHost) {
+      // If photo URL updated, evict old network image so Flutter doesn't cache stale bitmap
+      if (old.imageUrl.isNotEmpty && old.imageUrl != widget.imageUrl) {
+        try {
+          final oldUrl = _buildNetworkUrl(old.serverHost, old.httpPort, old.imageUrl);
+          PaintingBinding.instance.imageCache.evict(NetworkImage(oldUrl));
+        } catch (_) {}
+      }
       _checkCache();
     }
   }
@@ -91,11 +98,11 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
       return;
     }
 
-    // 2. Otherwise fall back to async disk check
-    if (_local != null || _checked) {
+    // 2. If no valid sync cache for this specific imageUrl, show network fallback immediately!
+    if (_local != null || !_checked) {
       setState(() {
         _local = null;
-        _checked = false;
+        _checked = true;
       });
     }
     _loadLocal();
@@ -108,17 +115,26 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
     }
     final f = await widget.cache.localFileFor(widget.itemId, widget.imageUrl);
     if (!mounted) return;
-    setState(() {
-      _local = f;
-      _checked = true;
-    });
+    if (_local?.path != f?.path) {
+      setState(() {
+        _local = f;
+        _checked = true;
+      });
+    }
   }
 
-  String get _networkUrl {
-    final u = widget.imageUrl.trim();
+  static String _buildNetworkUrl(String serverHost, int httpPort, String imageUrl) {
+    final u = imageUrl.trim();
     if (u.isEmpty) return '';
-    return buildServerUrl(widget.serverHost, defaultPort: widget.httpPort, path: u);
+    if (u.contains('/uploads/')) {
+      final sub = u.split('/uploads/')[1];
+      return buildServerUrl(serverHost, defaultPort: httpPort, path: '/uploads/$sub');
+    }
+    if (u.startsWith('http')) return u;
+    return buildServerUrl(serverHost, defaultPort: httpPort, path: u);
   }
+
+  String get _networkUrl => _buildNetworkUrl(widget.serverHost, widget.httpPort, widget.imageUrl);
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +146,7 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
     if (_local != null) {
       return Image.file(
         _local!,
+        key: ValueKey(_local!.path),
         fit: widget.fit,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _network,
@@ -143,6 +160,7 @@ class _CachedMenuImageState extends State<CachedMenuImage> {
     if (url.isEmpty) return widget.fallback ?? const SizedBox.shrink();
     return Image.network(
       url,
+      key: ValueKey(url),
       fit: widget.fit,
       gaplessPlayback: true,
       errorBuilder: (_, __, ___) => widget.fallback ?? const SizedBox.shrink(),

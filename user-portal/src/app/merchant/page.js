@@ -51,7 +51,8 @@ import {
   MapPin,
   Navigation,
   Compass,
-  Sparkles
+  Sparkles,
+  Sliders
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -808,7 +809,8 @@ export default function MerchantDashboard() {
     isAvailable: true,
     imageUrl: '',
     isVeg: true,
-    isPopular: false
+    isPopular: false,
+    customizations: []
   });
   const [zoomFactor, setZoomFactor] = useState(100);
   const [imageTab, setImageTab] = useState('upload');
@@ -2616,7 +2618,8 @@ export default function MerchantDashboard() {
       shifts: [selectedMenuShift || activeShift || 'Breakfast'],
       gst: (menuDefaultGst || 0).toString(),
       otherCharges: (menuDefaultOtherCharges || 0).toString(),
-      otherChargesType: menuDefaultOtherChargesType || 'percentage'
+      otherChargesType: menuDefaultOtherChargesType || 'percentage',
+      customizations: []
     });
     setZoomFactor(100);
     setImageTab('upload');
@@ -2638,7 +2641,22 @@ export default function MerchantDashboard() {
       shifts: Array.isArray(item.shifts) && item.shifts.length > 0 ? item.shifts : [selectedMenuShift || activeShift || 'Breakfast'],
       gst: item.gst !== undefined && item.gst !== null ? item.gst.toString() : (menuDefaultGst || 0).toString(),
       otherCharges: item.otherCharges !== undefined && item.otherCharges !== null ? item.otherCharges.toString() : (menuDefaultOtherCharges || 0).toString(),
-      otherChargesType: (item.otherCharges !== undefined && item.otherCharges !== null) ? (item.otherChargesType || 'percentage') : (menuDefaultOtherChargesType || 'percentage')
+      otherChargesType: (item.otherCharges !== undefined && item.otherCharges !== null) ? (item.otherChargesType || 'percentage') : (menuDefaultOtherChargesType || 'percentage'),
+      customizations: Array.isArray(item.customizations)
+        ? item.customizations.map(c => ({
+            title: c.title || '',
+            pricingType: c.pricingType || 'addon',
+            isMultiple: Boolean(c.isMultiple),
+            isRequired: c.pricingType === 'direct' ? true : Boolean(c.isRequired),
+            options: Array.isArray(c.options)
+              ? c.options.map((o, optIdx) => ({
+                  name: o.name || '',
+                  extraPrice: o.extraPrice !== undefined ? (o.extraPrice / 100).toString() : '0',
+                  isDefault: Boolean(o.isDefault)
+                }))
+              : []
+          }))
+        : []
     });
     const isExternalUrl = item.imageUrl && (item.imageUrl.startsWith('http://') || item.imageUrl.startsWith('https://'));
     setZoomFactor(100);
@@ -2658,6 +2676,27 @@ export default function MerchantDashboard() {
     }
 
     const priceInPaise = Math.round(priceVal * 100);
+    const cleanedCustomizations = (modalForm.customizations || [])
+      .filter(g => g.title && g.title.trim())
+      .map(g => {
+        const isDirect = g.pricingType === 'direct';
+        const rawOpts = (g.options || []).filter(o => o.name && o.name.trim());
+        const hasDefault = rawOpts.some(o => o.isDefault);
+        return {
+          title: g.title.trim(),
+          pricingType: isDirect ? 'direct' : 'addon',
+          isMultiple: isDirect ? false : Boolean(g.isMultiple),
+          isRequired: Boolean(g.isRequired),
+          options: rawOpts.map((o, optIdx) => {
+            const extra = parseFloat(o.extraPrice);
+            return {
+              name: o.name.trim(),
+              extraPrice: isNaN(extra) || extra < 0 ? 0 : Math.round(extra * 100),
+              isDefault: isDirect ? (hasDefault ? Boolean(o.isDefault) : optIdx === 0) : Boolean(o.isDefault)
+            };
+          })
+        };
+      });
 
     if (editingItemIndex === -1) {
       // Create new
@@ -2675,7 +2714,8 @@ export default function MerchantDashboard() {
         shifts: modalForm.isAllShifts ? [] : (modalForm.shifts && modalForm.shifts.length > 0 ? modalForm.shifts : [selectedMenuShift || activeShift || 'Breakfast']),
         gst: null,
         otherCharges: null,
-        otherChargesType: 'percentage'
+        otherChargesType: 'percentage',
+        customizations: cleanedCustomizations
       };
       setMenuItems([...menuItems, newItem]);
     } else {
@@ -2695,7 +2735,8 @@ export default function MerchantDashboard() {
         shifts: modalForm.isAllShifts ? [] : (modalForm.shifts && modalForm.shifts.length > 0 ? modalForm.shifts : [selectedMenuShift || activeShift || 'Breakfast']),
         gst: null,
         otherCharges: null,
-        otherChargesType: 'percentage'
+        otherChargesType: 'percentage',
+        customizations: cleanedCustomizations
       };
       setMenuItems(updated);
     }
@@ -4491,7 +4532,7 @@ export default function MerchantDashboard() {
                           <tr className="border-b border-border/40 text-muted-foreground font-bold uppercase tracking-wider">
                             <th className="pb-3 pr-2">Table / Type</th>
                             <th className="pb-3 pr-2">Order ID</th>
-                            <th className="pb-3 pr-2">Items</th>
+                            <th className="pb-3 pr-2 min-w-[180px]">Items</th>
                             <th className="pb-3 pr-2">Amount</th>
                             <th className="pb-3 pr-2">Status</th>
                             <th className="pb-3 pr-2">Requests</th>
@@ -4522,13 +4563,22 @@ export default function MerchantDashboard() {
                               <td className="py-4 pr-2 font-mono font-bold text-foreground text-xs">
                                 {ord.orderId}
                               </td>
-                              <td className="py-4 pr-2">
+                              <td className="py-4 pr-2 min-w-[180px] max-w-[260px]">
                                 <div className="space-y-1 font-semibold text-foreground">
-                                  <div className="max-h-28 overflow-y-auto pr-1 space-y-1 scrollbar-thin">
+                                  <div className="max-h-36 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
                                     {ord.items.map((item, idx) => (
-                                      <div key={idx} className="text-xs flex items-center justify-between space-x-2">
-                                        <span className="truncate max-w-[150px]" title={item.name}>{item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''}</span>
-                                        <span className="text-muted-foreground shrink-0 font-mono text-[11px]">x {item.quantity}</span>
+                                      <div key={idx} className="text-xs flex flex-col space-y-0.5">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <span className="font-bold text-foreground break-words leading-tight" title={item.name}>
+                                            {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''}
+                                          </span>
+                                          <span className="text-muted-foreground shrink-0 font-mono text-[11px] mt-0.5">x {item.quantity}</span>
+                                        </div>
+                                        {item.customization ? (
+                                          <span className="text-[10px] text-primary/90 font-medium italic break-words leading-tight" title={item.customization}>
+                                            ↳ {item.customization}
+                                          </span>
+                                        ) : null}
                                       </div>
                                     ))}
                                   </div>
@@ -5381,7 +5431,10 @@ export default function MerchantDashboard() {
                             <div className="space-y-1 font-semibold text-foreground">
                               {ord.items && ord.items.map((item, itemIdx) => (
                                 <div key={itemIdx} className="text-xs">
-                                  {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''} &nbsp;&nbsp; <span className="text-muted-foreground">x &nbsp;{item.quantity}</span>
+                                  <div>{item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''} &nbsp;&nbsp; <span className="text-muted-foreground">x &nbsp;{item.quantity}</span></div>
+                                  {item.customization ? (
+                                    <div className="text-[10px] text-primary/80 italic pl-2">↳ {item.customization}</div>
+                                  ) : null}
                                 </div>
                               ))}
                               <div className="w-16 border-t-2 border-border/50 my-1.5"></div>
@@ -5451,17 +5504,47 @@ export default function MerchantDashboard() {
                 </div>
 
                 <div>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Price (₹)"
-                    value={modalForm.price}
-                    onChange={(e) => {
-                      const cleaned = e.target.value.replace(/[^\d.]/g, '');
-                      setModalForm(prev => ({ ...prev, price: cleaned }));
-                    }}
-                    className="w-full bg-background dark:bg-black/20 border border-input rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent transition-all"
-                  />
+                  {(() => {
+                    const hasDirectVariant = (modalForm.customizations || []).some(g => g.pricingType === 'direct' && (g.options || []).length > 0);
+                    return (
+                      <div>
+                        {hasDirectVariant && (
+                          <div className="flex items-center justify-between pb-1 px-1">
+                            <span className="text-[10px] font-bold text-amber-500 uppercase flex items-center space-x-1">
+                              <span>★ Card Display Price (from Default Size)</span>
+                            </span>
+                          </div>
+                        )}
+                        <input
+                          type="text"
+                          required
+                          placeholder={hasDirectVariant ? "Card Display Price (₹)" : "Price (₹)"}
+                          value={modalForm.price}
+                          onChange={(e) => {
+                            const cleaned = e.target.value.replace(/[^\d.]/g, '');
+                            setModalForm(prev => {
+                              const updated = { ...prev, price: cleaned };
+                              if ((prev.customizations || []).some(g => g.pricingType === 'direct')) {
+                                const cust = prev.customizations.map(g => {
+                                  if (g.pricingType !== 'direct') return g;
+                                  const opts = (g.options || []).map(o => {
+                                    if (o.isDefault) {
+                                      return { ...o, extraPrice: cleaned };
+                                    }
+                                    return o;
+                                  });
+                                  return { ...g, options: opts };
+                                });
+                                updated.customizations = cust;
+                              }
+                              return updated;
+                            });
+                          }}
+                          className={`w-full bg-background dark:bg-black/20 border ${hasDirectVariant ? 'border-amber-400/50 focus:ring-amber-500' : 'border-input focus:ring-primary'} rounded-xl px-4 py-2.5 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:border-transparent transition-all`}
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
 
 
@@ -5725,6 +5808,286 @@ export default function MerchantDashboard() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Customisation Options Section */}
+            <div className="mt-6 pt-5 border-t border-border/40 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-primary" />
+                    <span>Customisation Options & Add-ons</span>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Add custom choices for this dish (e.g. Portion Size, Sweetener, Extra toppings).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalForm(prev => ({
+                      ...prev,
+                      customizations: [
+                        ...(prev.customizations || []),
+                        { title: '', pricingType: 'addon', isMultiple: false, isRequired: false, options: [{ name: '', extraPrice: '0', isDefault: false }] }
+                      ]
+                    }));
+                  }}
+                  className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl text-xs font-bold flex items-center space-x-1 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Group</span>
+                </button>
+              </div>
+
+              {(!modalForm.customizations || modalForm.customizations.length === 0) ? (
+                <div className="p-3.5 rounded-xl border border-dashed border-border/60 bg-muted/20 text-center text-xs text-muted-foreground">
+                  No customisations configured. Customers will order this dish directly without extra options.
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
+                  {modalForm.customizations.map((group, gIdx) => {
+                    const isDirect = group.pricingType === 'direct';
+                    return (
+                      <div key={gIdx} className="p-3.5 rounded-xl border border-border/50 bg-muted/20 dark:bg-black/20 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex-1 min-w-[200px]">
+                            <input
+                              type="text"
+                              placeholder={isDirect ? "Group Title (e.g., Pack Size, Portion)" : "Group Title (e.g., Milk Choice, Toppings)"}
+                              value={group.title}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setModalForm(prev => {
+                                  const cust = [...prev.customizations];
+                                  cust[gIdx] = { ...cust[gIdx], title: val };
+                                  return { ...prev, customizations: cust };
+                                });
+                              }}
+                              className="w-full bg-background dark:bg-black/40 border border-input rounded-lg px-3 py-1.5 text-xs font-bold text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary focus:border-transparent"
+                            />
+                          </div>
+
+                          {/* Pricing Type Toggle */}
+                          <div className="flex items-center bg-background dark:bg-black/40 p-0.5 rounded-lg border border-input text-[11px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModalForm(prev => {
+                                  const cust = [...prev.customizations];
+                                  cust[gIdx] = { ...cust[gIdx], pricingType: 'addon', isMultiple: false, isRequired: false };
+                                  return { ...prev, customizations: cust };
+                                });
+                              }}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${!isDirect ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                              +₹ Add-on
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModalForm(prev => {
+                                  const cust = [...prev.customizations];
+                                  const opts = (cust[gIdx].options || []).map((o, idx) => ({
+                                    ...o,
+                                    isDefault: idx === 0
+                                  }));
+                                  cust[gIdx] = { ...cust[gIdx], pricingType: 'direct', isMultiple: false, isRequired: Boolean(cust[gIdx].isRequired), options: opts };
+                                  return { ...prev, customizations: cust };
+                                });
+                              }}
+                              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${isDirect ? 'bg-amber-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                              ₹ Direct Price (Size/Pack)
+                            </button>
+                          </div>
+
+                          <div className="flex items-center space-x-3">
+                            {!isDirect ? (
+                              <>
+                                <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={group.isMultiple}
+                                    onChange={(e) => {
+                                      const val = e.target.checked;
+                                      setModalForm(prev => {
+                                        const cust = [...prev.customizations];
+                                        cust[gIdx] = { ...cust[gIdx], isMultiple: val };
+                                        return { ...prev, customizations: cust };
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 accent-primary cursor-pointer"
+                                  />
+                                  <span className="text-[11px] text-muted-foreground">Multi-select</span>
+                                </label>
+
+                                <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={group.isRequired}
+                                    onChange={(e) => {
+                                      const val = e.target.checked;
+                                      setModalForm(prev => {
+                                        const cust = [...prev.customizations];
+                                        cust[gIdx] = { ...cust[gIdx], isRequired: val };
+                                        return { ...prev, customizations: cust };
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 accent-primary cursor-pointer"
+                                  />
+                                  <span className="text-[11px] text-amber-500 font-semibold">Required</span>
+                                </label>
+                              </>
+                            ) : (
+                              <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(group.isRequired)}
+                                  onChange={(e) => {
+                                    const val = e.target.checked;
+                                    setModalForm(prev => {
+                                      const cust = [...prev.customizations];
+                                      cust[gIdx] = { ...cust[gIdx], isRequired: val };
+                                      return { ...prev, customizations: cust };
+                                    });
+                                  }}
+                                  className="w-3.5 h-3.5 accent-amber-500 cursor-pointer"
+                                />
+                                <span className={`text-[11px] font-semibold ${group.isRequired ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                                  {group.isRequired ? "Mandatory Popup (Required)" : "Allow 1-Tap ADD (Default Size)"}
+                                </span>
+                              </label>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModalForm(prev => ({
+                                  ...prev,
+                                  customizations: prev.customizations.filter((_, idx) => idx !== gIdx)
+                                }));
+                              }}
+                              className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                              title="Remove Group"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Group Options */}
+                        <div className="space-y-2 pl-2 border-l-2 border-primary/30">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <span>{isDirect ? "Pack Sizes / Variants (Direct Retail Price)" : "Options & Extra Pricing"}</span>
+                            {isDirect && <span className="text-amber-500 lowercase font-normal italic">★ Click star to set default / card price</span>}
+                          </div>
+
+                          {group.options.map((opt, oIdx) => (
+                            <div key={oIdx} className="flex items-center space-x-2">
+                              {isDirect && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalForm(prev => {
+                                      const cust = [...prev.customizations];
+                                      const opts = cust[gIdx].options.map((o, idx) => ({
+                                        ...o,
+                                        isDefault: idx === oIdx
+                                      }));
+                                      cust[gIdx] = { ...cust[gIdx], options: opts };
+                                      // Also auto-update item's card price to this default size price
+                                      const newCardPrice = opts[oIdx].extraPrice;
+                                      return {
+                                        ...prev,
+                                        price: newCardPrice || prev.price,
+                                        customizations: cust
+                                      };
+                                    });
+                                  }}
+                                  className={`p-1 rounded-md transition-all cursor-pointer ${opt.isDefault ? 'text-amber-400 bg-amber-500/15 border border-amber-400/30' : 'text-muted-foreground hover:text-foreground'}`}
+                                  title={opt.isDefault ? "Default / Featured Card Price" : "Click to set as Default Card Price"}
+                                >
+                                  ★
+                                </button>
+                              )}
+                              <input
+                                type="text"
+                                placeholder={isDirect ? "Variant name (e.g. 100 Gm, 600 Gm)" : "Option name (e.g. Regular / With Sugar)"}
+                                value={opt.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setModalForm(prev => {
+                                    const cust = [...prev.customizations];
+                                    const opts = [...cust[gIdx].options];
+                                    opts[oIdx] = { ...opts[oIdx], name: val };
+                                    cust[gIdx] = { ...cust[gIdx], options: opts };
+                                    return { ...prev, customizations: cust };
+                                  });
+                                }}
+                                className="flex-1 bg-background dark:bg-black/30 border border-input rounded-lg px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
+                              />
+                              <div className="w-28 flex items-center space-x-1">
+                                <span className="text-xs text-muted-foreground font-mono">{isDirect ? '₹' : '+₹'}</span>
+                                <input
+                                  type="text"
+                                  placeholder="0"
+                                  value={opt.extraPrice}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^\d.]/g, '');
+                                    setModalForm(prev => {
+                                      const cust = [...prev.customizations];
+                                      const opts = [...cust[gIdx].options];
+                                      opts[oIdx] = { ...opts[oIdx], extraPrice: val };
+                                      cust[gIdx] = { ...cust[gIdx], options: opts };
+                                      const updatedForm = { ...prev, customizations: cust };
+                                      if (isDirect && opts[oIdx].isDefault) {
+                                        updatedForm.price = val;
+                                      }
+                                      return updatedForm;
+                                    });
+                                  }}
+                                  className="w-full bg-background dark:bg-black/30 border border-input rounded-lg px-2 py-1 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModalForm(prev => {
+                                    const cust = [...prev.customizations];
+                                    const opts = cust[gIdx].options.filter((_, idx) => idx !== oIdx);
+                                    cust[gIdx] = { ...cust[gIdx], options: opts };
+                                    return { ...prev, customizations: cust };
+                                  });
+                                }}
+                                className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                                title="Remove Option"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalForm(prev => {
+                                const cust = [...prev.customizations];
+                                const opts = [...cust[gIdx].options, { name: '', extraPrice: '0', isDefault: false }];
+                                cust[gIdx] = { ...cust[gIdx], options: opts };
+                                return { ...prev, customizations: cust };
+                              });
+                            }}
+                            className="text-[11px] text-primary hover:underline font-bold flex items-center space-x-1 cursor-pointer pt-1"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Option</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Modal Actions */}
@@ -6871,13 +7234,20 @@ export default function MerchantDashboard() {
               {/* Items */}
               <div className={`space-y-0.5 my-1 ${is58mm ? 'text-[8px]' : 'text-[9px]'}`}>
                 {items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start leading-tight">
-                    <span className={is58mm ? "w-4 shrink-0 font-semibold" : "w-5 shrink-0 font-semibold"}>{idx + 1}.</span>
-                    <span className="flex-1 px-1 font-bold text-gray-900 break-words pr-0.5">
-                      {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' (PACK)' : ''}
-                    </span>
-                    <span className={is58mm ? "w-5 text-center shrink-0" : "w-7 text-center shrink-0"}>{item.quantity}</span>
-                    <span className={is58mm ? "w-10 text-right shrink-0" : "w-12 text-right shrink-0"}>{((item.price * item.quantity) / 100).toFixed(2)}</span>
+                  <div key={idx} className="flex flex-col">
+                    <div className="flex justify-between items-start leading-tight">
+                      <span className={is58mm ? "w-4 shrink-0 font-semibold" : "w-5 shrink-0 font-semibold"}>{idx + 1}.</span>
+                      <span className="flex-1 px-1 font-bold text-gray-900 break-words pr-0.5">
+                        {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' (PACK)' : ''}
+                      </span>
+                      <span className={is58mm ? "w-5 text-center shrink-0" : "w-7 text-center shrink-0"}>{item.quantity}</span>
+                      <span className={is58mm ? "w-10 text-right shrink-0" : "w-12 text-right shrink-0"}>{((item.price * item.quantity) / 100).toFixed(2)}</span>
+                    </div>
+                    {item.customization ? (
+                      <div className={`pl-5 text-gray-600 italic leading-tight ${is58mm ? 'text-[7px]' : 'text-[8px]'}`}>
+                        * {item.customization}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

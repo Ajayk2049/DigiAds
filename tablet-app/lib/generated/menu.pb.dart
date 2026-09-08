@@ -94,6 +94,7 @@ class MenuItem extends $pb.GeneratedMessage {
     $core.String? imageUrl,
     $core.bool? isVeg,
     $core.bool? isPopular,
+    $core.String? customizations,
   }) {
     final result = create();
     if (itemId != null) result.itemId = itemId;
@@ -105,6 +106,7 @@ class MenuItem extends $pb.GeneratedMessage {
     if (imageUrl != null) result.imageUrl = imageUrl;
     if (isVeg != null) result.isVeg = isVeg;
     if (isPopular != null) result.isPopular = isPopular;
+    if (customizations != null) result.customizations = customizations;
     return result;
   }
 
@@ -129,6 +131,7 @@ class MenuItem extends $pb.GeneratedMessage {
     ..aOS(7, _omitFieldNames ? '' : 'imageUrl', protoName: 'imageUrl')
     ..aOB(8, _omitFieldNames ? '' : 'isVeg', protoName: 'isVeg')
     ..aOB(9, _omitFieldNames ? '' : 'isPopular', protoName: 'isPopular')
+    ..aOS(10, _omitFieldNames ? '' : 'customizations')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -229,6 +232,15 @@ class MenuItem extends $pb.GeneratedMessage {
   $core.bool hasIsPopular() => $_has(8);
   @$pb.TagNumber(9)
   void clearIsPopular() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get customizations => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set customizations($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasCustomizations() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearCustomizations() => $_clearField(10);
 }
 
 class GetMenuResponse extends $pb.GeneratedMessage {

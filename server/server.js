@@ -1092,7 +1092,10 @@ const menuServiceHandlers = {
           isAvailable: item.isAvailable !== false,
           imageUrl: item.imageUrl || '',
           isVeg: item.isVeg !== undefined ? item.isVeg : true,
-          isPopular: Boolean(item.isPopular)
+          isPopular: Boolean(item.isPopular),
+          customizations: Array.isArray(item.customizations) && item.customizations.length > 0
+            ? JSON.stringify(item.customizations)
+            : ''
         })) : [];
 
       callback(null, {
@@ -1125,14 +1128,12 @@ const orderServiceHandlers = {
       const requestedItemIds = (items || []).map(i => i.itemId).filter(Boolean);
       const menuDoc = await Menu.findOne({ hostApplicationId });
       const menuItems = menuDoc?.items || [];
-      const menuPriceMap = new Map();
-      const menuNameMap = new Map();
+      const menuItemMap = new Map();
       const unavailableItems = [];
 
       menuItems.forEach(m => {
         if (requestedItemIds.includes(m.itemId)) {
-          menuPriceMap.set(m.itemId, Number(m.price) || 0);
-          menuNameMap.set(m.itemId, m.name);
+          menuItemMap.set(m.itemId, m);
           if (m.isAvailable === false) {
             unavailableItems.push(m.name);
           }
@@ -1148,15 +1149,41 @@ const orderServiceHandlers = {
 
       // Validated items with server-verified prices
       const validatedItems = (items || []).map(item => {
-        const serverPrice = menuPriceMap.has(item.itemId) ? menuPriceMap.get(item.itemId) : Number(item.price || 0);
-        const serverName = menuNameMap.get(item.itemId) || item.name;
+        const menuItem = menuItemMap.get(item.itemId);
+        const basePrice = menuItem ? Number(menuItem.price || 0) : Number(item.price || 0);
+        const serverName = menuItem ? menuItem.name : item.name;
         const qty = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+        const requestedPrice = Number(item.price || 0);
+
+        let itemPrice = basePrice;
+        if (menuItem && Array.isArray(menuItem.customizations) && menuItem.customizations.length > 0) {
+          const directGroups = menuItem.customizations.filter(g => g.pricingType === 'direct');
+          if (directGroups.length > 0) {
+            const validDirectPrices = [];
+            directGroups.forEach(g => {
+              (g.options || []).forEach(opt => {
+                validDirectPrices.push(Number(opt.extraPrice || 0));
+              });
+            });
+            // If requested price matches one of the valid direct variant prices (or direct variant + addons), accept it
+            if (validDirectPrices.includes(requestedPrice) || (validDirectPrices.length > 0 && requestedPrice >= Math.min(...validDirectPrices))) {
+              itemPrice = requestedPrice;
+            }
+          } else {
+            // Addon pricing: price must be at least basePrice
+            itemPrice = (requestedPrice >= basePrice) ? requestedPrice : basePrice;
+          }
+        } else {
+          itemPrice = (requestedPrice >= basePrice) ? requestedPrice : basePrice;
+        }
+
         return {
           itemId: item.itemId,
           name: serverName,
           quantity: qty,
-          price: serverPrice,
-          isPacked: Boolean(item.isPacked)
+          price: itemPrice,
+          isPacked: Boolean(item.isPacked),
+          customization: typeof item.customization === 'string' ? item.customization : ''
         };
       });
 
@@ -1169,9 +1196,13 @@ const orderServiceHandlers = {
       });
 
       if (order) {
-        // Merge items into existing active order (matching itemId and isPacked)
+        // Merge items into existing active order (matching itemId, isPacked, and customization)
         validatedItems.forEach(newItem => {
-          const existingItem = order.items.find(i => i.itemId === newItem.itemId && Boolean(i.isPacked) === Boolean(newItem.isPacked));
+          const existingItem = order.items.find(i =>
+            i.itemId === newItem.itemId &&
+            Boolean(i.isPacked) === Boolean(newItem.isPacked) &&
+            (i.customization || '') === (newItem.customization || '')
+          );
           if (existingItem) {
             existingItem.quantity += newItem.quantity;
           } else {
@@ -1180,7 +1211,8 @@ const orderServiceHandlers = {
               name: newItem.name,
               quantity: newItem.quantity,
               price: newItem.price,
-              isPacked: newItem.isPacked
+              isPacked: newItem.isPacked,
+              customization: newItem.customization
             });
           }
         });

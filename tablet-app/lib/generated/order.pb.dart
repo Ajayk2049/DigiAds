@@ -24,6 +24,7 @@ class OrderItem extends $pb.GeneratedMessage {
     $core.int? quantity,
     $fixnum.Int64? price,
     $core.bool? isPacked,
+    $core.String? customization,
   }) {
     final result = create();
     if (itemId != null) result.itemId = itemId;
@@ -31,6 +32,7 @@ class OrderItem extends $pb.GeneratedMessage {
     if (quantity != null) result.quantity = quantity;
     if (price != null) result.price = price;
     if (isPacked != null) result.isPacked = isPacked;
+    if (customization != null) result.customization = customization;
     return result;
   }
 
@@ -52,6 +54,7 @@ class OrderItem extends $pb.GeneratedMessage {
     ..aI(3, _omitFieldNames ? '' : 'quantity')
     ..aInt64(4, _omitFieldNames ? '' : 'price')
     ..aOB(5, _omitFieldNames ? '' : 'isPacked', protoName: 'isPacked')
+    ..aOS(6, _omitFieldNames ? '' : 'customization')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -116,6 +119,15 @@ class OrderItem extends $pb.GeneratedMessage {
   $core.bool hasIsPacked() => $_has(4);
   @$pb.TagNumber(5)
   void clearIsPacked() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get customization => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set customization($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCustomization() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCustomization() => $_clearField(6);
 }
 
 class CreateOrderRequest extends $pb.GeneratedMessage {

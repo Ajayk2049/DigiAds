@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:fixnum/fixnum.dart';
 import '../constants.dart';
+import '../menu_state.dart';
 import '../generated/menu.pbgrpc.dart';
 import '../generated/order.pbgrpc.dart';
 import 'package:grpc/grpc.dart';
@@ -58,7 +59,8 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
   void _createOrder() async {
     try {
       final orderItems = widget.cart.entries.map((entry) {
-        final rawId = entry.key.split(':pack').first;
+        final info = CartLineKeyInfo.parse(entry.key);
+        final rawId = info.rawItemId;
         final isPacked = entry.key.endsWith(':pack');
 
         final item = widget.menuItems.firstWhere(
@@ -69,12 +71,15 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
             ..price = Int64(0),
         );
 
+        final unitPricePaise = item.price.toInt() + info.extraPaise;
+
         return OrderItem()
           ..itemId = item.itemId
           ..name = isPacked ? '${item.name} (PACK)' : item.name
           ..quantity = entry.value
-          ..price = item.price
-          ..isPacked = isPacked;
+          ..price = Int64(unitPricePaise)
+          ..isPacked = isPacked
+          ..customization = info.customization;
       }).toList();
 
       final req = CreateOrderRequest()

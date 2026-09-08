@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
@@ -64,6 +65,9 @@ class MenuImageCache extends ChangeNotifier {
     if (imageUrl != null && imageUrl.isNotEmpty) {
       final key = _cacheKey(itemId, imageUrl);
       if (_fileCache.containsKey(key)) return _fileCache[key];
+      // Do NOT fall back to _fileCache[itemId] when an imageUrl is specified,
+      // as _fileCache[itemId] may hold an obsolete photo version!
+      return null;
     }
     return _fileCache[itemId];
   }
@@ -122,15 +126,18 @@ class MenuImageCache extends ChangeNotifier {
     if (syncMatch != null) return syncMatch;
 
     final dir = await _ensureDir();
-    final key = _cacheKey(itemId, imageUrl);
-    final f = File('${dir.path}/$key.img');
-    if (await f.exists() && await f.length() > 0) {
-      _fileCache[key] = f;
-      _fileCache[itemId] = f;
-      return f;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      final key = _cacheKey(itemId, imageUrl);
+      final f = File('${dir.path}/$key.img');
+      if (await f.exists() && await f.length() > 0) {
+        _fileCache[key] = f;
+        _fileCache[itemId] = f;
+        return f;
+      }
+      return null;
     }
 
-    // Fallback check for legacy non-hashed filename
+    // Fallback check for legacy non-hashed filename ONLY if no imageUrl specified
     final legacyFile = File('${dir.path}/$itemId.img');
     if (await legacyFile.exists() && await legacyFile.length() > 0) {
       _fileCache[itemId] = legacyFile;
@@ -203,6 +210,9 @@ class MenuImageCache extends ChangeNotifier {
           if (entity is File && entity.path.endsWith('.img')) {
             final fName = entity.path.split(Platform.pathSeparator).last;
             if (fName == '$itemId.img' || (fName.startsWith('${itemId}_') && fName != '$key.img')) {
+              try {
+                PaintingBinding.instance.imageCache.evict(FileImage(entity));
+              } catch (_) {}
               await entity.delete();
             }
           }
@@ -212,9 +222,24 @@ class MenuImageCache extends ChangeNotifier {
       }
 
       final finalFile = File('${dir.path}/$key.img');
-      if (await finalFile.exists()) await finalFile.delete();
+      if (await finalFile.exists()) {
+        try {
+          PaintingBinding.instance.imageCache.evict(FileImage(finalFile));
+        } catch (_) {}
+        await finalFile.delete();
+      }
       await target.rename(finalFile.path);
 
+      // Evict new file texture and network texture from engine imageCache
+      try {
+        PaintingBinding.instance.imageCache.evict(FileImage(finalFile));
+      } catch (_) {}
+      try {
+        PaintingBinding.instance.imageCache.evict(NetworkImage(url));
+      } catch (_) {}
+
+      // Update in-memory file cache: remove obsolete keys for this item
+      _fileCache.removeWhere((k, v) => (k == itemId || k.startsWith('${itemId}_')) && k != key);
       _fileCache[key] = finalFile;
       _fileCache[itemId] = finalFile;
 
