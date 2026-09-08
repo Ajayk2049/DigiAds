@@ -58,7 +58,7 @@ class CustomGroup {
       title: json['title']?.toString() ?? '',
       pricingType: pricingType,
       isMultiple: pricingType == 'direct' ? false : (json['isMultiple'] == true),
-      isRequired: pricingType == 'direct' ? true : (json['isRequired'] == true),
+      isRequired: json['isRequired'] == true,
       options: opts,
     );
   }

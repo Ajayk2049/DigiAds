@@ -2647,7 +2647,7 @@ export default function MerchantDashboard() {
             title: c.title || '',
             pricingType: c.pricingType || 'addon',
             isMultiple: Boolean(c.isMultiple),
-            isRequired: c.pricingType === 'direct' ? true : Boolean(c.isRequired),
+            isRequired: Boolean(c.isRequired),
             options: Array.isArray(c.options)
               ? c.options.map((o, optIdx) => ({
                   name: o.name || '',
@@ -5922,7 +5922,7 @@ export default function MerchantDashboard() {
                                   <span className="text-[11px] text-muted-foreground">Multi-select</span>
                                 </label>
 
-                                <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none">
+                                <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none bg-background dark:bg-black/30 border border-input rounded-lg px-2.5 py-1">
                                   <input
                                     type="checkbox"
                                     checked={group.isRequired}
@@ -5936,11 +5936,13 @@ export default function MerchantDashboard() {
                                     }}
                                     className="w-3.5 h-3.5 accent-primary cursor-pointer"
                                   />
-                                  <span className="text-[11px] text-amber-500 font-semibold">Required</span>
+                                  <span className={`text-[11px] font-bold ${group.isRequired ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                    {group.isRequired ? "Mandatory Popup (CUSTOMISE button)" : "1-Tap ADD (Default Price)"}
+                                  </span>
                                 </label>
                               </>
                             ) : (
-                              <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none">
+                              <label className="flex items-center space-x-1.5 text-xs font-medium cursor-pointer select-none bg-background dark:bg-black/30 border border-input rounded-lg px-2.5 py-1">
                                 <input
                                   type="checkbox"
                                   checked={Boolean(group.isRequired)}
@@ -5954,8 +5956,8 @@ export default function MerchantDashboard() {
                                   }}
                                   className="w-3.5 h-3.5 accent-amber-500 cursor-pointer"
                                 />
-                                <span className={`text-[11px] font-semibold ${group.isRequired ? 'text-amber-500' : 'text-muted-foreground'}`}>
-                                  {group.isRequired ? "Mandatory Popup (Required)" : "Allow 1-Tap ADD (Default Size)"}
+                                <span className={`text-[11px] font-bold ${group.isRequired ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                  {group.isRequired ? "Mandatory Popup (CUSTOMISE button)" : "1-Tap ADD (Default Size)"}
                                 </span>
                               </label>
                             )}

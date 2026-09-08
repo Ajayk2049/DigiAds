@@ -180,6 +180,42 @@ class CartNotifier extends ValueNotifier<CartSnapshot> {
     _emit();
   }
 
+  /// Decrement one unit of an item by raw itemId, supporting customized line items.
+  void removeOneOfItemId(String rawItemId) {
+    // 1. Direct match on plain un-customized key
+    if ((_items.containsKey(rawItemId) && _items[rawItemId]! > 0) ||
+        (_items.containsKey('$rawItemId:pack') && _items['$rawItemId:pack']! > 0)) {
+      removeItem(rawItemId);
+      return;
+    }
+    // 2. Customized lines: find the last matching line for this rawItemId and decrement it
+    final keys = _items.keys.toList().reversed;
+    for (final k in keys) {
+      final info = CartLineKeyInfo.parse(k);
+      if (info.rawItemId == rawItemId) {
+        removeItem(info.baseKey);
+        return;
+      }
+    }
+  }
+
+  /// Remove all units of an item across all customizations and packing states by raw itemId.
+  void removeAllOfRawItemId(String rawItemId) {
+    final toRemove = <String>[];
+    for (final k in _items.keys) {
+      final info = CartLineKeyInfo.parse(k);
+      if (info.rawItemId == rawItemId) {
+        toRemove.add(k);
+      }
+    }
+    for (final k in toRemove) {
+      _items.remove(k);
+    }
+    if (toRemove.isNotEmpty) {
+      _emit();
+    }
+  }
+
   void setPackedQuantity(String baseKey, int targetPackedQty) {
     final normalQty = _items[baseKey] ?? 0;
     final packedKey = '$baseKey:pack';

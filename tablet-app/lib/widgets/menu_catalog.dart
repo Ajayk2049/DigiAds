@@ -440,7 +440,7 @@ class _MenuCard extends StatelessWidget {
                 onTap: isOnline
                     ? () {
                         HapticFeedback.lightImpact();
-                        cartNotifier.removeItem(item.itemId);
+                        cartNotifier.removeOneOfItemId(item.itemId);
                       }
                     : null,
                 child: const SizedBox(
@@ -485,8 +485,7 @@ class _MenuCard extends StatelessWidget {
                         if (_hasRequiredCustomizations) {
                           _openItemDetail(context, isVeg);
                         } else {
-                          HapticFeedback.lightImpact();
-                          cartNotifier.addItem(item.itemId);
+                          _addDefaultOrIncrement(context, isVeg);
                         }
                       }
                     : null,
@@ -526,28 +525,7 @@ class _MenuCard extends StatelessWidget {
                   if (hasReq) {
                     _openItemDetail(context, isVeg);
                   } else {
-                    HapticFeedback.lightImpact();
-                    final groups = parseCustomizations(item.customizations);
-                    CustomOption? defaultOpt;
-                    for (final g in groups) {
-                      if (g.isDirect && g.options.isNotEmpty) {
-                        defaultOpt = g.options.firstWhere(
-                          (o) => o.isDefault,
-                          orElse: () => g.options.first,
-                        );
-                        break;
-                      }
-                    }
-                    if (defaultOpt != null) {
-                      final extraPaise = defaultOpt.extraPrice - item.price.toInt();
-                      cartNotifier.addItem(
-                        item.itemId,
-                        customization: defaultOpt.name,
-                        extraPaise: extraPaise,
-                      );
-                    } else {
-                      cartNotifier.addItem(item.itemId);
-                    }
+                    _addDefaultOrIncrement(context, isVeg);
                   }
                 }
               : null,
@@ -574,6 +552,55 @@ class _MenuCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _addDefaultOrIncrement(BuildContext context, bool isVeg) {
+    HapticFeedback.lightImpact();
+    // 1. Check if an existing line already exists in cart for this raw itemId
+    final cart = cartNotifier.value;
+    final matchingKeys = cart.items.keys
+        .where((k) => CartLineKeyInfo.parse(k).rawItemId == item.itemId)
+        .toList();
+
+    if (matchingKeys.length == 1) {
+      // Exactly 1 variant in cart -> increment that same variant
+      final info = CartLineKeyInfo.parse(matchingKeys.first);
+      final isPacked = matchingKeys.first.endsWith(':pack');
+      cartNotifier.addItem(
+        info.rawItemId,
+        isPacked: isPacked,
+        customization: info.customization,
+        extraPaise: info.extraPaise,
+      );
+      return;
+    } else if (matchingKeys.length > 1) {
+      // Multiple different variants in cart -> open modal so user can pick which variant to add
+      _openItemDetail(context, isVeg);
+      return;
+    }
+
+    // 2. Nothing in cart yet -> Add default variant or plain item
+    final groups = parseCustomizations(item.customizations);
+    CustomOption? defaultOpt;
+    for (final g in groups) {
+      if (g.isDirect && g.options.isNotEmpty) {
+        defaultOpt = g.options.firstWhere(
+          (o) => o.isDefault,
+          orElse: () => g.options.first,
+        );
+        break;
+      }
+    }
+    if (defaultOpt != null) {
+      final extraPaise = defaultOpt.extraPrice - item.price.toInt();
+      cartNotifier.addItem(
+        item.itemId,
+        customization: defaultOpt.name,
+        extraPaise: extraPaise,
+      );
+    } else {
+      cartNotifier.addItem(item.itemId);
+    }
   }
 
   void _openItemDetail(BuildContext context, bool isVeg) {
