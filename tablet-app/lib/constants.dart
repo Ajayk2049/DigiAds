@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 // ───────────────────────── Durations ─────────────────────────
 
@@ -337,40 +338,41 @@ const double kVideoOverflowPx = 80.0;
 
 // ───────────────────────── Dynamic Category Helpers ─────────────────────────
 
-/// Standard Category Icon Pack mapping unique icon keys to Material Icons
+/// Standard Category Icon Pack mapping unique icon keys to Lucide Icons
+/// Provides 100% pixel-for-pixel visual parity with the Web Dashboard and Merchant Desktop.
 const Map<String, IconData> kCategoryIconPack = {
-  'wheat': Icons.grain,
-  'package': Icons.inventory_2_outlined,
-  'fastfood': Icons.fastfood,
-  'pizza': Icons.local_pizza,
-  'burger': Icons.lunch_dining,
-  'soup': Icons.soup_kitchen,
-  'dinner': Icons.dinner_dining,
-  'rice': Icons.rice_bowl,
-  'croissant': Icons.bakery_dining,
-  'coffee': Icons.local_cafe,
-  'drink': Icons.local_drink,
-  'bar': Icons.local_bar,
-  'beer': Icons.sports_bar,
-  'icecream': Icons.icecream,
-  'cookie': Icons.cookie,
-  'cake': Icons.cake,
-  'salad': Icons.eco,
-  'flame': Icons.outdoor_grill,
-  'fish': Icons.set_meal,
-  'egg': Icons.breakfast_dining,
-  'sparkles': Icons.auto_awesome,
-  'star': Icons.star_rounded,
-  'tag': Icons.local_offer,
-  'apple': Icons.apple,
-  'popcorn': Icons.movie,
-  'baby': Icons.child_care,
-  'sauce': Icons.add_circle_outline,
-  'bell': Icons.notifications_active,
-  'store': Icons.storefront,
-  'leaf': Icons.spa,
-  'shield': Icons.health_and_safety,
-  'utensils': Icons.restaurant,
+  'wheat': LucideIcons.wheat,
+  'package': LucideIcons.package,
+  'fastfood': LucideIcons.utensils,
+  'pizza': LucideIcons.pizza,
+  'burger': LucideIcons.sandwich,
+  'soup': LucideIcons.soup,
+  'dinner': LucideIcons.utensilsCrossed,
+  'rice': LucideIcons.cookingPot,
+  'croissant': LucideIcons.croissant,
+  'coffee': LucideIcons.coffee,
+  'drink': LucideIcons.cupSoda,
+  'bar': LucideIcons.wine,
+  'beer': LucideIcons.beer,
+  'icecream': LucideIcons.iceCream2,
+  'cookie': LucideIcons.cookie,
+  'cake': LucideIcons.cake,
+  'salad': LucideIcons.salad,
+  'flame': LucideIcons.flame,
+  'fish': LucideIcons.fish,
+  'egg': LucideIcons.egg,
+  'sparkles': LucideIcons.sparkles,
+  'star': LucideIcons.star,
+  'tag': LucideIcons.tag,
+  'apple': LucideIcons.apple,
+  'popcorn': LucideIcons.popcorn,
+  'baby': LucideIcons.baby,
+  'sauce': LucideIcons.sparkle,
+  'bell': LucideIcons.bell,
+  'store': LucideIcons.store,
+  'leaf': LucideIcons.leaf,
+  'shield': LucideIcons.shieldCheck,
+  'utensils': LucideIcons.utensilsCrossed,
 };
 
 /// Returns the icon for a category, prioritizing the explicitly chosen icon key
@@ -386,73 +388,73 @@ IconData getCategoryIcon(String category, [String? explicitIconKey]) {
   final cat = category.toLowerCase().trim();
 
   if (cat.contains('wheat') || cat.contains('millet') || cat.contains('flake') || cat.contains('grain') || cat.contains('oat') || cat.contains('cereal')) {
-    return Icons.grain;
+    return LucideIcons.wheat;
   }
   if (cat.contains('package') || cat.contains('box') || cat.contains('retail') || cat.contains('ready')) {
-    return Icons.inventory_2_outlined;
+    return LucideIcons.package;
   }
   if (cat.contains('popular') || cat.contains('trending') || cat.contains('bestseller') || cat.contains('top')) {
-    return Icons.insights;
+    return LucideIcons.star;
   }
   if (cat.contains('starter') || cat.contains('appetizer') || cat.contains('snack') || cat.contains('finger') || cat.contains('chaat') || cat.contains('munch')) {
-    return Icons.fastfood;
+    return LucideIcons.utensils;
   }
   if (cat.contains('soup') || cat.contains('broth') || cat.contains('ramen') || cat.contains('noodle') || cat.contains('pasta') || cat.contains('chowmein') || cat.contains('maggi')) {
-    return Icons.soup_kitchen;
+    return LucideIcons.soup;
   }
   if (cat.contains('pizza')) {
-    return Icons.local_pizza;
+    return LucideIcons.pizza;
   }
   if (cat.contains('burger') || cat.contains('sandwich') || cat.contains('wrap') || cat.contains('roll') || cat.contains('sub') || cat.contains('frankie') || cat.contains('shawarma')) {
-    return Icons.lunch_dining;
+    return LucideIcons.sandwich;
   }
   if (cat.contains('main') || cat.contains('curry') || cat.contains('gravy') || cat.contains('entree') || cat.contains('dal') || cat.contains('sabji') || cat.contains('sabzi') || cat.contains('paneer')) {
-    return Icons.dinner_dining;
+    return LucideIcons.utensilsCrossed;
   }
   if (cat.contains('rice') || cat.contains('biryani') || cat.contains('pulao') || cat.contains('fried rice') || cat.contains('thali') || cat.contains('bowl') || cat.contains('khichdi')) {
-    return Icons.rice_bowl;
+    return LucideIcons.cookingPot;
   }
   if (cat.contains('bread') || cat.contains('roti') || cat.contains('naan') || cat.contains('paratha') || cat.contains('bakery') || cat.contains('toast') || cat.contains('kulcha')) {
-    return Icons.bakery_dining;
+    return LucideIcons.croissant;
   }
   if (cat.contains('breakfast') || cat.contains('brunch') || cat.contains('morning') || cat.contains('egg') || cat.contains('omelette') || cat.contains('waffle') || cat.contains('pancake') || cat.contains('dosa') || cat.contains('idli')) {
-    return Icons.breakfast_dining;
+    return LucideIcons.egg;
   }
   if (cat.contains('salad') || cat.contains('veg') || cat.contains('healthy') || cat.contains('green') || cat.contains('diet') || cat.contains('sprout') || cat.contains('raw')) {
-    return Icons.eco;
+    return LucideIcons.salad;
   }
   if (cat.contains('seafood') || cat.contains('fish') || cat.contains('prawn') || cat.contains('crab') || cat.contains('sushi') || cat.contains('squid') || cat.contains('salmon')) {
-    return Icons.set_meal;
+    return LucideIcons.fish;
   }
   if (cat.contains('bbq') || cat.contains('grill') || cat.contains('tandoor') || cat.contains('kebab') || cat.contains('kabab') || cat.contains('steak') || cat.contains('meat') || cat.contains('chicken') || cat.contains('mutton') || cat.contains('tikka')) {
-    return Icons.outdoor_grill;
+    return LucideIcons.flame;
   }
   if (cat.contains('dessert') || cat.contains('sweet') || cat.contains('cake') || cat.contains('pastry') || cat.contains('cookie') || cat.contains('brownie') || cat.contains('chocolate') || cat.contains('mithai') || cat.contains('halwa') || cat.contains('gulab')) {
-    return Icons.cookie;
+    return LucideIcons.cookie;
   }
   if (cat.contains('ice cream') || cat.contains('icecream') || cat.contains('gelato') || cat.contains('sundae') || cat.contains('kulfi') || cat.contains('shake') || cat.contains('smoothie') || cat.contains('falooda')) {
-    return Icons.icecream;
+    return LucideIcons.iceCream2;
   }
   if (cat.contains('beverage') || cat.contains('drink') || cat.contains('tea') || cat.contains('chai') || cat.contains('coffee') || cat.contains('juice') || cat.contains('soda') || cat.contains('water') || cat.contains('lassi')) {
-    return Icons.local_cafe;
+    return LucideIcons.cupSoda;
   }
   if (cat.contains('bar') || cat.contains('cocktail') || cat.contains('mocktail') || cat.contains('wine') || cat.contains('beer') || cat.contains('alcohol') || cat.contains('liquor') || cat.contains('whiskey') || cat.contains('vodka') || cat.contains('shots')) {
-    return Icons.local_bar;
+    return LucideIcons.wine;
   }
   if (cat.contains('special') || cat.contains('chef') || cat.contains('signature') || cat.contains('today') || cat.contains('featured') || cat.contains('exclusive') || cat.contains('premium')) {
-    return Icons.star_rounded;
+    return LucideIcons.sparkles;
   }
   if (cat.contains('combo') || cat.contains('deal') || cat.contains('offer') || cat.contains('saver') || cat.contains('pack') || cat.contains('family')) {
-    return Icons.local_offer;
+    return LucideIcons.tag;
   }
   if (cat.contains('kid') || cat.contains('child') || cat.contains('junior')) {
-    return Icons.child_care;
+    return LucideIcons.baby;
   }
   if (cat.contains('sauce') || cat.contains('dip') || cat.contains('side') || cat.contains('extra') || cat.contains('addon') || cat.contains('chutney') || cat.contains('raita') || cat.contains('papad')) {
-    return Icons.add_circle_outline;
+    return LucideIcons.sparkle;
   }
 
-  return Icons.restaurant;
+  return LucideIcons.utensilsCrossed;
 }
 
 /// Smart culinary keyword mapper returning helpful, appetizing category subtitles.

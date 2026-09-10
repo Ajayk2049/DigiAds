@@ -1,42 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart' as lucide;
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_theme.dart';
 import '../../providers/menu_provider.dart';
 
 const Map<String, IconData> kDesktopCategoryIconMap = {
-  'wheat': Icons.grain,
-  'package': Icons.inventory_2_outlined,
-  'fastfood': Icons.fastfood,
-  'pizza': Icons.local_pizza,
-  'burger': Icons.lunch_dining,
-  'soup': Icons.soup_kitchen,
-  'dinner': Icons.dinner_dining,
-  'rice': Icons.rice_bowl,
-  'croissant': Icons.bakery_dining,
-  'coffee': Icons.local_cafe,
-  'drink': Icons.local_drink,
-  'bar': Icons.local_bar,
-  'beer': Icons.sports_bar,
-  'icecream': Icons.icecream,
-  'cookie': Icons.cookie,
-  'cake': Icons.cake,
-  'salad': Icons.eco,
-  'flame': Icons.outdoor_grill,
-  'fish': Icons.set_meal,
-  'egg': Icons.breakfast_dining,
-  'sparkles': Icons.auto_awesome,
-  'star': Icons.star_rounded,
-  'tag': Icons.local_offer,
-  'apple': Icons.apple,
-  'popcorn': Icons.movie,
-  'baby': Icons.child_care,
-  'sauce': Icons.add_circle_outline,
-  'bell': Icons.notifications_active,
-  'store': Icons.storefront,
-  'leaf': Icons.spa,
-  'shield': Icons.health_and_safety,
-  'utensils': Icons.restaurant,
+  'wheat': lucide.LucideIcons.wheat,
+  'package': lucide.LucideIcons.package,
+  'fastfood': lucide.LucideIcons.utensils,
+  'pizza': lucide.LucideIcons.pizza,
+  'burger': lucide.LucideIcons.sandwich,
+  'soup': lucide.LucideIcons.soup,
+  'dinner': lucide.LucideIcons.utensilsCrossed,
+  'rice': lucide.LucideIcons.cookingPot,
+  'croissant': lucide.LucideIcons.croissant,
+  'coffee': lucide.LucideIcons.coffee,
+  'drink': lucide.LucideIcons.cupSoda,
+  'bar': lucide.LucideIcons.wine,
+  'beer': lucide.LucideIcons.beer,
+  'icecream': lucide.LucideIcons.iceCream2,
+  'cookie': lucide.LucideIcons.cookie,
+  'cake': lucide.LucideIcons.cake,
+  'salad': lucide.LucideIcons.salad,
+  'flame': lucide.LucideIcons.flame,
+  'fish': lucide.LucideIcons.fish,
+  'egg': lucide.LucideIcons.egg,
+  'sparkles': lucide.LucideIcons.sparkles,
+  'star': lucide.LucideIcons.star,
+  'tag': lucide.LucideIcons.tag,
+  'apple': lucide.LucideIcons.apple,
+  'popcorn': lucide.LucideIcons.popcorn,
+  'baby': lucide.LucideIcons.baby,
+  'sauce': lucide.LucideIcons.sparkle,
+  'bell': lucide.LucideIcons.bell,
+  'store': lucide.LucideIcons.store,
+  'leaf': lucide.LucideIcons.leaf,
+  'shield': lucide.LucideIcons.shieldCheck,
+  'utensils': lucide.LucideIcons.utensilsCrossed,
 };
 
 IconData getDesktopCategoryIcon(String catName, [String? explicitKey]) {
@@ -44,19 +45,19 @@ IconData getDesktopCategoryIcon(String catName, [String? explicitKey]) {
     return kDesktopCategoryIconMap[explicitKey.toLowerCase()]!;
   }
   final c = catName.toLowerCase();
-  if (c.contains('wheat') || c.contains('millet') || c.contains('flake') || c.contains('grain')) return Icons.grain;
-  if (c.contains('package') || c.contains('box') || c.contains('retail')) return Icons.inventory_2_outlined;
-  if (c.contains('pizza')) return Icons.local_pizza;
-  if (c.contains('soup')) return Icons.soup_kitchen;
-  if (c.contains('burger') || c.contains('sandwich')) return Icons.lunch_dining;
-  if (c.contains('rice') || c.contains('biryani')) return Icons.rice_bowl;
-  if (c.contains('main') || c.contains('curry')) return Icons.dinner_dining;
-  if (c.contains('drink') || c.contains('beverage')) return Icons.local_drink;
-  if (c.contains('coffee') || c.contains('tea')) return Icons.local_cafe;
-  if (c.contains('dessert') || c.contains('sweet')) return Icons.cookie;
-  if (c.contains('ice cream')) return Icons.icecream;
-  if (c.contains('salad')) return Icons.eco;
-  return Icons.restaurant;
+  if (c.contains('wheat') || c.contains('millet') || c.contains('flake') || c.contains('grain')) return lucide.LucideIcons.wheat;
+  if (c.contains('package') || c.contains('box') || c.contains('retail')) return lucide.LucideIcons.package;
+  if (c.contains('pizza')) return lucide.LucideIcons.pizza;
+  if (c.contains('soup')) return lucide.LucideIcons.soup;
+  if (c.contains('burger') || c.contains('sandwich')) return lucide.LucideIcons.sandwich;
+  if (c.contains('rice') || c.contains('biryani')) return lucide.LucideIcons.cookingPot;
+  if (c.contains('main') || c.contains('curry')) return lucide.LucideIcons.utensilsCrossed;
+  if (c.contains('drink') || c.contains('beverage')) return lucide.LucideIcons.cupSoda;
+  if (c.contains('coffee') || c.contains('tea')) return lucide.LucideIcons.coffee;
+  if (c.contains('dessert') || c.contains('sweet')) return lucide.LucideIcons.cookie;
+  if (c.contains('ice cream')) return lucide.LucideIcons.iceCream2;
+  if (c.contains('salad')) return lucide.LucideIcons.salad;
+  return lucide.LucideIcons.utensilsCrossed;
 }
 
 class ManageCategoriesModal extends StatefulWidget {
