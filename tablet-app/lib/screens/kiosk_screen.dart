@@ -67,6 +67,8 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   bool _pendingMenuReload = false;
   String _outletName = '';
   String _selectedCategory = 'Popular';
+  String _popularCategoryName = 'Popular';
+  String _popularCategoryIcon = 'star';
   final Map<String, String> _categoryIcons = {};
   final List<String> _orderedCategories = [];
   late String _tableNumber;
@@ -511,8 +513,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               }
             }
           }
-          if (_selectedCategory.isEmpty && response.items.isNotEmpty) {
-            _selectedCategory = 'Popular';
+          if (response.hasPopularCategory() && response.popularCategory.name.trim().isNotEmpty) {
+            _popularCategoryName = response.popularCategory.name.trim();
+            _popularCategoryIcon = response.popularCategory.icon.trim().isNotEmpty
+                ? response.popularCategory.icon.trim()
+                : 'star';
+          }
+          _categoryIcons[_popularCategoryName.toLowerCase()] = _popularCategoryIcon;
+
+          if ((_selectedCategory.isEmpty || _selectedCategory == 'Popular') && response.items.isNotEmpty) {
+            _selectedCategory = _popularCategoryName;
           }
         });
         _menu.setItems(response.items);
@@ -539,6 +549,8 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       final prefs = await SharedPreferences.getInstance();
       final menuJson = {
         'outletName': outletName,
+        'popularCategoryName': _popularCategoryName,
+        'popularCategoryIcon': _popularCategoryIcon,
         'categories': _orderedCategories.map((name) => {
           'name': name,
           'icon': _categoryIcons[name.toLowerCase()] ?? '',
@@ -576,10 +588,19 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       String? cachedOutletName;
       if (decoded is Map<String, dynamic>) {
         cachedOutletName = decoded['outletName'] as String?;
+        if (decoded['popularCategoryName'] is String && (decoded['popularCategoryName'] as String).isNotEmpty) {
+          _popularCategoryName = (decoded['popularCategoryName'] as String).trim();
+        }
+        if (decoded['popularCategoryIcon'] is String && (decoded['popularCategoryIcon'] as String).isNotEmpty) {
+          _popularCategoryIcon = (decoded['popularCategoryIcon'] as String).trim();
+        }
+        _categoryIcons[_popularCategoryName.toLowerCase()] = _popularCategoryIcon;
+
         menuData = decoded['items'] as List<dynamic>? ?? const [];
         final cachedCats = decoded['categories'] as List<dynamic>?;
         if (cachedCats != null && cachedCats.isNotEmpty) {
           _categoryIcons.clear();
+          _categoryIcons[_popularCategoryName.toLowerCase()] = _popularCategoryIcon;
           _orderedCategories.clear();
           for (final c in cachedCats) {
             if (c is Map) {
@@ -619,8 +640,8 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           if (_outletName.isEmpty && cachedOutletName != null) {
             _outletName = cachedOutletName;
           }
-          if (_selectedCategory.isEmpty) {
-            _selectedCategory = 'Popular';
+          if (_selectedCategory.isEmpty || _selectedCategory == 'Popular') {
+            _selectedCategory = _popularCategoryName;
           }
         });
       }
@@ -1662,6 +1683,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   serverHost: widget.serverHost,
                   viewportHeight: MediaQuery.of(context).size.height,
                   selectedCategory: _selectedCategory,
+                  popularCategoryName: _popularCategoryName,
                   imageCache: _imageCache,
                   isOnline: _isOnline,
                   onUserActivity: _resetIdleTimer,
@@ -1682,6 +1704,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
                   serverHost: widget.serverHost,
                   viewportHeight: MediaQuery.of(context).size.height,
                   selectedCategory: _selectedCategory,
+                  popularCategoryName: _popularCategoryName,
                   imageCache: _imageCache,
                   isOnline: _isOnline,
                   onUserActivity: _resetIdleTimer,
@@ -2003,11 +2026,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   }
 
   List<String> _computeCategories() {
-    final categories = <String>['Popular']; // Always include 'Popular' as category #1
+    final popName = _popularCategoryName.trim().isNotEmpty ? _popularCategoryName.trim() : 'Popular';
+    final categories = <String>[popName]; // Always include featured section as category #1
 
     if (_orderedCategories.isNotEmpty) {
       for (final cat in _orderedCategories) {
-        if (cat.toLowerCase() != 'popular' && !categories.contains(cat)) {
+        if (cat.toLowerCase() != popName.toLowerCase() && cat.toLowerCase() != 'popular' && !categories.contains(cat)) {
           categories.add(cat);
         }
       }
@@ -2024,7 +2048,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         categories.add(item.category);
       }
     }
-    if (categories.isEmpty) categories.addAll(['Popular', 'Starters', 'Main Course', 'Dessert', 'Beverages']);
+    if (categories.isEmpty) categories.addAll([popName, 'Starters', 'Main Course', 'Dessert', 'Beverages']);
 
     // If active category not in available list, default to first category
     if (!categories.any((c) => c.toLowerCase() == _selectedCategory.toLowerCase())) {

@@ -34,4 +34,5 @@ message GetMenuResponse {
   string message = 2;
   repeated MenuItem items = 3;
   repeated MenuCategory categories = 4;
+  MenuCategory popularCategory = 5;
 }

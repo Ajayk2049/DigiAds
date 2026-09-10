@@ -458,6 +458,7 @@ class HostController {
           data: {
             items: [],
             categories: defaultCategories,
+            popularCategory: { name: 'Popular', icon: 'star' },
             shifts: ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
             activeShift: 'Breakfast',
             hostApplicationId
@@ -472,6 +473,10 @@ class HostController {
           merchantId: menu.merchantId,
           items: menu.items,
           categories: normalizeCategories(menu.categories),
+          popularCategory: {
+            name: menu.popularCategory?.name || 'Popular',
+            icon: menu.popularCategory?.icon || 'star'
+          },
           shifts: menu.shifts && menu.shifts.length > 0 ? menu.shifts : ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
           activeShift: menu.activeShift || 'Breakfast',
           defaultGst: menu.defaultGst || 0,
@@ -499,7 +504,8 @@ class HostController {
       activeShift,
       defaultGst, 
       defaultOtherCharges, 
-      defaultOtherChargesType 
+      defaultOtherChargesType,
+      popularCategory
     } = req.body || {};
 
     if (!hostApplicationId) {
@@ -563,6 +569,13 @@ class HostController {
         defaultOtherChargesType: defaultOtherChargesType || undefined,
         updatedAt: Date.now() 
       };
+
+      if (popularCategory && typeof popularCategory === 'object') {
+        updateData.popularCategory = {
+          name: (popularCategory.name || 'Popular').trim(),
+          icon: (popularCategory.icon || 'star').trim()
+        };
+      }
 
       if (Array.isArray(shifts) && shifts.length > 0) {
         updateData.shifts = shifts;

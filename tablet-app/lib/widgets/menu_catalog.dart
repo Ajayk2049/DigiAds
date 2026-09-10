@@ -13,6 +13,7 @@ class MenuCatalogWidget extends StatefulWidget {
   final String serverHost;
   final double viewportHeight;
   final String selectedCategory;
+  final String popularCategoryName;
   final MenuImageCache imageCache;
   final bool isOnline;
   final VoidCallback? onUserActivity;
@@ -24,6 +25,7 @@ class MenuCatalogWidget extends StatefulWidget {
     required this.serverHost,
     required this.viewportHeight,
     required this.selectedCategory,
+    this.popularCategoryName = 'Popular',
     required this.imageCache,
     this.isOnline = true,
     this.onUserActivity,
@@ -55,16 +57,22 @@ class _MenuCatalogWidgetState extends State<MenuCatalogWidget> {
           );
         }
 
+        final popName = widget.popularCategoryName.trim().isNotEmpty
+            ? widget.popularCategoryName.trim().toLowerCase()
+            : 'popular';
+        final isSelectedPopular = widget.selectedCategory.toLowerCase() == popName ||
+            widget.selectedCategory.toLowerCase() == 'popular';
+
         // Filter items by selected category (Popular section shows items where isPopular == true)
         final categoryItems = menuState.items.where((item) {
-          if (widget.selectedCategory.toLowerCase() == 'popular') {
+          if (isSelectedPopular) {
             return item.isPopular;
           }
           return item.category.toLowerCase() == widget.selectedCategory.toLowerCase();
         }).toList();
 
         // Fallback: If Popular category is selected but no item has isPopular == true, show top menu items so section is NEVER empty
-        final displayItems = (widget.selectedCategory.toLowerCase() == 'popular' && categoryItems.isEmpty)
+        final displayItems = (isSelectedPopular && categoryItems.isEmpty)
             ? menuState.items.take(8).toList()
             : categoryItems;
 

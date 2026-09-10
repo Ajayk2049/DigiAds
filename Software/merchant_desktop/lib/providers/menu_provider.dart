@@ -21,11 +21,24 @@ class MenuProvider extends ChangeNotifier {
   bool _hasChanges = false;
   String? _error;
 
+  String _popularCategoryName = 'Popular';
+  String _popularCategoryIcon = 'star';
+
   MenuModel? get menu => _menu;
   List<MenuItemModel> get items => _draftItems;
   List<String> get categories => _categories;
   Map<String, String> get categoryIcons => _categoryIcons;
   String getCategoryIcon(String catName) => _categoryIcons[catName.toLowerCase()] ?? '';
+  String get popularCategoryName => _popularCategoryName;
+  String get popularCategoryIcon => _popularCategoryIcon;
+
+  void setPopularCategory({String? name, String? icon}) {
+    if (name != null) _popularCategoryName = name.trim();
+    if (icon != null) _popularCategoryIcon = icon.trim();
+    _hasChanges = true;
+    notifyListeners();
+  }
+
   List<String> get shifts => _shifts;
   String get activeShift => _activeShift;
   String get selectedViewingShift => _selectedViewingShift;
@@ -62,6 +75,8 @@ class MenuProvider extends ChangeNotifier {
         _draftItems = List.from(_menu!.items);
         _categories = List.from(_menu!.categories);
         _categoryIcons = Map.from(_menu!.categoryIcons);
+        _popularCategoryName = _menu!.popularCategoryName;
+        _popularCategoryIcon = _menu!.popularCategoryIcon;
         _shifts = List.from(_menu!.shifts);
         _activeShift = _menu!.activeShift;
         _selectedViewingShift = _activeShift;
@@ -115,6 +130,10 @@ class MenuProvider extends ChangeNotifier {
           'name': c,
           'icon': _categoryIcons[c.toLowerCase()] ?? '',
         }).toList(),
+        'popularCategory': {
+          'name': _popularCategoryName,
+          'icon': _popularCategoryIcon,
+        },
         'shifts': _shifts,
         'activeShift': _activeShift,
       };
@@ -125,6 +144,8 @@ class MenuProvider extends ChangeNotifier {
         _draftItems = List.from(_menu!.items);
         _categories = List.from(_menu!.categories);
         _categoryIcons = Map.from(_menu!.categoryIcons);
+        _popularCategoryName = _menu!.popularCategoryName;
+        _popularCategoryIcon = _menu!.popularCategoryIcon;
         _hasChanges = false;
         _isSaving = false;
         notifyListeners();

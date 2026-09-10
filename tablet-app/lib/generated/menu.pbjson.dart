@@ -90,6 +90,14 @@ const GetMenuResponse$json = {
       '6': '.menu.MenuCategory',
       '10': 'categories'
     },
+    {
+      '1': 'popularCategory',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.menu.MenuCategory',
+      '10': 'popularCategory'
+    },
   ],
 };
 

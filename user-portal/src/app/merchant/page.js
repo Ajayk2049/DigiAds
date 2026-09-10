@@ -947,10 +947,16 @@ export default function MerchantDashboard() {
   const [editingCategoryValue, setEditingCategoryValue] = useState('');
   const [isSavingCategories, setIsSavingCategories] = useState(false);
 
+  const [popularCategory, setPopularCategory] = useState({ name: 'Popular', icon: 'star' });
+  const [draftPopularCategory, setDraftPopularCategory] = useState({ name: 'Popular', icon: 'star' });
+  const [editingPopularName, setEditingPopularName] = useState(false);
+  const [editingPopularValue, setEditingPopularValue] = useState('Popular');
+
   const hasCategoryChanges = useMemo(() => {
     return JSON.stringify(draftCategories) !== JSON.stringify(menuCategories) ||
+      JSON.stringify(draftPopularCategory) !== JSON.stringify(popularCategory) ||
       JSON.stringify(draftMenuItems) !== JSON.stringify(menuItems);
-  }, [draftCategories, draftMenuItems, menuCategories, menuItems]);
+  }, [draftCategories, draftPopularCategory, draftMenuItems, menuCategories, popularCategory, menuItems]);
 
   // Shift-Based Menu States
   const [menuShifts, setMenuShifts] = useState(['Breakfast', 'Lunch', 'Snacks', 'Dinner']);
@@ -2082,9 +2088,17 @@ export default function MerchantDashboard() {
         if (menuData.defaultOtherCharges !== undefined) setMenuDefaultOtherCharges(menuData.defaultOtherCharges);
         if (menuData.defaultOtherChargesType) setMenuDefaultOtherChargesType(menuData.defaultOtherChargesType);
 
+        const loadedPopular = {
+          name: menuData.popularCategory?.name || 'Popular',
+          icon: menuData.popularCategory?.icon || 'star'
+        };
+        setPopularCategory(loadedPopular);
+        setDraftPopularCategory(loadedPopular);
+
         originalMenuRef.current = JSON.stringify({
           items: loadedItems,
-          categories: loadedCategories
+          categories: loadedCategories,
+          popularCategory: loadedPopular
         });
       }
     } catch (err) {
@@ -2104,6 +2118,7 @@ export default function MerchantDashboard() {
         hostApplicationId: selectedOutletId,
         items: menuItems,
         categories: menuCategories,
+        popularCategory: popularCategory,
         shifts: menuShifts,
         activeShift: activeShift,
         defaultGst: menuDefaultGst,
@@ -2115,7 +2130,8 @@ export default function MerchantDashboard() {
 
       originalMenuRef.current = JSON.stringify({
         items: menuItems,
-        categories: menuCategories
+        categories: menuCategories,
+        popularCategory: popularCategory
       });
       // Force update state trigger
       setMenuItems([...menuItems]);
@@ -2126,7 +2142,7 @@ export default function MerchantDashboard() {
     }
   };
 
-  const handleSaveCategories = async (updatedCategories, updatedItems = menuItems) => {
+  const handleSaveCategories = async (updatedCategories, updatedItems = menuItems, updatedPopular = draftPopularCategory) => {
     if (!selectedOutletId) {
       showToast('Please select an approved outlet first.', 'error');
       return;
@@ -2138,6 +2154,7 @@ export default function MerchantDashboard() {
         hostApplicationId: selectedOutletId,
         items: updatedItems,
         categories: normalizedUpdated,
+        popularCategory: updatedPopular,
         shifts: menuShifts,
         activeShift: activeShift,
         defaultGst: menuDefaultGst,
@@ -2148,12 +2165,15 @@ export default function MerchantDashboard() {
       });
       setMenuCategories(normalizedUpdated);
       setDraftCategories(normalizedUpdated);
+      setPopularCategory(updatedPopular);
+      setDraftPopularCategory(updatedPopular);
       setMenuItems([...updatedItems]);
       setDraftMenuItems([...updatedItems]);
 
       originalMenuRef.current = JSON.stringify({
         items: updatedItems,
-        categories: normalizedUpdated
+        categories: normalizedUpdated,
+        popularCategory: updatedPopular
       });
 
       showToast('Menu categories saved successfully!', 'success');
@@ -2167,6 +2187,9 @@ export default function MerchantDashboard() {
   const openCategoryModal = (editIndex = null, editName = '') => {
     const normalized = menuCategories.map(normalizeCategoryObj);
     setDraftCategories(normalized);
+    setDraftPopularCategory({ ...popularCategory });
+    setEditingPopularName(false);
+    setEditingPopularValue(popularCategory.name || 'Popular');
     setDraftMenuItems([...menuItems]);
     setEditingCategoryIndex(editIndex);
     setEditingCategoryValue(typeof editName === 'object' && editName ? editName.name : (editName || ''));
@@ -2186,11 +2209,14 @@ export default function MerchantDashboard() {
     setOpenIconPickerIndex(null);
     setNewCategoryName('');
     setNewCategoryIcon('utensils');
+    setEditingPopularName(false);
     handleCancelEditCategory();
   };
 
   const handleSelectCategoryIcon = (targetIndex, iconKey) => {
-    if (targetIndex === 'new') {
+    if (targetIndex === 'popular') {
+      setDraftPopularCategory(prev => ({ ...prev, icon: iconKey }));
+    } else if (targetIndex === 'new') {
       setNewCategoryIcon(iconKey);
     } else {
       const updated = [...draftCategories];
@@ -2314,7 +2340,7 @@ export default function MerchantDashboard() {
 
   const handleSaveModalCategories = async () => {
     if (!hasCategoryChanges || isSavingCategories) return;
-    await handleSaveCategories(draftCategories, draftMenuItems);
+    await handleSaveCategories(draftCategories, draftMenuItems, draftPopularCategory);
     setIsCategoryModalOpen(false);
   };
 
@@ -2328,6 +2354,7 @@ export default function MerchantDashboard() {
         hostApplicationId: selectedOutletId,
         items: menuItems,
         categories: menuCategories,
+        popularCategory: popularCategory,
         shifts: updatedShifts,
         activeShift: activeShift,
         defaultGst: menuDefaultGst,
@@ -2347,6 +2374,7 @@ export default function MerchantDashboard() {
       originalMenuRef.current = JSON.stringify({
         items: menuItems,
         categories: menuCategories,
+        popularCategory: popularCategory,
         shifts: updatedShifts,
         activeShift: activeShift,
         defaultGst: menuDefaultGst,
@@ -6300,7 +6328,132 @@ export default function MerchantDashboard() {
                 </div>
               </div>
 
+              {/* Featured Section (Category #1 on Tablets) */}
+              <div className="space-y-1.5 bg-muted/20 border border-border/40 p-3 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-500 dark:text-amber-400 flex items-center">
+                      <Star className="w-3 h-3 fill-amber-500 text-amber-500 inline mr-1" />
+                      Featured Section
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-semibold">
+                      (Tablet Kiosk #1)
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-muted-foreground font-semibold">
+                    Shows all items marked with ★ Star
+                  </span>
+                </div>
+
+                <div
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                    editingPopularName
+                      ? 'bg-amber-500/10 border-amber-500/50 ring-1 ring-amber-500/30'
+                      : openIconPickerIndex === 'popular'
+                      ? 'bg-amber-500/10 border-amber-500/40'
+                      : 'bg-card border-border/40 hover:border-border/70'
+                  }`}
+                >
+                  {editingPopularName ? (
+                    <div className="flex items-center space-x-2 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setOpenIconPickerIndex(openIconPickerIndex === 'popular' ? null : 'popular')}
+                        className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs ${
+                          openIconPickerIndex === 'popular'
+                            ? 'border-amber-500 bg-amber-500/20 text-amber-500 ring-2 ring-amber-500/30'
+                            : 'border-border/60 bg-muted/40 hover:bg-muted text-foreground hover:border-amber-500/50'
+                        }`}
+                        title="Change featured section icon"
+                      >
+                        {renderCategoryIcon(draftPopularCategory.icon || 'star', 14)}
+                      </button>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingPopularValue}
+                        onChange={(e) => setEditingPopularValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (editingPopularValue.trim()) {
+                              setDraftPopularCategory(prev => ({ ...prev, name: editingPopularValue.trim() }));
+                            }
+                            setEditingPopularName(false);
+                          }
+                          if (e.key === 'Escape') setEditingPopularName(false);
+                        }}
+                        className="flex-1 bg-background border border-amber-500/50 rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        placeholder="Section name (e.g. Popular, Bestsellers)"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingPopularValue.trim()) {
+                            setDraftPopularCategory(prev => ({ ...prev, name: editingPopularValue.trim() }));
+                          }
+                          setEditingPopularName(false);
+                        }}
+                        className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all cursor-pointer shadow-xs"
+                        title="Apply rename"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPopularName(false)}
+                        className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-2 min-w-0 pr-2">
+                        <button
+                          type="button"
+                          onClick={() => setOpenIconPickerIndex(openIconPickerIndex === 'popular' ? null : 'popular')}
+                          className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-xs ${
+                            openIconPickerIndex === 'popular'
+                              ? 'border-amber-500 bg-amber-500/20 text-amber-500 ring-2 ring-amber-500/30'
+                              : 'border-border/60 bg-muted/40 hover:bg-muted text-foreground hover:border-amber-500/50'
+                          }`}
+                          title={`Change icon for "${draftPopularCategory.name || 'Popular'}"`}
+                        >
+                          {renderCategoryIcon(draftPopularCategory.icon || 'star', 14)}
+                        </button>
+                        <span className="text-xs font-black text-foreground truncate">
+                          {draftPopularCategory.name || 'Popular'}
+                        </span>
+                        <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+                          ★ Starred ({draftMenuItems.filter(i => i.isPopular).length})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPopularValue(draftPopularCategory.name || 'Popular');
+                            setEditingPopularName(true);
+                          }}
+                          className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer"
+                          title="Rename featured section"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* List of categories */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Food Categories
+                </span>
+              </div>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {draftCategories.map((cat, index) => {
                   const isEditing = editingCategoryIndex === index;
@@ -6523,7 +6676,9 @@ export default function MerchantDashboard() {
                       Category Icons
                     </h4>
                     <p className="text-[10px] text-muted-foreground font-semibold">
-                      {openIconPickerIndex === 'new'
+                      {openIconPickerIndex === 'popular'
+                        ? `Select icon for "${draftPopularCategory.name || 'Popular'}"`
+                        : openIconPickerIndex === 'new'
                         ? 'Select icon for new category'
                         : `Select icon for "${getCategoryName(draftCategories[openIconPickerIndex])}"`}
                     </p>
@@ -6542,7 +6697,9 @@ export default function MerchantDashboard() {
                 <div className="grid grid-cols-5 gap-1.5 max-h-72 overflow-y-auto pr-1">
                   {CATEGORY_ICON_PACK.map((item) => {
                     const IconComp = item.icon;
-                    const currentSelectedKey = openIconPickerIndex === 'new'
+                    const currentSelectedKey = openIconPickerIndex === 'popular'
+                      ? (draftPopularCategory.icon || 'star')
+                      : openIconPickerIndex === 'new'
                       ? newCategoryIcon
                       : getCategoryIconKey(draftCategories[openIconPickerIndex]);
                     const isSelected = (currentSelectedKey || '').toLowerCase() === item.key.toLowerCase();

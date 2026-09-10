@@ -98,6 +98,8 @@ class MenuModel {
   final List<MenuItemModel> items;
   final List<String> categories;
   final Map<String, String> categoryIcons;
+  final String popularCategoryName;
+  final String popularCategoryIcon;
   final List<String> shifts;
   final String activeShift;
 
@@ -107,6 +109,8 @@ class MenuModel {
     required this.items,
     required this.categories,
     required this.categoryIcons,
+    this.popularCategoryName = 'Popular',
+    this.popularCategoryIcon = 'star',
     required this.shifts,
     required this.activeShift,
   });
@@ -135,6 +139,10 @@ class MenuModel {
       }
     }
 
+    final rawPopular = json['popularCategory'];
+    final popName = (rawPopular is Map ? rawPopular['name'] as String? : null)?.trim();
+    final popIcon = (rawPopular is Map ? rawPopular['icon'] as String? : null)?.trim();
+
     final rawShifts = json['shifts'] as List<dynamic>? ?? [];
     final shiftsList = rawShifts.map((e) => e.toString()).toList();
 
@@ -144,6 +152,8 @@ class MenuModel {
       items: itemsList,
       categories: catsList.isNotEmpty ? catsList : ['Starters', 'Main Course', 'Dessert', 'Beverages'],
       categoryIcons: iconsMap,
+      popularCategoryName: (popName != null && popName.isNotEmpty) ? popName : 'Popular',
+      popularCategoryIcon: (popIcon != null && popIcon.isNotEmpty) ? popIcon : 'star',
       shifts: shiftsList.isNotEmpty ? shiftsList : ['Breakfast', 'Lunch', 'Snacks', 'Dinner'],
       activeShift: json['activeShift'] ?? 'Breakfast',
     );

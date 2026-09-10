@@ -1113,7 +1113,11 @@ const menuServiceHandlers = {
         success: true,
         message: outletName,
         items,
-        categories
+        categories,
+        popularCategory: {
+          name: (menu?.popularCategory?.name || 'Popular').trim(),
+          icon: (menu?.popularCategory?.icon || 'star').trim()
+        }
       });
     } catch (err) {
       const code = err.code || grpc.status.INTERNAL;

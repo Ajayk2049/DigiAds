@@ -109,6 +109,18 @@ const MenuSchema = new mongoose.Schema({
       { name: 'Beverages', icon: 'coffee' }
     ]
   },
+  popularCategory: {
+    name: {
+      type: String,
+      default: 'Popular',
+      trim: true
+    },
+    icon: {
+      type: String,
+      default: 'star',
+      trim: true
+    }
+  },
   defaultGst: {
     type: Number,
     default: 0

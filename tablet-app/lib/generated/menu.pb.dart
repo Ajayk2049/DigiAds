@@ -316,12 +316,14 @@ class GetMenuResponse extends $pb.GeneratedMessage {
     $core.String? message,
     $core.Iterable<MenuItem>? items,
     $core.Iterable<MenuCategory>? categories,
+    MenuCategory? popularCategory,
   }) {
     final result = create();
     if (success != null) result.success = success;
     if (message != null) result.message = message;
     if (items != null) result.items.addAll(items);
     if (categories != null) result.categories.addAll(categories);
+    if (popularCategory != null) result.popularCategory = popularCategory;
     return result;
   }
 
@@ -343,6 +345,8 @@ class GetMenuResponse extends $pb.GeneratedMessage {
     ..pPM<MenuItem>(3, _omitFieldNames ? '' : 'items',
         subBuilder: MenuItem.create)
     ..pPM<MenuCategory>(4, _omitFieldNames ? '' : 'categories',
+        subBuilder: MenuCategory.create)
+    ..aOM<MenuCategory>(5, _omitFieldNames ? '' : 'popularCategory',
         subBuilder: MenuCategory.create)
     ..hasRequiredFields = false;
 
@@ -388,6 +392,17 @@ class GetMenuResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(4)
   $pb.PbList<MenuCategory> get categories => $_getList(3);
+
+  @$pb.TagNumber(5)
+  MenuCategory get popularCategory => $_getN(4);
+  @$pb.TagNumber(5)
+  set popularCategory(MenuCategory value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPopularCategory() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPopularCategory() => $_clearField(5);
+  @$pb.TagNumber(5)
+  MenuCategory ensurePopularCategory() => $_ensure(4);
 }
 
 const $core.bool _omitFieldNames =

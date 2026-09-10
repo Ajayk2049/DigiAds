@@ -184,6 +184,110 @@ class _ManageCategoriesModalState extends State<ManageCategoriesModal> {
             const Divider(height: 1),
             const SizedBox(height: 16),
 
+            // Featured Section Card (Tablet Kiosk #1)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(lucide.LucideIcons.star, size: 14, color: Colors.amber),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'FEATURED SECTION (TABLET KIOSK #1)',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6, color: Colors.amber),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Shows dishes marked with ★ Star',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Theme.of(context).textTheme.bodySmall?.color),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Tooltip(
+                        message: 'Change icon for featured section',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          onTap: () {
+                            _showIconPicker(
+                              currentIcon: menuProv.popularCategoryIcon,
+                              onSelected: (key) => menuProv.setPopularCategory(icon: key),
+                            );
+                          },
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                              border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                            ),
+                            child: Icon(
+                              kDesktopCategoryIconMap[menuProv.popularCategoryIcon] ?? lucide.LucideIcons.star,
+                              size: 18,
+                              color: Colors.amber,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          menuProv.popularCategoryName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(lucide.LucideIcons.pencil, size: 15),
+                        tooltip: 'Rename featured section',
+                        onPressed: () {
+                          final renameController = TextEditingController(text: menuProv.popularCategoryName);
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('RENAME FEATURED SECTION', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                              content: TextField(
+                                controller: renameController,
+                                autofocus: true,
+                                decoration: const InputDecoration(labelText: 'Section Name (e.g. Popular, Bestsellers)'),
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final val = renameController.text.trim();
+                                    if (val.isNotEmpty) {
+                                      menuProv.setPopularCategory(name: val);
+                                    }
+                                    Navigator.pop(ctx);
+                                  },
+                                  child: const Text('APPLY'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
             // Add Category Row
             Row(
               children: [
