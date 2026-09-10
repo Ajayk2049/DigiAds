@@ -184,6 +184,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   // ────────────────── Deferred bootstrap ──────────────────
 
   Future<void> _deferredBootstrap() async {
+    // Immediately prime menu from disk cache so the UI has all items,
+    // customisations, and categories instantly without waiting on network.
+    try {
+      await _loadCachedMenu();
+    } catch (e) {
+      debugPrint('[BOOT] Initial cache prime failed: $e');
+    }
+
     // Every stage is individually guarded. On a cold boot the network stack, DNS and
     // storage are often not ready yet; before this, a single throw here left
     // _kioskReady false forever and the tablet sat on the splash screen until a
@@ -628,7 +636,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           ..category = data['category'] as String
           ..imageUrl = data['imageUrl'] as String? ?? ''
           ..isAvailable = data['isAvailable'] as bool? ?? true
-          ..isPopular = data['isPopular'] as bool? ?? false;
+          ..isPopular = data['isPopular'] as bool? ?? false
+          ..isVeg = data['isVeg'] as bool? ?? true
+          ..customizations = data['customizations'] as String? ?? '';
       }).toList();
 
       if (items.isEmpty) return;

@@ -3062,11 +3062,15 @@ export default function MerchantDashboard() {
 
   const hasMenuChanges = () => {
     if (!originalMenuRef.current) return false;
-    const currentSnapshot = JSON.stringify({
-      items: menuItems,
-      categories: menuCategories
-    });
-    return currentSnapshot !== originalMenuRef.current;
+    try {
+      const original = JSON.parse(originalMenuRef.current);
+      const itemsChanged = JSON.stringify(menuItems) !== JSON.stringify(original.items || []);
+      const categoriesChanged = JSON.stringify(menuCategories) !== JSON.stringify(original.categories || []);
+      const popularChanged = JSON.stringify(popularCategory) !== JSON.stringify(original.popularCategory || { name: 'Popular', icon: 'star' });
+      return itemsChanged || categoriesChanged || popularChanged;
+    } catch {
+      return false;
+    }
   };
 
   const openEditApplicationModal = (targetApp) => {
