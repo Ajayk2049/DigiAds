@@ -133,11 +133,24 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
   // Selected options: groupIndex -> Set of option indices
   final Map<int, Set<int>> _selections = {};
   int _quantity = 1;
+  final ScrollController _scrollController = ScrollController();
+  int _itemsAddedInSession = 0;
 
   @override
   void initState() {
     super.initState();
     _groups = parseCustomizations(widget.item.customizations);
+    _initDefaults();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _initDefaults() {
+    _selections.clear();
     for (int i = 0; i < _groups.length; i++) {
       final g = _groups[i];
       if (g.isDirect) {
@@ -151,6 +164,7 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
         _selections[i] = {};
       }
     }
+    _quantity = 1;
   }
 
   int get _effectiveBasePaise {
@@ -219,6 +233,33 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
     return parts.join(', ');
   }
 
+  void _handleAddAnother() {
+    if (!_isValid) return;
+    HapticFeedback.mediumImpact();
+    final customStr = _formatCustomizationString();
+    final extraPaise = _unitPricePaise - widget.item.price.toInt();
+
+    widget.cartNotifier.addItem(
+      widget.item.itemId,
+      customization: customStr,
+      extraPaise: extraPaise,
+      quantity: _quantity,
+    );
+
+    setState(() {
+      _itemsAddedInSession += _quantity;
+      _initDefaults();
+    });
+
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   void _handleAddToCart() {
     if (!_isValid) return;
     HapticFeedback.lightImpact();
@@ -254,143 +295,131 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
             maxWidth: dialogWidth,
             maxHeight: MediaQuery.sizeOf(context).height * 0.88,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
             children: [
-              // Header Image with Close & Diet badge (Trimmed height for zero-scroll visibility)
-              Stack(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: double.infinity,
-                    height: isMobile ? 140 : 155,
-                    color: kSidebarBg,
-                    child: CachedMenuImage(
-                      cache: widget.imageCache,
-                      itemId: widget.item.itemId,
-                      imageUrl: widget.item.imageUrl,
-                      serverHost: widget.serverHost,
-                      fallback: const Center(
-                        child: Icon(Icons.restaurant_menu_rounded, size: 52, color: kTextGrey),
-                      ),
-                    ),
-                  ),
-                  // Close button
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
-                      ),
-                    ),
-                  ),
-                  // Dietary Veg/Non-Veg Badge
-                  Positioned(
-                    bottom: 12,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                        ],
-                      ),
-                      child: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: widget.isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
-                            width: 2.2,
-                          ),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Center(
-                          child: widget.isVeg
-                              ? Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF2E7D32),
-                                    shape: BoxShape.circle,
+                  // Compact Header: Info on Left, Small Image Card on Right
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 144, 14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Left: Veg badge, Name, Category, Price
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Dietary Veg/Non-Veg Badge
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: widget.isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                                    width: 1.8,
                                   ),
-                                )
-                              : Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFC62828),
-                                    shape: BoxShape.circle,
-                                  ),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Scrollable Content: Title, Customization Groups upfront, then Description
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Title and Base / Selected Variant Price
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.item.name,
-                                  style: kCardTitleStyle.copyWith(fontSize: 21, fontWeight: FontWeight.w800),
-                                ),
-                                if (widget.item.category.isNotEmpty) ...[
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    widget.item.category.toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: kAccentBlue.withValues(alpha: 0.9),
-                                      letterSpacing: 0.5,
+                                child: Center(
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: widget.isVeg ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                                      shape: BoxShape.circle,
                                     ),
                                   ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "₹${(_effectiveBasePaise / 100.0).toStringAsFixed(0)}",
-                            style: const TextStyle(
-                              color: kTextDark,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 22,
-                            ),
-                          ),
-                        ],
-                      ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
 
-                      // Customization Groups (Immediate on Frame 1 — Zero Scroll)
-                      if (_groups.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                        const SizedBox(height: 14),
-                        ..._groups.asMap().entries.map((entry) {
+                              // Dish Name
+                              Text(
+                                widget.item.name,
+                                style: kCardTitleStyle.copyWith(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                ),
+                              ),
+
+                              if (widget.item.category.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  widget.item.category.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: kAccentBlue.withValues(alpha: 0.9),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 8),
+
+                              // Base / Dynamic Selected Variant Price
+                              Text(
+                                "₹${(_effectiveBasePaise / 100.0).toStringAsFixed(0)}",
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w900,
+                                  color: kTextDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 24),
+
+                        // Right: Small Image in Card View
+                        Container(
+                          width: isMobile ? 90 : 112,
+                          height: isMobile ? 90 : 112,
+                          decoration: BoxDecoration(
+                            color: kSidebarBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200, width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: CachedMenuImage(
+                            cache: widget.imageCache,
+                            itemId: widget.item.itemId,
+                            imageUrl: widget.item.imageUrl,
+                            serverHost: widget.serverHost,
+                            fallback: const Center(
+                              child: Icon(Icons.restaurant_menu_rounded, size: 36, color: kTextGrey),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+                  // Scrollable Content: Customization Groups upfront, then Description
+                  Flexible(
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Customization Groups (Immediate on Frame 1 — Zero Scroll)
+                          if (_groups.isNotEmpty)
+                            ..._groups.asMap().entries.map((entry) {
                           final gIdx = entry.key;
                           final group = entry.value;
                           final selected = _selections[gIdx] ?? {};
@@ -571,10 +600,9 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
                             ),
                           );
                         }),
-                      ],
 
-                      // Description (Placed below customization options)
-                      if (widget.item.description.isNotEmpty) ...[
+                        // Description (Placed below customization options)
+                        if (widget.item.description.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         const Divider(height: 1, color: Color(0xFFEEEEEE)),
                         const SizedBox(height: 12),
@@ -598,91 +626,243 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
                 ),
               ),
 
-            // Bottom Bar: Quantity Selector + Live Price Add Button
+            // Session confirmation banner if items have already been committed in this modal
+            if (_itemsAddedInSession > 0)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF0FDF4),
+                  border: Border(
+                    top: BorderSide(color: Color(0xFFDCFCE7), width: 1),
+                    bottom: BorderSide(color: Color(0xFFDCFCE7), width: 1),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF16A34A),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check, size: 12, color: Colors.white),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$_itemsAddedInSession added to cart! Customising next...',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Ready for #${_itemsAddedInSession + 1}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.green.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Bottom Bar: Quantity Selector + Make Another (if customizable) + Add to Cart Button
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
               ),
-              child: Row(
-                children: [
-                  // Quantity Stepper
-                  Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
+              child: isMobile && _groups.isNotEmpty
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_rounded, size: 22),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 44, minHeight: 50),
-                          color: _quantity > 1 ? const Color(0xFFDC2626) : Colors.grey.shade400,
-                          onPressed: _quantity > 1
-                              ? () {
-                                  HapticFeedback.lightImpact();
-                                  setState(() => _quantity--);
-                                }
-                              : null,
+                        Row(
+                          children: [
+                            _buildQuantityStepper(),
+                            const SizedBox(width: 10),
+                            Expanded(child: _buildMakeAnotherButton()),
+                          ],
                         ),
-                        Text(
-                          '$_quantity',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            color: kTextDark,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_rounded, size: 22),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 44, minHeight: 50),
-                          color: const Color(0xFF16A34A),
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            setState(() => _quantity++);
-                          },
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _buildAddToCartButton(),
                         ),
                       ],
+                    )
+                  : Row(
+                      children: [
+                        _buildQuantityStepper(),
+                        if (_groups.isNotEmpty) ...[
+                          const SizedBox(width: 10),
+                          _buildMakeAnotherButton(),
+                        ],
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildAddToCartButton()),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 14),
+            ),
+          ],
+        ),
 
-                  // Add to Cart Button
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isValid ? kAccentBlue : Colors.grey.shade300,
-                          foregroundColor: Colors.white,
-                          elevation: _isValid ? 1 : 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        onPressed: _isValid ? _handleAddToCart : null,
-                        child: Text(
-                          _isValid
-                              ? "Add to Cart • ₹${_totalPriceRs.toStringAsFixed(0)}"
-                              : "Choose options",
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+        // Floating Overlaid Close Button (slightly bigger, doesn't block or take vertical space)
+        Positioned(
+          top: 10,
+          right: 30,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => Navigator.of(context).pop(),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.grey.shade300, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Color(0xFF475569),
+                  size: 52,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
+);
+}
+
+  Widget _buildQuantityStepper() {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove_rounded, size: 22),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 38, minHeight: 50),
+            color: _quantity > 1 ? const Color(0xFFDC2626) : Colors.grey.shade400,
+            onPressed: _quantity > 1
+                ? () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _quantity--);
+                  }
+                : null,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '$_quantity',
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: kTextDark,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_rounded, size: 22),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 38, minHeight: 50),
+            color: const Color(0xFF16A34A),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              setState(() => _quantity++);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMakeAnotherButton() {
+    return SizedBox(
+      height: 50,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: BorderSide(
+            color: _isValid ? kAccentBlue.withValues(alpha: 0.5) : Colors.grey.shade300,
+            width: 1.5,
+          ),
+          backgroundColor: Colors.green,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        onPressed: _isValid ? _handleAddAnother : null,
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline_rounded, size: 18),
+            SizedBox(width: 6),
+            Text(
+              "Add & Customise Another",
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.1,
               ),
             ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildAddToCartButton() {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isValid ? kAccentBlue : Colors.grey.shade300,
+          foregroundColor: Colors.white,
+          elevation: _isValid ? 1 : 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        onPressed: _isValid ? _handleAddToCart : null,
+        child: Text(
+          _isValid
+              ? (_itemsAddedInSession > 0
+                  ? "Done & Add • ₹${_totalPriceRs.toStringAsFixed(0)}"
+                  : "Add to Cart • ₹${_totalPriceRs.toStringAsFixed(0)}")
+              : "Choose options",
+          style: const TextStyle(
+            fontSize: 15.5,
+            fontWeight: FontWeight.w800,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 }
-}
+

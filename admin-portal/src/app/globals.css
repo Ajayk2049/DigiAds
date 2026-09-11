@@ -211,3 +211,13 @@ input:-webkit-autofill:active {
 .dark textarea::placeholder {
   color: #94a3b8;
 }
+
+/* Prevent scroll chaining from modal popups and overlays to the background page */
+.fixed.inset-0,
+.fixed.inset-0 [class*="overflow-y-"],
+.fixed.inset-0 [class*="overflow-x-"],
+[role="dialog"],
+.modal-overlay,
+.modal-scroll-lock {
+  overscroll-behavior: contain;
+}

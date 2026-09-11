@@ -1116,6 +1116,8 @@ export default function MerchantDashboard() {
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordVerifyError, setPasswordVerifyError] = useState('');
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+  useModalDismiss(showPasswordModal, () => setShowPasswordModal(false), 'password-auth-modal');
+  useModalDismiss(showUpiModal, () => setShowUpiModal(false), 'upi-config-modal');
 
   // Handle Theme
   useEffect(() => {
