@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart' as lucide;
 import 'package:provider/provider.dart';
 import '../../config.dart';
 import '../../constants/app_colors.dart';
@@ -28,6 +29,51 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
     });
   }
 
+  void _showQuickRenameDialog(BuildContext context, MenuProvider menuProv, String oldName) {
+    final renameController = TextEditingController(text: oldName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('RENAME CATEGORY', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: renameController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Category Name'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Dishes assigned to "$oldName" will be automatically updated to the new name.',
+              style: TextStyle(fontSize: 11, color: Theme.of(ctx).textTheme.bodySmall?.color),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () {
+              final newName = renameController.text.trim();
+              if (newName.isEmpty) return;
+              if (newName.toLowerCase() != oldName.toLowerCase() &&
+                  menuProv.categories.any((c) => c.toLowerCase() == newName.toLowerCase())) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('A category with this name already exists!'), backgroundColor: AppColors.danger),
+                );
+                return;
+              }
+              menuProv.renameCategory(oldName, newName);
+              Navigator.pop(ctx);
+            },
+            child: const Text('APPLY'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -41,18 +87,22 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
     final selectedViewingShift = menuProv.selectedViewingShift;
     final venueId = venueProv.selectedVenue?.id;
 
-    // Collect all categories (predefined + dynamically from items)
-    final categorySet = <String>{};
+    // Collect all categories (strictly respecting configured category sequence)
+    final categories = <String>[];
     for (final c in menuProv.categories) {
-      if (c.trim().isNotEmpty) categorySet.add(c.trim());
+      if (c.trim().isNotEmpty && !categories.contains(c.trim())) {
+        categories.add(c.trim());
+      }
     }
     for (final item in menuProv.items) {
-      if (item.category.trim().isNotEmpty) categorySet.add(item.category.trim());
+      final itemCat = item.category.trim();
+      if (itemCat.isNotEmpty && !categories.any((c) => c.toLowerCase() == itemCat.toLowerCase())) {
+        categories.add(itemCat);
+      }
     }
-    if (categorySet.isEmpty) {
-      categorySet.addAll(['Starters', 'Main Course', 'Dessert', 'Beverages']);
+    if (categories.isEmpty) {
+      categories.addAll(['Starters', 'Main Course', 'Dessert', 'Beverages']);
     }
-    final categories = categorySet.toList();
 
     if (menuProv.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -307,53 +357,94 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Category Header Pill-shaped Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF0C243B) : AppColors.primaryLight,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppColors.primary.withValues(alpha: isDark ? 0.4 : 0.25),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  getDesktopCategoryIcon(category, menuProv.getCategoryIcon(category)),
-                                  size: 14,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  category.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 12,
-                                    letterSpacing: 1.1,
-                                    color: AppColors.primary,
+                          // Category Header with Quick Controls
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF0C243B) : AppColors.primaryLight,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: AppColors.primary.withValues(alpha: isDark ? 0.4 : 0.25),
+                                    width: 1,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '${items.length} items',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      getDesktopCategoryIcon(category, menuProv.getCategoryIcon(category)),
+                                      size: 14,
                                       color: AppColors.primary,
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      category.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12,
+                                        letterSpacing: 1.1,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        '${items.length} ${items.length == 1 ? 'item' : 'items'}',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 10),
+
+                              // Quick Category Reorder & Rename Controls
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: isDark ? AppColors.darkCardElevated : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Theme.of(context).dividerColor, width: 0.8),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(lucide.LucideIcons.chevronUp, size: 14),
+                                      tooltip: 'Move category up',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: catIndex == 0 ? null : () => menuProv.moveCategory(catIndex, -1),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(lucide.LucideIcons.chevronDown, size: 14),
+                                      tooltip: 'Move category down',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: catIndex == categories.length - 1 ? null : () => menuProv.moveCategory(catIndex, 1),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(lucide.LucideIcons.pencil, size: 12),
+                                      tooltip: 'Rename category "$category"',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                      onPressed: () => _showQuickRenameDialog(context, menuProv, category),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 14),
 
@@ -499,6 +590,29 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                                   child: const Icon(LucideIcons.star, size: 10, color: AppColors.warning),
                                                 ),
                                               ),
+
+                                            // Customisable Badge on bottom-right of image
+                                            if (item.hasCustomizations)
+                                              Positioned(
+                                                bottom: 6,
+                                                right: 6,
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black.withValues(alpha: 0.75),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'CUSTOMISABLE',
+                                                    style: TextStyle(
+                                                      color: Colors.amber,
+                                                      fontSize: 8,
+                                                      fontWeight: FontWeight.bold,
+                                                      letterSpacing: 0.2,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
                                           ],
                                         ),
 
@@ -550,31 +664,55 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                                         ),
                                                       ),
                                                     ),
-                                                    Row(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        IconButton(
-                                                          padding: EdgeInsets.zero,
-                                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                                                          icon: const Icon(LucideIcons.pencil, size: 13),
-                                                          onPressed: () {
-                                                            showDialog(
-                                                              context: context,
-                                                              builder: (_) => ItemEditorModal(itemIndex: rawIndex),
-                                                            );
-                                                          },
-                                                        ),
-                                                        IconButton(
-                                                          padding: EdgeInsets.zero,
-                                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                                                          icon: const Icon(LucideIcons.trash2, size: 13, color: AppColors.danger),
-                                                          onPressed: () => menuProv.removeItem(rawIndex),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
+                                                     Row(
+                                                       mainAxisSize: MainAxisSize.min,
+                                                       children: [
+                                                         IconButton(
+                                                           padding: EdgeInsets.zero,
+                                                           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                                           icon: const Icon(LucideIcons.pencil, size: 13),
+                                                           tooltip: 'Edit Dish',
+                                                           onPressed: () {
+                                                             showDialog(
+                                                               context: context,
+                                                               builder: (_) => ItemEditorModal(itemIndex: rawIndex),
+                                                             );
+                                                           },
+                                                         ),
+                                                         IconButton(
+                                                           padding: EdgeInsets.zero,
+                                                           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                                           icon: const Icon(LucideIcons.trash2, size: 13, color: AppColors.danger),
+                                                           tooltip: 'Delete Dish',
+                                                           onPressed: () {
+                                                             showDialog(
+                                                               context: context,
+                                                               builder: (ctx) => AlertDialog(
+                                                                 title: const Text('DELETE DISH', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.danger)),
+                                                                 content: Text(
+                                                                   'Are you sure you want to delete "${item.name}"? This will remove it from the menu draft.',
+                                                                   style: const TextStyle(fontSize: 12),
+                                                                 ),
+                                                                 actions: [
+                                                                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+                                                                   ElevatedButton(
+                                                                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                                                                     onPressed: () {
+                                                                       menuProv.removeItem(rawIndex);
+                                                                       Navigator.pop(ctx);
+                                                                     },
+                                                                     child: const Text('DELETE', style: TextStyle(color: Colors.white)),
+                                                                   ),
+                                                                 ],
+                                                               ),
+                                                             );
+                                                           },
+                                                         ),
+                                                       ],
+                                                     ),
+                                                   ],
+                                                  ),
+                                               ],
                                             ),
                                           ),
                                         ),

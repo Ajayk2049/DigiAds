@@ -212,14 +212,72 @@ class MenuProvider extends ChangeNotifier {
   }
 
   void addCategory(String categoryName, [String iconKey = '']) {
-    if (!_categories.contains(categoryName)) {
-      _categories.add(categoryName);
+    final trimmed = categoryName.trim();
+    if (trimmed.isEmpty) return;
+    if (!_categories.any((c) => c.toLowerCase() == trimmed.toLowerCase())) {
+      _categories.add(trimmed);
       if (iconKey.isNotEmpty) {
-        _categoryIcons[categoryName.toLowerCase()] = iconKey;
+        _categoryIcons[trimmed.toLowerCase()] = iconKey;
       }
       _hasChanges = true;
       notifyListeners();
     }
+  }
+
+  void renameCategory(String oldName, String newName) {
+    final trimmedNew = newName.trim();
+    final trimmedOld = oldName.trim();
+    if (trimmedNew.isEmpty) return;
+
+    final idx = _categories.indexWhere((c) => c.toLowerCase() == trimmedOld.toLowerCase());
+    if (idx == -1) return;
+
+    // Check duplicate
+    final isDuplicate = _categories.any((c) => c.toLowerCase() == trimmedNew.toLowerCase() && c.toLowerCase() != trimmedOld.toLowerCase());
+    if (isDuplicate) return;
+
+    _categories[idx] = trimmedNew;
+
+    // Migrate icon
+    if (_categoryIcons.containsKey(trimmedOld.toLowerCase())) {
+      final icon = _categoryIcons.remove(trimmedOld.toLowerCase());
+      if (icon != null && icon.isNotEmpty) {
+        _categoryIcons[trimmedNew.toLowerCase()] = icon;
+      }
+    }
+
+    // Atomically cascade new category name to all items in draft
+    for (final item in _draftItems) {
+      if (item.category.trim().toLowerCase() == trimmedOld.toLowerCase()) {
+        item.category = trimmedNew;
+      }
+    }
+
+    _hasChanges = true;
+    notifyListeners();
+  }
+
+  void moveCategory(int index, int direction) {
+    final targetIndex = index + direction;
+    if (index < 0 || index >= _categories.length) return;
+    if (targetIndex < 0 || targetIndex >= _categories.length) return;
+
+    final item = _categories.removeAt(index);
+    _categories.insert(targetIndex, item);
+    _hasChanges = true;
+    notifyListeners();
+  }
+
+  void reorderCategories(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _categories.length) return;
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    if (newIndex < 0 || newIndex >= _categories.length) return;
+    final item = _categories.removeAt(oldIndex);
+    _categories.insert(newIndex, item);
+    _hasChanges = true;
+    notifyListeners();
   }
 
   void setCategoryIcon(String categoryName, String iconKey) {
@@ -229,8 +287,9 @@ class MenuProvider extends ChangeNotifier {
   }
 
   void removeCategory(String categoryName) {
-    _categories.remove(categoryName);
-    _categoryIcons.remove(categoryName.toLowerCase());
+    if (_categories.length <= 1) return;
+    _categories.removeWhere((c) => c.toLowerCase() == categoryName.trim().toLowerCase());
+    _categoryIcons.remove(categoryName.trim().toLowerCase());
     _hasChanges = true;
     notifyListeners();
   }

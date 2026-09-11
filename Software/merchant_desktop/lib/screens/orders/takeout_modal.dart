@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// icons via app_theme.dart
 import '../../constants/app_colors.dart';
 import '../../constants/app_theme.dart';
 import '../../models/menu_models.dart';
 import '../../providers/menu_provider.dart';
 import '../../providers/orders_provider.dart';
 import '../../providers/venue_provider.dart';
+import '../menu/manage_categories_modal.dart';
 
 class TakeoutModal extends StatefulWidget {
   const TakeoutModal({super.key});
@@ -16,7 +16,7 @@ class TakeoutModal extends StatefulWidget {
 }
 
 class _TakeoutModalState extends State<TakeoutModal> {
-  String _selectedCategory = 'Starters';
+  String? _selectedCategory;
   final Map<String, int> _cartQuantities = {}; // itemId -> quantity
   bool _isSubmitting = false;
 
@@ -27,8 +27,21 @@ class _TakeoutModalState extends State<TakeoutModal> {
     final venueProv = context.watch<VenueProvider>();
     final ordersProv = context.read<OrdersProvider>();
 
+    final popName = menuProv.popularCategoryName.isNotEmpty ? menuProv.popularCategoryName : 'Popular';
+    final popIcon = getDesktopCategoryIcon(popName, menuProv.popularCategoryIcon);
+
     final categories = menuProv.categories;
-    final categoryItems = menuProv.items.where((i) => i.category.toLowerCase() == _selectedCategory.toLowerCase()).toList();
+    final currentCat = _selectedCategory ?? (categories.isNotEmpty ? categories.first : popName);
+
+    final isPopSelected = currentCat.toLowerCase() == popName.toLowerCase();
+    final categoryItems = isPopSelected
+        ? menuProv.items.where((i) => i.isPopular).toList()
+        : menuProv.items.where((i) => i.category.toLowerCase() == currentCat.toLowerCase()).toList();
+
+    final allCategoryPills = [
+      (name: popName, icon: popIcon, isPopular: true),
+      ...categories.map((c) => (name: c, icon: getDesktopCategoryIcon(c, menuProv.getCategoryIcon(c)), isPopular: false)),
+    ];
 
     double totalCartRupees = 0;
     int totalItemsCount = 0;
@@ -73,19 +86,34 @@ class _TakeoutModalState extends State<TakeoutModal> {
 
             // Category Chips Row
             SizedBox(
-              height: 36,
+              height: 38,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: categories.length,
+                itemCount: allCategoryPills.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final cat = categories[index];
-                  final isSelected = _selectedCategory == cat;
+                  final pill = allCategoryPills[index];
+                  final isSelected = currentCat.toLowerCase() == pill.name.toLowerCase();
+
                   return ChoiceChip(
-                    label: Text(cat.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : null)),
+                    avatar: Icon(
+                      pill.icon,
+                      size: 14,
+                      color: isSelected
+                          ? Colors.white
+                          : (pill.isPopular ? Colors.amber.shade800 : AppColors.primary),
+                    ),
+                    label: Text(
+                      pill.name.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : null,
+                      ),
+                    ),
                     selected: isSelected,
-                    selectedColor: AppColors.primary,
-                    onSelected: (_) => setState(() => _selectedCategory = cat),
+                    selectedColor: pill.isPopular ? Colors.amber.shade700 : AppColors.primary,
+                    onSelected: (_) => setState(() => _selectedCategory = pill.name),
                   );
                 },
               ),
@@ -144,6 +172,8 @@ class _TakeoutModalState extends State<TakeoutModal> {
                                       'Rs. ${item.priceInRupees.toStringAsFixed(2)}',
                                       style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMuted : AppColors.lightMuted, fontFamily: 'Courier'),
                                     ),
+                                    if (item.hasCustomizations)
+                                      const Text('↳ Customisable', style: TextStyle(fontSize: 8.5, color: Colors.amber, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
