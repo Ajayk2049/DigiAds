@@ -490,7 +490,7 @@ class _MenuCard extends StatelessWidget {
                 borderRadius: const BorderRadius.only(bottomRight: Radius.circular(24)),
                 onTap: isOnline
                     ? () {
-                        if (_hasRequiredCustomizations) {
+                        if (_hasAnyCustomizations) {
                           _openItemDetail(context, isVeg);
                         } else {
                           _addDefaultOrIncrement(context, isVeg);
@@ -517,7 +517,7 @@ class _MenuCard extends StatelessWidget {
 
   Widget _buildFullWidthAddButton(BuildContext context, bool isVeg) {
     final bool canAdd = item.isAvailable && isOnline;
-    final bool hasReq = _hasRequiredCustomizations;
+    final bool hasCustom = _hasAnyCustomizations;
 
     return SizedBox(
       height: 48,
@@ -530,7 +530,7 @@ class _MenuCard extends StatelessWidget {
           borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
           onTap: canAdd
               ? () {
-                  if (hasReq) {
+                  if (hasCustom) {
                     _openItemDetail(context, isVeg);
                   } else {
                     _addDefaultOrIncrement(context, isVeg);
@@ -541,13 +541,13 @@ class _MenuCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                hasReq ? Icons.tune_rounded : Icons.add_rounded,
+                hasCustom ? Icons.tune_rounded : Icons.add_rounded,
                 size: 20,
                 color: canAdd ? Colors.white : Colors.grey.shade600,
               ),
               const SizedBox(width: 6),
               Text(
-                hasReq ? "CUSTOMISE" : "ADD TO CART",
+                hasCustom ? "CUSTOMISE" : "ADD TO CART",
                 style: TextStyle(
                   color: canAdd ? Colors.white : Colors.grey.shade600,
                   fontWeight: FontWeight.w900,
@@ -564,6 +564,12 @@ class _MenuCard extends StatelessWidget {
 
   void _addDefaultOrIncrement(BuildContext context, bool isVeg) {
     HapticFeedback.lightImpact();
+    // If the item has any customizations, always open modal so each person customizes
+    if (_hasAnyCustomizations) {
+      _openItemDetail(context, isVeg);
+      return;
+    }
+
     // 1. Check if an existing line already exists in cart for this raw itemId
     final cart = cartNotifier.value;
     final matchingKeys = cart.items.keys

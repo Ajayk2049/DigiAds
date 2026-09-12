@@ -2490,10 +2490,10 @@ export default function AdminPortal() {
                                       value={booking.adCategory || 'Other'}
                                       onChange={(e) => handleUpdateBookingCategory(booking.bookingId, e.target.value)}
                                       onClick={(e) => e.stopPropagation()}
-                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+                                      className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card text-foreground border border-border/80 hover:border-primary/50 uppercase tracking-wider cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary transition-colors shadow-sm"
                                     >
                                       {AD_CATEGORIES.map((cat) => (
-                                        <option key={cat} value={cat} className="bg-background text-foreground uppercase">
+                                        <option key={cat} value={cat} className="bg-card text-foreground uppercase">
                                           {cat}
                                         </option>
                                       ))}
@@ -5044,10 +5044,10 @@ export default function AdminPortal() {
                         setSelectedCampaign({ ...selectedCampaign, adCategory: newCat });
                         handleUpdateBookingCategory(selectedCampaign.bookingId, newCat);
                       }}
-                      className="w-full text-[11px] font-bold text-primary bg-background border border-border/60 rounded-lg px-2 py-1 uppercase cursor-pointer focus:outline-none focus:border-primary"
+                      className="w-full text-[11px] font-bold text-foreground bg-card border border-border/80 rounded-lg px-2 py-1 uppercase cursor-pointer focus:outline-none focus:border-primary"
                     >
                       {AD_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat} className="bg-background text-foreground uppercase">
+                        <option key={cat} value={cat} className="bg-card text-foreground uppercase">
                           {cat}
                         </option>
                       ))}

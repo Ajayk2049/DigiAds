@@ -134,7 +134,6 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
   final Map<int, Set<int>> _selections = {};
   int _quantity = 1;
   final ScrollController _scrollController = ScrollController();
-  int _itemsAddedInSession = 0;
 
   @override
   void initState() {
@@ -231,33 +230,6 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
       }
     }
     return parts.join(', ');
-  }
-
-  void _handleAddAnother() {
-    if (!_isValid) return;
-    HapticFeedback.mediumImpact();
-    final customStr = _formatCustomizationString();
-    final extraPaise = _unitPricePaise - widget.item.price.toInt();
-
-    widget.cartNotifier.addItem(
-      widget.item.itemId,
-      customization: customStr,
-      extraPaise: extraPaise,
-      quantity: _quantity,
-    );
-
-    setState(() {
-      _itemsAddedInSession += _quantity;
-      _initDefaults();
-    });
-
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
   }
 
   void _handleAddToCart() {
@@ -626,87 +598,20 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
                 ),
               ),
 
-            // Session confirmation banner if items have already been committed in this modal
-            if (_itemsAddedInSession > 0)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF0FDF4),
-                  border: Border(
-                    top: BorderSide(color: Color(0xFFDCFCE7), width: 1),
-                    bottom: BorderSide(color: Color(0xFFDCFCE7), width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF16A34A),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check, size: 12, color: Colors.white),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$_itemsAddedInSession added to cart! Customising next...',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF15803D),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      'Ready for #${_itemsAddedInSession + 1}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.green.shade800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Bottom Bar: Quantity Selector + Make Another (if customizable) + Add to Cart Button
+            // Bottom Bar: Quantity Stepper + Add to Cart Button
             Container(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1)),
               ),
-              child: isMobile && _groups.isNotEmpty
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            _buildQuantityStepper(),
-                            const SizedBox(width: 10),
-                            Expanded(child: _buildMakeAnotherButton()),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _buildAddToCartButton(),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        _buildQuantityStepper(),
-                        if (_groups.isNotEmpty) ...[
-                          const SizedBox(width: 10),
-                          _buildMakeAnotherButton(),
-                        ],
-                        const SizedBox(width: 10),
-                        Expanded(child: _buildAddToCartButton()),
-                      ],
-                    ),
+              child: Row(
+                children: [
+                  _buildQuantityStepper(),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildAddToCartButton()),
+                ],
+              ),
             ),
           ],
         ),
@@ -800,47 +705,13 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
     );
   }
 
-  Widget _buildMakeAnotherButton() {
-    return SizedBox(
-      height: 50,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          side: BorderSide(
-            color: _isValid ? kAccentBlue.withValues(alpha: 0.5) : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          backgroundColor: Colors.green,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-        ),
-        onPressed: _isValid ? _handleAddAnother : null,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.add_circle_outline_rounded, size: 18),
-            SizedBox(width: 6),
-            Text(
-              "Add & Customise Another",
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildAddToCartButton() {
+    const activeGreen = Color(0xFF16A34A); // Vibrant green requested by user
     return SizedBox(
       height: 50,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isValid ? kAccentBlue : Colors.grey.shade300,
+          backgroundColor: _isValid ? activeGreen : Colors.grey.shade300,
           foregroundColor: Colors.white,
           elevation: _isValid ? 1 : 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -849,9 +720,7 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
         onPressed: _isValid ? _handleAddToCart : null,
         child: Text(
           _isValid
-              ? (_itemsAddedInSession > 0
-                  ? "Done & Add • ₹${_totalPriceRs.toStringAsFixed(0)}"
-                  : "Add to Cart • ₹${_totalPriceRs.toStringAsFixed(0)}")
+              ? "Add to Cart • ₹${_totalPriceRs.toStringAsFixed(0)}"
               : "Choose options",
           style: const TextStyle(
             fontSize: 15.5,

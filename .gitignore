@@ -106,4 +106,4 @@ server/scratch/**
 server/uploads/*
 !server/uploads/.gitkeep
 server/delete_dummies.js
-user-portal/src/app/merchant/page.monolith.backup.js
+user-portal/page.monolith.backup.js

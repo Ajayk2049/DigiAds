@@ -5,6 +5,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --font-sans: 'Plus Jakarta Sans', sans-serif;
   --font-heading: 'Outfit', sans-serif;
 
@@ -30,6 +31,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.148 0.004 228.8);
   --foreground: oklch(0.987 0.002 197.1);
   --card: oklch(0.218 0.008 223.9);
@@ -68,6 +70,19 @@ textarea,
 button:not(.rounded-full),
 .card {
   border-radius: 4px !important;
+}
+
+select {
+  color-scheme: light;
+}
+
+.dark select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--card);
+  color: var(--foreground);
 }
 
 .rounded-sm {
