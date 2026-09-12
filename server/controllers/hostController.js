@@ -800,61 +800,97 @@ class HostController {
    */
   async uploadQrCode(req, res) {
     try {
-      const chunks = [];
-      for await (const chunk of req.body) {
-        chunks.push(chunk);
+      let buffer;
+      if (Buffer.isBuffer(req.body)) {
+        buffer = req.body;
+      } else if (req.body && typeof req.body[Symbol.asyncIterator] === 'function') {
+        const chunks = [];
+        for await (const chunk of req.body) {
+          chunks.push(chunk);
+        }
+        buffer = Buffer.concat(chunks);
+      } else if (req.body) {
+        buffer = Buffer.from(req.body);
       }
-      const buffer = Buffer.concat(chunks);
 
       if (!buffer || buffer.length === 0) {
-        return res.status(400).send({ success: false, message: 'Empty image upload.' });
+        return res.status(400).send({ success: false, message: 'Empty image upload. Please select a valid QR image file.' });
       }
 
       const sharp = require('sharp');
       const jsQR = require('jsqr');
 
-      // Convert image to raw RGBA buffer for jsQR
-      const { data, info } = await sharp(buffer)
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
+      // 1. Convert image to raw RGBA buffer, normalizing max dimensions to 1200px for fast, accurate jsQR parsing
+      let code = null;
+      try {
+        const { data, info } = await sharp(buffer)
+          .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
 
-      const code = jsQR(new Uint8ClampedArray(data), info.width, info.height);
+        code = jsQR(new Uint8ClampedArray(data), info.width, info.height);
+      } catch (sharpErr) {
+        console.warn('Initial sharp decode warning:', sharpErr.message);
+      }
+
+      // 2. If decoding fails, try with grayscale + contrast boost (handles low-light phone photos)
+      if (!code || !code.data) {
+        try {
+          const enhanced = await sharp(buffer)
+            .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
+            .grayscale()
+            .linear(1.3, -20)
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+          code = jsQR(new Uint8ClampedArray(enhanced.data), enhanced.info.width, enhanced.info.height);
+        } catch (enhanceErr) {
+          console.warn('Enhanced sharp decode warning:', enhanceErr.message);
+        }
+      }
 
       if (!code || !code.data) {
         return res.status(400).send({
           success: false,
-          message: 'Could not decode QR code. Please ensure the image is clear and contains a visible QR code.'
+          message: 'Could not decode QR code. Please ensure the image contains a clear, unobstructed UPI QR code.'
         });
       }
 
-      const decodedText = code.data;
-      if (!decodedText.startsWith('upi://pay')) {
-        return res.status(400).send({
-          success: false,
-          message: 'This QR code does not contain a standard UPI payment URL.'
-        });
+      const decodedText = (code.data || '').trim();
+      let upiId = '';
+      let payeeName = '';
+
+      if (decodedText.toLowerCase().startsWith('upi://pay')) {
+        // Parse standard UPI URI
+        const queryString = decodedText.split('?')[1] || '';
+        const params = new URLSearchParams(queryString);
+        const pa = params.get('pa') || params.get('PA');
+        const pn = params.get('pn') || params.get('PN');
+
+        if (pa) {
+          upiId = decodeURIComponent(pa).trim();
+          payeeName = pn ? decodeURIComponent(pn).trim() : '';
+        }
+      } else if (decodedText.includes('@') && !decodedText.includes(' ')) {
+        // Direct UPI ID formatted as plain text
+        upiId = decodedText;
       }
 
-      // Parse UPI URL params
-      const queryString = decodedText.split('?')[1] || '';
-      const params = new URLSearchParams(queryString);
-      const pa = params.get('pa');
-      const pn = params.get('pn');
-
-      if (!pa) {
+      if (!upiId) {
         return res.status(400).send({
           success: false,
-          message: 'Invalid UPI QR: Missing merchant address (pa).'
+          message: 'This QR code does not appear to contain a valid UPI payment ID (pa parameter).'
         });
       }
 
       return res.status(200).send({
         success: true,
-        message: 'QR Code successfully decrypted',
+        message: 'QR Code successfully decrypted and verified',
         data: {
-          upiId: decodeURIComponent(pa),
-          payeeName: pn ? decodeURIComponent(pn) : ''
+          upiId,
+          payeeName
         }
       });
     } catch (error) {
@@ -910,7 +946,8 @@ class HostController {
     if (!hostApplicationId) {
       return res.status(400).send({ success: false, message: 'hostApplicationId is required' });
     }
-    if (!upiId || !upiId.includes('@')) {
+    // Allow clearing upiId by passing empty string / null; validate format only if provided
+    if (upiId && !upiId.includes('@')) {
       return res.status(400).send({ success: false, message: 'A valid UPI ID is required (e.g. merchant@okhdfcbank)' });
     }
 
@@ -920,8 +957,8 @@ class HostController {
         return res.status(403).send({ success: false, message: 'Access denied' });
       }
 
-      app.upiId = upiId.trim();
-      app.payeeName = payeeName ? payeeName.trim() : null;
+      app.upiId = upiId ? upiId.trim() : null;
+      app.payeeName = (upiId && payeeName) ? payeeName.trim() : null;
       await app.save();
 
       return res.status(200).send({
@@ -2120,9 +2157,16 @@ class HostController {
    */
   async getVenueAnalytics(req, res) {
     try {
-      const daysParam = req.query.days;
+      const { days: daysParam, hostApplicationId } = req.query || {};
       const days = parseInt(daysParam || '0', 10);
-      const hostApp = await HostApplication.findOne({ userId: req.user.uid });
+
+      let hostApp = null;
+      if (hostApplicationId) {
+        hostApp = await HostApplication.findOne({ _id: hostApplicationId, userId: req.user.uid });
+      }
+      if (!hostApp) {
+        hostApp = await HostApplication.findOne({ userId: req.user.uid, status: 'approved' }) || await HostApplication.findOne({ userId: req.user.uid });
+      }
       if (!hostApp) {
         return res.status(404).send({ success: false, message: 'Host venue application not found' });
       }
@@ -2134,10 +2178,15 @@ class HostController {
         startDate.setDate(startDate.getDate() - days);
       }
 
-      // Fetch all non-cancelled orders for this host venue within date range
+      // Fetch only finished billing / paid completed orders for this host venue within date range
       const orders = await Order.find({
         hostApplicationId: hostApp._id,
-        createdAt: { $gte: startDate }
+        createdAt: { $gte: startDate },
+        $or: [
+          { paymentStatus: 'completed' },
+          { tableStatus: { $in: ['completed', 'completed_acked'] } }
+        ],
+        orderStatus: { $ne: 'cancelled' }
       });
 
       // Fetch Menu to get item names and prices
@@ -2169,6 +2218,9 @@ class HostController {
 
       orders.forEach(order => {
         if (order.tableStatus === 'cancelled' || order.orderStatus === 'cancelled') return;
+        const isFinishedBilling = order.paymentStatus === 'completed' || order.tableStatus === 'completed' || order.tableStatus === 'completed_acked';
+        if (!isFinishedBilling) return;
+
         const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
         if (isEmpty) return;
 
@@ -2455,8 +2507,10 @@ class HostController {
 
     if (req.user && req.user.role !== 'admin') {
       const HostApplication = require('../models/HostApplication');
-      const merchantApp = await HostApplication.findOne({ userId: req.user.uid });
-      if (!merchantApp || (hostApplicationId && merchantApp._id.toString() !== hostApplicationId.toString())) {
+      const query = { userId: req.user.uid };
+      if (hostApplicationId) query._id = hostApplicationId;
+      const merchantApp = await HostApplication.findOne(query);
+      if (!merchantApp) {
         return res.status(403).send({ success: false, message: 'Access denied: You can only upload bill images to your own venue.' });
       }
     }

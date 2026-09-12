@@ -490,7 +490,7 @@ async function startFastify() {
 
   // Register raw buffer parser for videos and images (up to 100MB)
   fastify.addContentTypeParser(
-    ['application/octet-stream', 'video/mp4', 'video/webm', 'image/jpeg', 'image/png', 'image/webp'],
+    ['application/octet-stream', 'video/mp4', 'video/webm', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'],
     { bodyLimit: 104857600 },
     function (req, payload, done) {
       done(null, payload); // Pass the raw payload stream through to req.body

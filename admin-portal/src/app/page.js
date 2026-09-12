@@ -340,6 +340,10 @@ export default function AdminPortal() {
         });
       }
     } catch (err) {
+      if (err.response?.status === 401) {
+        handleLogout();
+        return;
+      }
       console.error('Failed to fetch promo durations:', err);
     }
   };
@@ -384,6 +388,10 @@ export default function AdminPortal() {
         setCommercialImageDuration(Math.max(5, Math.min(30, Number(res.data.data.durationSeconds) || 8)));
       }
     } catch (err) {
+      if (err.response?.status === 401) {
+        handleLogout();
+        return;
+      }
       console.error('Failed to fetch advertiser image duration:', err);
     }
   };
@@ -796,6 +804,22 @@ export default function AdminPortal() {
     }
   }, []);
 
+  // Auto-logout if any API request encounters a 401 Unauthorized (expired/invalid JWT)
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      error => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, []);
+
   useEffect(() => {
     if (mounted) localStorage.setItem('adminActiveTab', activeTab);
   }, [activeTab, mounted]);
@@ -1038,17 +1062,24 @@ export default function AdminPortal() {
   const loadDashboardData = async (authToken) => {
     try {
       const headers = { Authorization: `Bearer ${authToken}` };
+      const check401 = (err) => {
+        if (err?.response?.status === 401) {
+          handleLogout();
+          throw err;
+        }
+      };
+
       const [statsRes, hostsRes, campaignsRes, ratesRes, devicesRes, usersRes, deviceReqsRes, modeReqsRes, releasesRes, platformAdsRes] = await Promise.all([
-        axios.get(`${API_BASE}/admin/stats`, { headers }).catch(() => ({ data: { data: null } })),
-        axios.get(`${API_BASE}/admin/hosts`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/bookings`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/rates`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/devices`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/users`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/device-requests`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE}/admin/releases`, { headers }).catch(() => ({ data: { releases: [] } })),
-        axios.get(`${API_BASE}/admin/platform-ads`, { headers }).catch(() => ({ data: { data: [] } }))
+        axios.get(`${API_BASE}/admin/stats`, { headers }).catch(err => { check401(err); return { data: { data: null } }; }),
+        axios.get(`${API_BASE}/admin/hosts`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/bookings`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/rates`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/devices`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/users`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/device-requests`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; }),
+        axios.get(`${API_BASE}/admin/releases`, { headers }).catch(err => { check401(err); return { data: { releases: [] } }; }),
+        axios.get(`${API_BASE}/admin/platform-ads`, { headers }).catch(err => { check401(err); return { data: { data: [] } }; })
       ]);
 
       setStats(statsRes.data.data);
@@ -1064,10 +1095,11 @@ export default function AdminPortal() {
       fetchPromoDurations(authToken);
       fetchAdvertiserImageDuration(authToken);
     } catch (err) {
-      console.error(err);
-      if (err.response?.status === 401) {
+      if (err?.response?.status === 401) {
         handleLogout();
+        return;
       }
+      console.error(err);
     }
   };
 
@@ -1334,12 +1366,12 @@ export default function AdminPortal() {
     }
   };
 
-  const handleLogout = () => {
+  function handleLogout() {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminRole');
     setIsAuthenticated(false);
     setToken('');
-  };
+  }
 
   const handleReviewHost = async (hostId, status) => {
     try {

@@ -49,9 +49,22 @@ const getUserPortalUrl = () => {
 };
 
 export const config = {
-  apiUrl: getApiUrl(),
-  wsUrl: getWsUrl(),
-  userPortalUrl: getUserPortalUrl(),
+  get apiUrl() {
+    return getApiUrl();
+  },
+  get wsUrl() {
+    return getWsUrl();
+  },
+  get userPortalUrl() {
+    return getUserPortalUrl();
+  },
   maxVideoDurationSeconds: parseInt(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS, 10) || 60,
 };
+
+export const API_BASE = {
+  toString: () => config.apiUrl,
+  valueOf: () => config.apiUrl,
+  replace: (pattern, replacement) => config.apiUrl.replace(pattern, replacement)
+};
+
 
