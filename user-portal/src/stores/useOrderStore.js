@@ -135,12 +135,15 @@ export const useOrderStore = create((set, get) => ({
         set({ wsConnected: false });
         if (isExplicitlyDisconnected) return;
         reconnectAttempts++;
-        const delay = Math.min(30000, 2000 * Math.pow(1.5, Math.min(reconnectAttempts, 6)));
+        const baseDelay = Math.min(30000, 2000 * Math.pow(1.5, Math.min(reconnectAttempts, 6)));
+        const jitter = Math.floor(Math.random() * 1500);
+        const delay = baseDelay + jitter;
         reconnectTimer = setTimeout(() => {
           if (!isExplicitlyDisconnected) {
             get().connectWebSocket(token, onDeviceStatusChanged);
           }
         }, delay);
+
       };
 
       ws.onerror = () => {

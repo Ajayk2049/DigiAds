@@ -36,6 +36,10 @@ const AdImpressionSchema = new mongoose.Schema({
   }
 });
 
+// High-performance compound indexes for ad impressions, advertiser analytics, and host payout reporting
 AdImpressionSchema.index({ bookingId: 1, createdAt: -1 });
+AdImpressionSchema.index({ advertiserId: 1, createdAt: -1 });
+AdImpressionSchema.index({ hostApplicationId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('AdImpression', AdImpressionSchema);
+

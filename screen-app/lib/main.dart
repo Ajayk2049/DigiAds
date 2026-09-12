@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -774,6 +775,12 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
 
   void _startHeartbeat() async {
     _heartbeatTimer?.cancel();
+    // Stagger initial heartbeat start with random jitter (0 to 5s) so multiple TV screens
+    // booting simultaneously do not hit the gRPC server at the exact same second
+    final initialStaggerMs = math.Random().nextInt(5000);
+    await Future<void>.delayed(Duration(milliseconds: initialStaggerMs));
+    if (!mounted) return;
+
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       try {
         final req = HeartbeatRequest()..deviceId = widget.deviceId;
@@ -849,15 +856,20 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
   void _scheduleRetrySync() {
     _syncTimer?.cancel();
     _syncRetryCount++;
-    final delay = const Duration(seconds: 10);
+
+    // Exponential backoff: 3s, 4.5s, 6.75s, 10s... up to max 60s
+    final expSeconds = (3.0 * math.pow(1.5, math.min(_syncRetryCount, 6))).clamp(3.0, 60.0);
+    // Randomized jitter (0 to 2000ms) to desynchronize simultaneous screen sync requests
+    final jitterMs = math.Random().nextInt(2000);
+    final delay = Duration(milliseconds: (expSeconds * 1000).toInt() + jitterMs);
 
     print(
-        '[SYNC] Scheduling retry in ${delay.inSeconds}s (attempt #$_syncRetryCount)');
+        '[SYNC] Scheduling retry in ${(delay.inMilliseconds / 1000).toStringAsFixed(1)}s (attempt #$_syncRetryCount)');
 
     if (mounted && _playerState == PlayerState.waiting) {
       setState(() {
         _statusMessage =
-            'Server unreachable. Retrying in ${delay.inSeconds}s...';
+            'Server unreachable. Retrying in ${(delay.inMilliseconds / 1000).toStringAsFixed(0)}s...';
       });
     }
 

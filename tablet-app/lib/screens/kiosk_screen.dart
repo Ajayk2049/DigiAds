@@ -265,6 +265,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   Timer? _wsPingTimer;
   Timer? _otaCheckTimer;
   Timer? _wsReconnectTimer;
+  int _wsReconnectAttempts = 0;
   bool _isConnectingWs = false;
 
   void _initWebSocket() async {
@@ -382,6 +383,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
               UpdateService.purgePendingUpdate();
             } else if (event == 'connected') {
               // Server connection established/restored.
+              _wsReconnectAttempts = 0;
               _adSync.syncNow();
               Timer(const Duration(seconds: 2), () {
                 if (mounted && _socket == newSocket) {
@@ -439,7 +441,16 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
   void _reconnectWebSocket() {
     _isWsConnected = false;
     _wsReconnectTimer?.cancel();
-    _wsReconnectTimer = Timer(const Duration(seconds: 5), () {
+    _wsReconnectAttempts++;
+
+    // Exponential backoff: 2s, 3s, 4.5s... up to max 30s
+    final expSeconds = (2.0 * math.pow(1.5, math.min(_wsReconnectAttempts, 6))).clamp(2.0, 30.0);
+    // Randomized jitter (0 to 1500ms) to desynchronize simultaneous reconnects ("Thundering Herd")
+    final jitterMs = math.Random().nextInt(1500);
+    final delay = Duration(milliseconds: (expSeconds * 1000).toInt() + jitterMs);
+
+    debugPrint('[WS] Reconnect attempt #$_wsReconnectAttempts scheduled in ${delay.inMilliseconds}ms');
+    _wsReconnectTimer = Timer(delay, () {
       if (mounted) {
         _initWebSocket();
       }

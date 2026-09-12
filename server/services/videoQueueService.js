@@ -183,8 +183,10 @@ class VideoQueueService {
               '-pix_fmt yuv420p',
               '-crf 26',               // Optimal compression quality and minimal file size
               '-preset faster',
+              '-max_muxing_queue_size 1024', // Cap internal multiplexing buffer to prevent memory queue ballooning
               '-movflags +faststart'   // Enables fast progressive playback
             ])
+
             .on('start', (cmdLine) => {
               // Enforce 40% CPU limit and idle I/O priority on Linux (VPS)
               if (process.platform === 'linux' && ffmpegCommand.ffmpegProc?.pid) {

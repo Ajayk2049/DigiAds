@@ -64,4 +64,9 @@ const DeviceSchema = new mongoose.Schema({
   }
 });
 
+// High-performance compound indexes for device fleet management & live status checks
+DeviceSchema.index({ hostApplicationId: 1, status: 1 });
+DeviceSchema.index({ hostApplicationId: 1, isActivated: 1 });
+
 module.exports = mongoose.model('Device', DeviceSchema);
+

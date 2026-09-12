@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -14,6 +15,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+  int _reconnectAttempts = 0;
   bool _isConnected = false;
   bool _isConnecting = false;
 
@@ -81,6 +83,7 @@ class WebSocketService {
 
       if (event == 'connected') {
         _isConnected = true;
+        _reconnectAttempts = 0;
       }
 
       // Notify all specific event listeners
@@ -119,7 +122,16 @@ class WebSocketService {
     _channel = null;
 
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 3), () {
+    _reconnectAttempts++;
+
+    // Exponential backoff: 2s, 3s, 4.5s... up to max 30s
+    final expSeconds = (2.0 * math.pow(1.5, math.min(_reconnectAttempts, 6))).clamp(2.0, 30.0);
+    // Randomized jitter (0 to 1500ms) to desynchronize simultaneous reconnects
+    final jitterMs = math.Random().nextInt(1500);
+    final delay = Duration(milliseconds: (expSeconds * 1000).toInt() + jitterMs);
+
+    if (kDebugMode) print('[WS] Reconnect attempt #$_reconnectAttempts scheduled in ${delay.inMilliseconds}ms');
+    _reconnectTimer = Timer(delay, () {
       connect();
     });
   }
