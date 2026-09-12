@@ -50,6 +50,30 @@ global.deviceSockets = new Map();
 global.adminSockets = new Map();
 global.pendingDeviceCommands = new Map();
 
+// Module-scoped WeakMap for WebSocket metadata to prevent memory leaks over long uptimes
+const socketMetadata = new WeakMap();
+
+function getSocketMeta(socket) {
+  if (!socket) return {};
+  let meta = socketMetadata.get(socket);
+  if (!meta) {
+    meta = { isAlive: true };
+    socketMetadata.set(socket, meta);
+  }
+  return meta;
+}
+
+function setSocketAlive(socket, isAlive) {
+  if (!socket) return;
+  const meta = getSocketMeta(socket);
+  meta.isAlive = isAlive;
+}
+
+function clearSocketMeta(socket) {
+  if (!socket) return;
+  socketMetadata.delete(socket);
+}
+
 /**
  * Robust helper to send real-time events to all active sockets of a merchant
  */
@@ -260,6 +284,7 @@ async function startFastify() {
             merchantSockets.set(merchantId, new Set());
           }
           merchantSockets.get(merchantId).add(socket);
+          setSocketAlive(socket, true);
           console.log(`[WS] Merchant connected: ${merchantId} (active connections: ${merchantSockets.get(merchantId).size})`);
         }
 
@@ -275,6 +300,10 @@ async function startFastify() {
               }
             }
           }
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
+          }
           console.log(`[WS] Merchant socket closed: ${merchantId}`);
         });
 
@@ -286,6 +315,10 @@ async function startFastify() {
             socket.close();
           } catch (wsErr) {
             console.error('[WS] Failed to send error or close socket:', wsErr);
+          }
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
           }
         }
       }
@@ -315,12 +348,16 @@ async function startFastify() {
           console.log(`[WS] Device connection rejected: ${deviceId} (Device not found in database / revoked)`);
           socket.send(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Device registration revoked or not found' }));
           socket.close(4001, 'Device Revoked');
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
+          }
           return;
         }
 
-        socket.isAlive = true;
+        setSocketAlive(socket, true);
         if (typeof socket.on === 'function') {
-          socket.on('pong', () => { socket.isAlive = true; });
+          socket.on('pong', () => { setSocketAlive(socket, true); });
         }
 
         global.deviceSockets.set(deviceId, socket);
@@ -380,7 +417,7 @@ async function startFastify() {
 
         socket.on('message', async (msg) => {
           try {
-            socket.isAlive = true;
+            setSocketAlive(socket, true);
             const data = JSON.parse(msg.toString());
             if (!data) return;
 
@@ -403,6 +440,10 @@ async function startFastify() {
 
         socket.on('close', async () => {
           global.deviceSockets.delete(deviceId);
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
+          }
           console.log(`[WS] Device disconnected: ${deviceId}`);
           try {
             const updatedDevice = await Device.findOneAndUpdate(
@@ -434,6 +475,10 @@ async function startFastify() {
           } catch (wsErr) {
             console.error('[WS] Failed to close device socket:', wsErr);
           }
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
+          }
         }
       }
     });
@@ -455,6 +500,7 @@ async function startFastify() {
         }
 
         const adminId = decoded.uid || 'admin_session_' + Math.random().toString(36).substring(2, 7);
+        setSocketAlive(socket, true);
         global.adminSockets.set(adminId, socket);
         console.log(`[WS] Admin connected: ${adminId}`);
 
@@ -462,6 +508,10 @@ async function startFastify() {
 
         socket.on('close', () => {
           global.adminSockets.delete(adminId);
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
+          }
           console.log(`[WS] Admin disconnected: ${adminId}`);
         });
 
@@ -473,6 +523,10 @@ async function startFastify() {
             socket.close();
           } catch (wsErr) {
             console.error('[WS] Failed to close admin socket:', wsErr);
+          }
+          clearSocketMeta(socket);
+          if (typeof socket.removeAllListeners === 'function') {
+            socket.removeAllListeners();
           }
         }
       }
@@ -1407,17 +1461,26 @@ function startHeartbeatMonitor() {
           if (!sock || sock.readyState !== 1) {
             // Socket already closed or closing — purge from active map
             global.deviceSockets.delete(devId);
+            clearSocketMeta(sock);
+            if (sock && typeof sock.removeAllListeners === 'function') {
+              sock.removeAllListeners();
+            }
             continue;
           }
-          if (sock.isAlive === false) {
+          const isAlive = getSocketMeta(sock).isAlive;
+          if (isAlive === false) {
             // Socket failed to answer ping from previous 15s cycle — terminate dead connection
             console.log(`[WS] Terminating unresponsive zombie socket for Device: ${devId}`);
             try { sock.terminate(); } catch (_) {}
             global.deviceSockets.delete(devId);
+            clearSocketMeta(sock);
+            if (typeof sock.removeAllListeners === 'function') {
+              sock.removeAllListeners();
+            }
             continue;
           }
           // Mark false and send ping probe
-          sock.isAlive = false;
+          setSocketAlive(sock, false);
           try {
             if (typeof sock.ping === 'function') {
               sock.ping();
@@ -1427,6 +1490,10 @@ function startHeartbeatMonitor() {
           } catch (_) {
             try { sock.terminate(); } catch (_) {}
             global.deviceSockets.delete(devId);
+            clearSocketMeta(sock);
+            if (typeof sock.removeAllListeners === 'function') {
+              sock.removeAllListeners();
+            }
           }
         }
       }
@@ -1454,7 +1521,7 @@ function startHeartbeatMonitor() {
         // Shield device ONLY if a truly active, open, responsive WebSocket connection is currently present
         if (global.deviceSockets && global.deviceSockets.has(device.deviceId)) {
           const activeSock = global.deviceSockets.get(device.deviceId);
-          if (activeSock && activeSock.readyState === 1 && activeSock.isAlive !== false) {
+          if (activeSock && activeSock.readyState === 1 && getSocketMeta(activeSock).isAlive !== false) {
             device.status = 'online';
             device.lastHeartbeat = new Date();
             await device.save();
@@ -1462,6 +1529,10 @@ function startHeartbeatMonitor() {
           } else {
             // Stale or dead socket reference — purge it
             global.deviceSockets.delete(device.deviceId);
+            clearSocketMeta(activeSock);
+            if (activeSock && typeof activeSock.removeAllListeners === 'function') {
+              activeSock.removeAllListeners();
+            }
           }
         }
 
@@ -1497,6 +1568,12 @@ async function main() {
     startGrpc();
     startHeartbeatMonitor();
     startOtaDiskCleanupTask();
+
+    // Signal PM2 that the application is fully booted and ready to serve traffic
+    if (typeof process.send === 'function') {
+      process.send('ready');
+      console.log('\x1b[32m[PM2]\x1b[0m Sent ready signal for zero-downtime rolling reload.');
+    }
   } catch (err) {
     logger.error(`Server Startup Failed: ${err.message}`);
     process.exit(1);

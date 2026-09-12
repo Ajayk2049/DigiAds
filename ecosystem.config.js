@@ -9,6 +9,9 @@ module.exports = {
       args: '--env-file=config/.env.prod',
       node_args: '--max-old-space-size=2048',
       max_memory_restart: '2200M',
+      wait_ready: true,
+      listen_timeout: 8000,
+      kill_timeout: 5000,
       env: {
         NODE_ENV: 'production'
       }
@@ -19,6 +22,7 @@ module.exports = {
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 4100',
       max_memory_restart: '500M',
+      kill_timeout: 5000,
       env: {
         NODE_ENV: 'production'
       }
@@ -29,6 +33,7 @@ module.exports = {
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 4200',
       max_memory_restart: '600M',
+      kill_timeout: 5000,
       env: {
         NODE_ENV: 'production'
       }
@@ -39,6 +44,7 @@ module.exports = {
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 4300',
       max_memory_restart: '500M',
+      kill_timeout: 5000,
       env: {
         NODE_ENV: 'production'
       }
