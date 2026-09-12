@@ -48,7 +48,13 @@ class VideoQueueService {
     });
 
     try {
-      this.queue = new Queue(this.queueName, { connection: redisConnection });
+      this.queue = new Queue(this.queueName, {
+        connection: redisConnection,
+        defaultJobOptions: {
+          removeOnComplete: { count: 100, age: 3600 }, // Keep max 100 jobs or 1 hour
+          removeOnFail: { count: 50, age: 86400 }       // Keep max 50 failed jobs for 24 hours
+        }
+      });
 
       // Worker strictly locked to concurrency: 1 (ONLY 1 FFmpeg instance runs at a time)
       this.worker = new Worker(
@@ -96,8 +102,8 @@ class VideoQueueService {
         const job = await this.queue.add('transcode', jobPayload, {
           attempts: 3,
           backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: 100,
-          removeOnFail: 200
+          removeOnComplete: { count: 100, age: 3600 },
+          removeOnFail: { count: 50, age: 86400 }
         });
         console.log(`\x1b[35m[BullMQ Queue]\x1b[0m Enqueued persistent transcode job #${job.id} for ${jobData.modelType || 'AdBooking'} (${jobData.recordId || jobData.bookingId}).`);
         return job;
