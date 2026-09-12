@@ -369,7 +369,22 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
             } else if (event == 'reload_menu') {
               debugPrint('[WS] Menu update reload request received');
               _fetchMenu();
+            } else if (event == 'menu_item_updated') {
+              final itemId = payload['itemId'] as String? ?? '';
+              if (itemId.isNotEmpty) {
+                final isAvailable = payload['isAvailable'] as bool?;
+                final pricePaise = payload['pricePaise'] as int?;
+                final isPopular = payload['isPopular'] as bool?;
+                debugPrint('[WS] Compact delta menu_item_updated for item: $itemId (isAvailable: $isAvailable, price: $pricePaise)');
+                _menu.updateItemDelta(
+                  itemId: itemId,
+                  isAvailable: isAvailable,
+                  pricePaise: pricePaise,
+                  isPopular: isPopular,
+                );
+              }
             } else if (event == 'reload_ads') {
+
               debugPrint('[WS] Ad update reload request received from server');
               _adSync.syncNow();
             } else if (event == 'app_update') {

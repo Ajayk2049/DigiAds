@@ -584,24 +584,84 @@ class HostController {
         updateData.activeShift = activeShift;
       }
 
+      // Check if this update is a compact single-item property modification (e.g. availability, price, popular toggle)
+      let singleItemDelta = null;
+
+      if (
+        existingMenu &&
+        Array.isArray(existingMenu.items) &&
+        Array.isArray(items) &&
+        existingMenu.items.length === items.length &&
+        (!normalizedCategories || JSON.stringify(existingMenu.categories) === JSON.stringify(normalizedCategories)) &&
+        (!shifts || JSON.stringify(existingMenu.shifts) === JSON.stringify(shifts)) &&
+        (!activeShift || existingMenu.activeShift === activeShift)
+      ) {
+        const changedItems = [];
+        for (const newItem of items) {
+          const oldItem = existingMenu.items.find(i => i.itemId === newItem.itemId);
+          if (!oldItem) {
+            changedItems.push(newItem);
+            break;
+          }
+          const hasPropChange =
+            oldItem.isAvailable !== newItem.isAvailable ||
+            oldItem.price !== newItem.price ||
+            oldItem.isPopular !== newItem.isPopular;
+
+          const hasStructuralChange =
+            oldItem.name !== newItem.name ||
+            oldItem.category !== newItem.category ||
+            oldItem.imageUrl !== newItem.imageUrl ||
+            JSON.stringify(oldItem.customizations || []) !== JSON.stringify(newItem.customizations || []);
+
+          if (hasStructuralChange) {
+            changedItems.length = 0;
+            changedItems.push(null, null); // forces full reload
+            break;
+          } else if (hasPropChange) {
+            changedItems.push(newItem);
+          }
+        }
+
+        if (changedItems.length === 1 && changedItems[0]) {
+          const target = changedItems[0];
+          singleItemDelta = {
+            event: 'menu_item_updated',
+            itemId: target.itemId,
+            isAvailable: target.isAvailable,
+            pricePaise: target.price,
+            isPopular: target.isPopular
+          };
+        }
+      }
+
       const menu = await Menu.findOneAndUpdate(
         { hostApplicationId },
         updateData,
         { upsert: true, new: true }
       );
 
-      // Notify devices via WebSocket to reload menu
+      // Notify devices via WebSocket: compact delta if single item property changed, otherwise full reload
       if (global.deviceSockets) {
         const Device = require('../models/Device');
         const devices = await Device.find({ hostApplicationId });
+        const wsPayload = singleItemDelta
+          ? JSON.stringify(singleItemDelta)
+          : JSON.stringify({ event: 'reload_menu', activeShift: menu.activeShift });
+
         for (const device of devices) {
           const socket = global.deviceSockets.get(device.deviceId);
-          if (socket) {
-            socket.send(JSON.stringify({ event: 'reload_menu', activeShift: menu.activeShift }));
-            console.log(`[WS] Sent reload_menu signal to Device ${device.deviceId}`);
+          if (socket && socket.readyState === 1) {
+            socket.send(wsPayload);
+            if (singleItemDelta) {
+              console.log(`[WS] Sent compact menu_item_updated (${singleItemDelta.itemId}) to Device ${device.deviceId}`);
+            } else {
+              console.log(`[WS] Sent reload_menu signal to Device ${device.deviceId}`);
+            }
           }
         }
       }
+
 
       return res.status(200).send({
         success: true,

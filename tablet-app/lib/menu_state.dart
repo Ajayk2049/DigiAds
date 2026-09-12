@@ -11,6 +11,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:fixnum/fixnum.dart';
 import 'generated/menu.pbgrpc.dart';
 
 /// Information parsed from a cart line item key.
@@ -317,7 +318,41 @@ class MenuNotifier extends ValueNotifier<MenuState> {
     // Keep existing items (could be fallback), just stop loading
     value = MenuState(items: value.items, isLoading: false);
   }
+
+  /// Real-time compact delta update for a single menu item without re-fetching the entire catalog.
+  void updateItemDelta({
+    required String itemId,
+    bool? isAvailable,
+    int? pricePaise,
+    bool? isPopular,
+  }) {
+    bool changed = false;
+    final updatedList = value.items.map((item) {
+      if (item.itemId == itemId) {
+        final cloned = item.clone();
+        if (isAvailable != null && cloned.isAvailable != isAvailable) {
+          cloned.isAvailable = isAvailable;
+          changed = true;
+        }
+        if (pricePaise != null && cloned.price.toInt() != pricePaise) {
+          cloned.price = Int64(pricePaise);
+          changed = true;
+        }
+        if (isPopular != null && cloned.isPopular != isPopular) {
+          cloned.isPopular = isPopular;
+          changed = true;
+        }
+        return cloned;
+      }
+      return item;
+    }).toList();
+
+    if (changed) {
+      value = MenuState(items: updatedList, isLoading: false);
+    }
+  }
 }
+
 
 class MenuState {
   final List<MenuItem> items;

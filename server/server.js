@@ -318,6 +318,11 @@ async function startFastify() {
           return;
         }
 
+        socket.isAlive = true;
+        if (typeof socket.on === 'function') {
+          socket.on('pong', () => { socket.isAlive = true; });
+        }
+
         global.deviceSockets.set(deviceId, socket);
         console.log(`[WS] Device connected: ${deviceId}`);
 
@@ -375,6 +380,7 @@ async function startFastify() {
 
         socket.on('message', async (msg) => {
           try {
+            socket.isAlive = true;
             const data = JSON.parse(msg.toString());
             if (!data) return;
 
@@ -1395,6 +1401,36 @@ function startHeartbeatMonitor() {
       const offlineThreshold = new Date(Date.now() - 35000); // 35s — mark offline
       const detachThreshold = new Date(Date.now() - 120000); // 2 min — auto-detach
 
+      // 0) Prune dead / zombie WebSockets: verify socket liveness and terminate broken connections
+      if (global.deviceSockets) {
+        for (const [devId, sock] of global.deviceSockets.entries()) {
+          if (!sock || sock.readyState !== 1) {
+            // Socket already closed or closing — purge from active map
+            global.deviceSockets.delete(devId);
+            continue;
+          }
+          if (sock.isAlive === false) {
+            // Socket failed to answer ping from previous 15s cycle — terminate dead connection
+            console.log(`[WS] Terminating unresponsive zombie socket for Device: ${devId}`);
+            try { sock.terminate(); } catch (_) {}
+            global.deviceSockets.delete(devId);
+            continue;
+          }
+          // Mark false and send ping probe
+          sock.isAlive = false;
+          try {
+            if (typeof sock.ping === 'function') {
+              sock.ping();
+            } else if (typeof sock.send === 'function') {
+              sock.send(JSON.stringify({ event: 'ping', timestamp: Date.now() }));
+            }
+          } catch (_) {
+            try { sock.terminate(); } catch (_) {}
+            global.deviceSockets.delete(devId);
+          }
+        }
+      }
+
       // 1) Mark stale online devices as offline
       const staleDevices = await Device.find({
         status: 'online',
@@ -1415,12 +1451,18 @@ function startHeartbeatMonitor() {
       });
 
       for (const device of detachedDevices) {
-        // Shield device if an active WebSocket connection is currently present
+        // Shield device ONLY if a truly active, open, responsive WebSocket connection is currently present
         if (global.deviceSockets && global.deviceSockets.has(device.deviceId)) {
-          device.status = 'online';
-          device.lastHeartbeat = new Date();
-          await device.save();
-          continue;
+          const activeSock = global.deviceSockets.get(device.deviceId);
+          if (activeSock && activeSock.readyState === 1 && activeSock.isAlive !== false) {
+            device.status = 'online';
+            device.lastHeartbeat = new Date();
+            await device.save();
+            continue;
+          } else {
+            // Stale or dead socket reference — purge it
+            global.deviceSockets.delete(device.deviceId);
+          }
         }
 
         const previousHardware = device.hardwareId;
