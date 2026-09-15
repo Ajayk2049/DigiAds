@@ -114,17 +114,30 @@ global.notifyDevicesReloadAds = async (targetVenueId = null) => {
         ...(targetVenueId ? { hostApplicationId: targetVenueId.toString() } : {})
       });
       for (const [devId, socket] of global.deviceSockets.entries()) {
-        try { socket.send(payload); } catch (e) { }
+        try {
+          if (socket && socket.readyState === 1) {
+            socket.send(payload);
+          }
+        } catch (e) { }
       }
     }
 
     // 2. gRPC Heartbeat command queue (for 24/7 wall screens)
     if (global.pendingDeviceCommands) {
       const Device = require('./models/Device');
-      const query = targetVenueId ? { hostApplicationId: targetVenueId } : {};
-      const devices = await Device.find(query).select('deviceId');
+      const query = {
+        isActivated: true,
+        ...(targetVenueId ? { hostApplicationId: targetVenueId } : {})
+      };
+      // Limit to active devices and cap query size to avoid unindexed table scan
+      const devices = await Device.find(query).select('deviceId').lean().limit(1000);
       for (const dev of devices) {
         if (dev.deviceId) {
+          // Cap pendingDeviceCommands map to prevent unbounded growth
+          if (global.pendingDeviceCommands.size > 2000) {
+            const firstKey = global.pendingDeviceCommands.keys().next().value;
+            global.pendingDeviceCommands.delete(firstKey);
+          }
           global.pendingDeviceCommands.set(dev.deviceId, 'reload_ads');
         }
       }
@@ -285,6 +298,9 @@ async function startFastify() {
           }
           merchantSockets.get(merchantId).add(socket);
           setSocketAlive(socket, true);
+          if (typeof socket.on === 'function') {
+            socket.on('pong', () => { setSocketAlive(socket, true); });
+          }
           console.log(`[WS] Merchant connected: ${merchantId} (active connections: ${merchantSockets.get(merchantId).size})`);
         }
 
@@ -342,8 +358,8 @@ async function startFastify() {
           return;
         }
 
-        // Check if device exists in MongoDB
-        const existingDoc = await Device.findOne({ deviceId });
+        // Check if device exists in MongoDB (fast lean projection)
+        const existingDoc = await Device.findOne({ deviceId }).select('_id status lastHeartbeat hostApplicationId').lean();
         if (!existingDoc) {
           console.log(`[WS] Device connection rejected: ${deviceId} (Device not found in database / revoked)`);
           socket.send(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Device registration revoked or not found' }));
@@ -355,6 +371,21 @@ async function startFastify() {
           return;
         }
 
+        // Close and terminate any lingering previous socket for this deviceId (prevents FD leaks during reconnects)
+        const existingSocket = global.deviceSockets.get(deviceId);
+        if (existingSocket && existingSocket !== socket) {
+          try {
+            existingSocket.close(4000, 'Replaced by new connection');
+            if (typeof existingSocket.terminate === 'function') {
+              existingSocket.terminate();
+            }
+          } catch (_) {}
+          clearSocketMeta(existingSocket);
+          if (typeof existingSocket.removeAllListeners === 'function') {
+            existingSocket.removeAllListeners();
+          }
+        }
+
         setSocketAlive(socket, true);
         if (typeof socket.on === 'function') {
           socket.on('pong', () => { setSocketAlive(socket, true); });
@@ -363,33 +394,7 @@ async function startFastify() {
         global.deviceSockets.set(deviceId, socket);
         console.log(`[WS] Device connected: ${deviceId}`);
 
-        // Update MongoDB Device status to online & broadcast to merchant
-        try {
-          const isFreshBoot = existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat).getTime()) > 35000;
-          const updateFields = { status: 'online', lastHeartbeat: new Date() };
-          if (isFreshBoot) {
-            updateFields.sessionStart = new Date();
-          }
-
-          const updatedDevice = await Device.findOneAndUpdate(
-            { deviceId },
-            { $set: updateFields },
-            { new: true }
-          );
-          if (updatedDevice && updatedDevice.hostApplicationId) {
-            const HostApplication = require('./models/HostApplication');
-            const app = await HostApplication.findById(updatedDevice.hostApplicationId);
-            if (app && app.userId) {
-              global.sendToMerchant(app.userId, {
-                event: 'device_status_changed',
-                data: { deviceId, status: 'online' }
-              });
-            }
-          }
-        } catch (dbErr) {
-          console.error(`[WS] Failed to update Device ${deviceId} status to online:`, dbErr.message);
-        }
-
+        // Send connected greeting immediately to minimize handshake latency
         socket.send(JSON.stringify({
           event: 'connected',
           message: 'Connected to device update feed',
@@ -400,20 +405,49 @@ async function startFastify() {
           }
         }));
 
-        // Push active table session snapshot on connect (handles offline status sync)
-        try {
-          const activeOrder = await Order.findOne({
-            deviceId,
-            tableStatus: { $in: ['active', 'close_table'] }
-          }).sort({ createdAt: -1 });
+        // Run MongoDB status touch, merchant broadcast, and table session sync asynchronously
+        setImmediate(async () => {
+          try {
+            const isFreshBoot = existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat || 0).getTime()) > 35000;
+            const updateFields = { status: 'online', lastHeartbeat: new Date() };
+            if (isFreshBoot) {
+              updateFields.sessionStart = new Date();
+            }
 
-          if (activeOrder) {
-            const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
-            notifyDeviceSessionUpdate(activeOrder);
+            const updatedDevice = await Device.findOneAndUpdate(
+              { deviceId },
+              { $set: updateFields },
+              { new: true }
+            );
+            if (updatedDevice && updatedDevice.hostApplicationId) {
+              const HostApplication = require('./models/HostApplication');
+              const app = await HostApplication.findById(updatedDevice.hostApplicationId).select('userId').lean();
+              if (app && app.userId) {
+                global.sendToMerchant(app.userId, {
+                  event: 'device_status_changed',
+                  data: { deviceId, status: 'online' }
+                });
+              }
+            }
+          } catch (dbErr) {
+            console.error(`[WS] Failed to update Device ${deviceId} status to online:`, dbErr.message);
           }
-        } catch (sessionSyncErr) {
-          console.error(`[WS] Failed to push active session on connect for ${deviceId}:`, sessionSyncErr.message);
-        }
+
+          // Push active table session snapshot on connect (handles offline status sync)
+          try {
+            const activeOrder = await Order.findOne({
+              deviceId,
+              tableStatus: { $in: ['active', 'close_table'] }
+            }).sort({ createdAt: -1 }).lean();
+
+            if (activeOrder) {
+              const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
+              notifyDeviceSessionUpdate(activeOrder);
+            }
+          } catch (sessionSyncErr) {
+            console.error(`[WS] Failed to push active session on connect for ${deviceId}:`, sessionSyncErr.message);
+          }
+        });
 
         socket.on('message', async (msg) => {
           try {
@@ -500,7 +534,20 @@ async function startFastify() {
         }
 
         const adminId = decoded.uid || 'admin_session_' + Math.random().toString(36).substring(2, 7);
+        const existingSocket = global.adminSockets.get(adminId);
+        if (existingSocket && existingSocket !== socket) {
+          try {
+            existingSocket.close(4000, 'Replaced by new connection');
+            if (typeof existingSocket.terminate === 'function') existingSocket.terminate();
+          } catch (_) {}
+          clearSocketMeta(existingSocket);
+          if (typeof existingSocket.removeAllListeners === 'function') existingSocket.removeAllListeners();
+        }
+
         setSocketAlive(socket, true);
+        if (typeof socket.on === 'function') {
+          socket.on('pong', () => { setSocketAlive(socket, true); });
+        }
         global.adminSockets.set(adminId, socket);
         console.log(`[WS] Admin connected: ${adminId}`);
 
@@ -711,8 +758,15 @@ async function startFastify() {
 
 // ----------------------------------------------------
 // gRPC Setup (Device, Menu, Order)
-// ----------------------------------------------------
-const grpcServer = new grpc.Server();
+const grpcServer = new grpc.Server({
+  'grpc.max_receive_message_length': 10 * 1024 * 1024, // 10MB message ceiling (prevents memory exhaustion)
+  'grpc.max_send_message_length': 10 * 1024 * 1024,
+  'grpc.keepalive_time_ms': 30000,                      // 30s keepalive ping
+  'grpc.keepalive_timeout_ms': 10000,                   // 10s ping timeout
+  'grpc.keepalive_permit_without_calls': 1,
+  'grpc.http2.min_time_between_pings_ms': 10000,        // Protects against HTTP/2 ping floods
+  'grpc.http2.max_pings_without_data': 0
+});
 
 // Load Proto Files
 const loaderOptions = {
@@ -730,6 +784,23 @@ const menuDef = protoLoader.loadSync(path.join(__dirname, 'protos', 'menu.proto'
 const orderProto = grpc.loadPackageDefinition(orderDef).order;
 const deviceProto = grpc.loadPackageDefinition(deviceDef).device;
 const menuProto = grpc.loadPackageDefinition(menuDef).menu;
+
+// In-memory throttling map to prevent hammering MongoDB with updateOne on every RPC
+const deviceLastDbTouch = new Map();
+
+function throttleDeviceDbTouch(deviceId) {
+  const now = Date.now();
+  const lastTouch = deviceLastDbTouch.get(deviceId) || 0;
+  if (now - lastTouch < 20000) {
+    return false; // Skip redundant DB write if touched within 20s
+  }
+  deviceLastDbTouch.set(deviceId, now);
+  if (deviceLastDbTouch.size > 5000) {
+    const oldestKey = deviceLastDbTouch.keys().next().value;
+    deviceLastDbTouch.delete(oldestKey);
+  }
+  return true;
+}
 
 // Helper to verify gRPC metadata JWT token for devices
 function verifyGrpcToken(call) {
@@ -749,13 +820,15 @@ function verifyGrpcToken(call) {
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
     if (decoded && decoded.deviceId) {
-      // Touch lastHeartbeat & online status in MongoDB on valid gRPC calls
-      Device.updateOne(
-        { deviceId: decoded.deviceId },
-        { $set: { status: 'online', lastHeartbeat: new Date() } }
-      ).catch(err => {
-        console.error(`[gRPC Touch] Failed to update heartbeat for ${decoded.deviceId}:`, err.message);
-      });
+      // Touch lastHeartbeat & online status in MongoDB on valid gRPC calls (throttled to at most once every 20s)
+      if (throttleDeviceDbTouch(decoded.deviceId)) {
+        Device.updateOne(
+          { deviceId: decoded.deviceId },
+          { $set: { status: 'online', lastHeartbeat: new Date() } }
+        ).catch(err => {
+          console.error(`[gRPC Touch] Failed to update heartbeat for ${decoded.deviceId}:`, err.message);
+        });
+      }
     }
     return decoded; // { deviceId, deviceType, hostApplicationId }
   } catch (err) {
@@ -770,13 +843,11 @@ const deviceServiceHandlers = {
       const claims = verifyGrpcToken(call);
       const { deviceId } = claims;
 
-      const device = await Device.findOne({ deviceId });
-      if (!device) {
-        return callback({ code: grpc.status.NOT_FOUND, message: `Device ${deviceId} not found` });
-      }
-      device.status = 'online';
-      device.lastHeartbeat = new Date();
-      await device.save();
+      await Device.updateOne(
+        { deviceId },
+        { $set: { status: 'online', lastHeartbeat: new Date() } }
+      );
+      deviceLastDbTouch.set(deviceId, Date.now());
 
       callback(null, {
         success: true,
@@ -795,14 +866,7 @@ const deviceServiceHandlers = {
       const { deviceId } = claims;
       const { callWaiter, waiterOption, tableNumber } = call.request;
 
-      const device = await Device.findOne({ deviceId });
-      if (!device) {
-        return callback({ code: grpc.status.NOT_FOUND, message: `Device ${deviceId} not found` });
-      }
-
-      device.status = 'online';
-      device.lastHeartbeat = new Date();
-      await device.save();
+      // Heartbeat DB touch is already verified & throttled by verifyGrpcToken above
 
       // Handle waiter call request
       if (callWaiter) {
@@ -814,7 +878,7 @@ const deviceServiceHandlers = {
       const activeOrder = await Order.findOne({
         deviceId,
         tableStatus: { $in: ['active', 'close_table'] }
-      }).sort({ createdAt: -1 });
+      }).sort({ createdAt: -1 }).lean();
       if (activeOrder) {
         const app = await HostApplication.findById(activeOrder.hostApplicationId);
         const billConfig = app?.billConfig || {};
@@ -1458,94 +1522,145 @@ function startHeartbeatMonitor() {
       const offlineThreshold = new Date(Date.now() - 35000); // 35s — mark offline
       const detachThreshold = new Date(Date.now() - 120000); // 2 min — auto-detach
 
-      // 0) Prune dead / zombie WebSockets: verify socket liveness and terminate broken connections
+      // 0a) Prune dead / zombie device WebSockets
       if (global.deviceSockets) {
         for (const [devId, sock] of global.deviceSockets.entries()) {
           if (!sock || sock.readyState !== 1) {
-            // Socket already closed or closing — purge from active map
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
-            if (sock && typeof sock.removeAllListeners === 'function') {
-              sock.removeAllListeners();
-            }
+            if (sock && typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
             continue;
           }
           const isAlive = getSocketMeta(sock).isAlive;
           if (isAlive === false) {
-            // Socket failed to answer ping from previous 15s cycle — terminate dead connection
             console.log(`[WS] Terminating unresponsive zombie socket for Device: ${devId}`);
             try { sock.terminate(); } catch (_) {}
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
-            if (typeof sock.removeAllListeners === 'function') {
-              sock.removeAllListeners();
-            }
+            if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
             continue;
           }
-          // Mark false and send ping probe
           setSocketAlive(sock, false);
           try {
-            if (typeof sock.ping === 'function') {
-              sock.ping();
-            } else if (typeof sock.send === 'function') {
-              sock.send(JSON.stringify({ event: 'ping', timestamp: Date.now() }));
-            }
+            if (typeof sock.ping === 'function') sock.ping();
+            else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping', timestamp: Date.now() }));
           } catch (_) {
             try { sock.terminate(); } catch (_) {}
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
-            if (typeof sock.removeAllListeners === 'function') {
-              sock.removeAllListeners();
+            if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+          }
+        }
+      }
+
+      // 0b) Prune dead / zombie merchant WebSockets
+      if (merchantSockets) {
+        for (const [merchantId, sockSet] of merchantSockets.entries()) {
+          if (sockSet instanceof Set) {
+            for (const sock of sockSet) {
+              if (!sock || sock.readyState !== 1) {
+                sockSet.delete(sock);
+                clearSocketMeta(sock);
+                if (sock && typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+                continue;
+              }
+              const isAlive = getSocketMeta(sock).isAlive;
+              if (isAlive === false) {
+                try { sock.terminate(); } catch (_) {}
+                sockSet.delete(sock);
+                clearSocketMeta(sock);
+                if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+                continue;
+              }
+              setSocketAlive(sock, false);
+              try {
+                if (typeof sock.ping === 'function') sock.ping();
+                else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
+              } catch (_) {
+                try { sock.terminate(); } catch (_) {}
+                sockSet.delete(sock);
+                clearSocketMeta(sock);
+                if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+              }
+            }
+            if (sockSet.size === 0) {
+              merchantSockets.delete(merchantId);
             }
           }
         }
       }
 
-      // 1) Mark stale online devices as offline
-      const staleDevices = await Device.find({
-        status: 'online',
-        lastHeartbeat: { $lt: offlineThreshold }
-      });
-
-      for (const device of staleDevices) {
-        device.status = 'offline';
-        await device.save();
-        logger.info(`[Heartbeat Monitor] Device ${device.deviceId} is stale (last ping: ${device.lastHeartbeat.toLocaleTimeString()}). Marked OFFLINE.`);
+      // 0c) Prune dead / zombie admin WebSockets
+      if (global.adminSockets) {
+        for (const [adminId, sock] of global.adminSockets.entries()) {
+          if (!sock || sock.readyState !== 1) {
+            global.adminSockets.delete(adminId);
+            clearSocketMeta(sock);
+            if (sock && typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+            continue;
+          }
+          const isAlive = getSocketMeta(sock).isAlive;
+          if (isAlive === false) {
+            try { sock.terminate(); } catch (_) {}
+            global.adminSockets.delete(adminId);
+            clearSocketMeta(sock);
+            if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+            continue;
+          }
+          setSocketAlive(sock, false);
+          try {
+            if (typeof sock.ping === 'function') sock.ping();
+            else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
+          } catch (_) {
+            try { sock.terminate(); } catch (_) {}
+            global.adminSockets.delete(adminId);
+            clearSocketMeta(sock);
+            if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
+          }
+        }
       }
 
-      // 2) Auto-detach devices that have been offline for the full grace period
-      const detachedDevices = await Device.find({
+      // 1) Mark stale online devices as offline (Atomic bulk update)
+      const staleResult = await Device.updateMany(
+        { status: 'online', lastHeartbeat: { $lt: offlineThreshold } },
+        { $set: { status: 'offline' } }
+      );
+      if (staleResult.modifiedCount > 0) {
+        logger.info(`[Heartbeat Monitor] Marked ${staleResult.modifiedCount} stale devices OFFLINE.`);
+      }
+
+      // 2) Auto-detach devices that have been offline for the full grace period (2 min)
+      // Exclude devices that currently have an active, responsive WebSocket
+      const activeWsDeviceIds = [];
+      if (global.deviceSockets) {
+        for (const [devId, sock] of global.deviceSockets.entries()) {
+          if (sock && sock.readyState === 1 && getSocketMeta(sock).isAlive !== false) {
+            activeWsDeviceIds.push(devId);
+          }
+        }
+      }
+
+      const detachQuery = {
         isActivated: true,
         status: 'offline',
         lastHeartbeat: { $lt: detachThreshold }
-      });
+      };
+      if (activeWsDeviceIds.length > 0) {
+        detachQuery.deviceId = { $nin: activeWsDeviceIds };
+      }
 
-      for (const device of detachedDevices) {
-        // Shield device ONLY if a truly active, open, responsive WebSocket connection is currently present
-        if (global.deviceSockets && global.deviceSockets.has(device.deviceId)) {
-          const activeSock = global.deviceSockets.get(device.deviceId);
-          if (activeSock && activeSock.readyState === 1 && getSocketMeta(activeSock).isAlive !== false) {
-            device.status = 'online';
-            device.lastHeartbeat = new Date();
-            await device.save();
-            continue;
-          } else {
-            // Stale or dead socket reference — purge it
-            global.deviceSockets.delete(device.deviceId);
-            clearSocketMeta(activeSock);
-            if (activeSock && typeof activeSock.removeAllListeners === 'function') {
-              activeSock.removeAllListeners();
-            }
+      const detachResult = await Device.updateMany(
+        detachQuery,
+        {
+          $set: {
+            isActivated: false,
+            hardwareId: null,
+            kioskPasswordHash: null
           }
         }
-
-        const previousHardware = device.hardwareId;
-        device.isActivated = false;
-        device.hardwareId = null;
-        device.kioskPasswordHash = null;
-        device.status = 'offline';
-        await device.save();
-        logger.info(`[Heartbeat Monitor] Device ${device.deviceId} auto-detached after extended offline (was bound to hardware ${previousHardware}). ID is now available for re-activation.`);
+      );
+      if (detachResult.modifiedCount > 0) {
+        logger.info(`[Heartbeat Monitor] Auto-detached ${detachResult.modifiedCount} devices after extended offline period.`);
       }
     } catch (err) {
       logger.error(`[Heartbeat Monitor] Error running device check: ${err.message}`);

@@ -186,6 +186,8 @@ OrderSchema.index({ hostApplicationId: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, tableStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, waiterCallStatus: 1 });
+OrderSchema.index({ deviceId: 1, tableStatus: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', OrderSchema);
+
 
