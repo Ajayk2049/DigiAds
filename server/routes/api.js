@@ -87,13 +87,13 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/request-more-devices', hostController.requestMoreDevices.bind(hostController));
     merchantRoutes.post('/host/verify-password', hostController.verifyPassword.bind(hostController));
     merchantRoutes.get('/host/promos', hostController.getHostPromos.bind(hostController));
-    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: 104857600 }, hostController.uploadHostPromoMedia.bind(hostController));
+    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: 52428800 }, hostController.uploadHostPromoMedia.bind(hostController));
     merchantRoutes.post('/host/promos/stream', hostController.streamHostPromos.bind(hostController));
     merchantRoutes.post('/host/promos/delete-slot', hostController.deleteHostPromoSlot.bind(hostController));
     merchantRoutes.get('/host/analytics', hostController.getVenueAnalytics.bind(hostController));
     merchantRoutes.get('/host/bill-config/:applicationId', hostController.getBillConfig.bind(hostController));
     merchantRoutes.put('/host/bill-config/:applicationId', hostController.updateBillConfig.bind(hostController));
-    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: 10485760 }, hostController.uploadBillImage.bind(hostController));
+    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: 5242880 }, hostController.uploadBillImage.bind(hostController));
     merchantRoutes.post('/host/bill-config/delete-image', hostController.deleteBillImage.bind(hostController));
     merchantRoutes.post('/host/applications/request-mode-change', hostController.requestModeChange.bind(hostController));
     merchantRoutes.get('/host/applications/mode-change-status', hostController.getModeChangeStatus.bind(hostController));
@@ -114,7 +114,7 @@ function registerRoutes(fastify, options, done) {
     advertiserRoutes.post('/ads/verify-payment/:bookingId', adController.verifyPayment.bind(adController));
     advertiserRoutes.post('/ads/retry-payment/:bookingId', adController.retryPayment.bind(adController));
     advertiserRoutes.post('/ads/cancel-booking/:bookingId', adController.cancelBooking.bind(adController));
-    advertiserRoutes.post('/ads/upload', { bodyLimit: 104857600 }, adController.uploadVideo.bind(adController));
+    advertiserRoutes.post('/ads/upload', { bodyLimit: 52428800 }, adController.uploadVideo.bind(adController));
     advertiserRoutes.post('/ads/upload-image', { bodyLimit: 10485760 }, adController.uploadImage.bind(adController));
     next();
   });
@@ -161,7 +161,7 @@ function registerRoutes(fastify, options, done) {
 
     // Admin Platform Ads & Global Fallback Ads
     adminRoutes.get('/admin/platform-ads', adminController.getPlatformAds.bind(adminController));
-    adminRoutes.post('/admin/platform-ads/upload', { bodyLimit: 104857600 }, adminController.uploadPlatformAdMedia.bind(adminController));
+    adminRoutes.post('/admin/platform-ads/upload', { bodyLimit: 52428800 }, adminController.uploadPlatformAdMedia.bind(adminController));
     adminRoutes.post('/admin/platform-ads', adminController.createPlatformAd.bind(adminController));
     adminRoutes.patch('/admin/platform-ads/:id', adminController.updatePlatformAd.bind(adminController));
     adminRoutes.delete('/admin/platform-ads/:id', adminController.deletePlatformAd.bind(adminController));

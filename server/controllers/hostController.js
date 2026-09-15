@@ -860,6 +860,11 @@ class HostController {
    */
   async uploadQrCode(req, res) {
     try {
+      const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+      if (contentLength > 5242880) {
+        return res.status(400).send({ success: false, message: 'QR image file size exceeds maximum limit of 5MB' });
+      }
+
       let buffer;
       if (Buffer.isBuffer(req.body)) {
         buffer = req.body;
@@ -1683,7 +1688,7 @@ class HostController {
       }
 
       const passwordUtils = require('../utils/password');
-      const pwdResult = passwordUtils.comparePassword(password, user.password);
+      const pwdResult = await passwordUtils.comparePassword(password, user.password);
 
       if (!pwdResult.isValid) {
         return res.status(401).send({ success: false, message: 'Incorrect account password' });
@@ -1881,6 +1886,12 @@ class HostController {
     const hostApplicationId = req.headers['x-host-application-id'] || req.query.hostApplicationId;
     if (!hostApplicationId) {
       return res.status(400).send({ success: false, message: 'Host application ID required' });
+    }
+
+    // 50 MB max payload size check (fast early rejection)
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > 52428800) {
+      return res.status(400).send({ success: false, message: 'Promo media file size exceeds maximum limit of 50MB' });
     }
 
     if (req.user && req.user.role !== 'admin') {
@@ -2589,21 +2600,22 @@ class HostController {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
+    // 5 MB max payload size check (fast early rejection)
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > 5242880) {
+      return res.status(400).send({ success: false, message: 'Bill image file size exceeds maximum limit of 5MB' });
+    }
+
     const uniqueFilename = `bill_logo_${uuidv4().replace(/-/g, '').slice(0, 16)}${ext}`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
     try {
-      if (Buffer.isBuffer(req.body)) {
-        fs.writeFileSync(filePath, req.body);
-      } else if (req.body && typeof req.body.pipe === 'function') {
+      if (req.body && typeof req.body.pipe === 'function') {
         await pipeline(req.body, fs.createWriteStream(filePath));
-      } else if (req.body && typeof req.body[Symbol.asyncIterator] === 'function') {
-        const chunks = [];
-        for await (const chunk of req.body) {
-          chunks.push(chunk);
-        }
-        const buffer = Buffer.concat(chunks);
-        fs.writeFileSync(filePath, buffer);
+      } else if (Buffer.isBuffer(req.body)) {
+        await fs.promises.writeFile(filePath, req.body);
+      } else if (req.raw) {
+        await pipeline(req.raw, fs.createWriteStream(filePath));
       } else {
         return res.status(400).send({ success: false, message: 'Invalid or empty image payload' });
       }

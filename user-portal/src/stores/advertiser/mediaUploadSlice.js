@@ -58,6 +58,12 @@ export const createMediaUploadSlice = (set, get) => ({
       return;
     }
 
+    if (file.size > 52428800) {
+      showToast('error', `Video file size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds maximum platform limit of 50 MB. Please compress or export in standard 1080p.`);
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     const maxDuration = activeUploadBooking?.maxVideoLengthSeconds || maxVideoLengthSeconds || 60;
     let videoMeta = { duration: 0, width: 0, height: 0 };
 
@@ -197,11 +203,13 @@ export const createMediaUploadSlice = (set, get) => ({
 
     filesToProcess.forEach(file => {
       const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-      if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+        showToast('error', `Skipped ${file.name}: Only JPG, JPEG, PNG, and WEBP are allowed.`);
+      } else if (file.size > 10485760) {
+        showToast('error', `Skipped ${file.name}: Image size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds 10 MB limit.`);
+      } else {
         validFiles.push(file);
         validPreviews.push(URL.createObjectURL(file));
-      } else {
-        showToast('error', `Skipped ${file.name}: Only JPG, JPEG, PNG, and WEBP are allowed.`);
       }
     });
 

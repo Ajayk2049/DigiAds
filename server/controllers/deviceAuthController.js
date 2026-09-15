@@ -18,8 +18,8 @@ const resolveMediaUrl = (mediaUrl, host) => {
 
 const passwordUtils = require('../utils/password');
 
-function hashPassword(password) {
-  return passwordUtils.hashPassword(password);
+async function hashPassword(password) {
+  return await passwordUtils.hashPassword(password);
 }
 
 class DeviceAuthController {
@@ -66,7 +66,7 @@ class DeviceAuthController {
 
       // Process password for tablet kiosk exit
       if (deviceType === 'tablet') {
-        device.kioskPasswordHash = hashPassword(kioskPassword);
+        device.kioskPasswordHash = await hashPassword(kioskPassword);
       }
 
       device.hardwareId = hardwareId;

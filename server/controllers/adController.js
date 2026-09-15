@@ -595,6 +595,12 @@ class AdController {
 
     ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
+    // 50 MB max payload size check (fast early rejection)
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > 52428800) {
+      return res.status(400).send({ success: false, message: 'Video file size exceeds maximum allowed platform limit of 50MB' });
+    }
+
     const bookingId = req.query.bookingId;
     let targetBookingObj = null;
     if (bookingId) {
@@ -778,8 +784,15 @@ class AdController {
     const path = require('path');
     const sharp = require('sharp');
     const { v4: uuidv4 } = require('uuid');
+    const { pipeline } = require('stream/promises');
     const MediaLog = require('../models/MediaLog');
     const AdBooking = require('../models/AdBooking');
+
+    // 10 MB max payload size check
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > 10485760) {
+      return res.status(400).send({ success: false, message: 'Image file size exceeds maximum allowed limit of 10MB' });
+    }
 
     const bookingId = req.query.bookingId;
     let targetBookingObj = null;
@@ -857,23 +870,26 @@ class AdController {
 
     const filePath = path.join(uploadsDir, uniqueFilename);
 
-    let imageBuffer = req.body;
-    if (imageBuffer && typeof imageBuffer.pipe === 'function') {
-      const chunks = [];
-      for await (const chunk of imageBuffer) {
-        chunks.push(chunk);
-      }
-      imageBuffer = Buffer.concat(chunks);
-    }
-
     try {
-      await sharp(imageBuffer)
+      const transformer = sharp()
         .resize(targetDim.width, targetDim.height, {
           fit: 'inside',
           withoutEnlargement: false
         })
-        .webp({ quality: 85 })
-        .toFile(filePath);
+        .webp({ quality: 85 });
+
+      if (req.body && typeof req.body.pipe === 'function') {
+        await pipeline(req.body, transformer, fs.createWriteStream(filePath));
+      } else if (Buffer.isBuffer(req.body)) {
+        await sharp(req.body)
+          .resize(targetDim.width, targetDim.height, { fit: 'inside', withoutEnlargement: false })
+          .webp({ quality: 85 })
+          .toFile(filePath);
+      } else if (req.raw) {
+        await pipeline(req.raw, transformer, fs.createWriteStream(filePath));
+      } else {
+        return res.status(400).send({ success: false, message: 'Invalid or empty image payload' });
+      }
 
       mediaLog.status = 'completed';
       mediaLog.finalizedFilename = uniqueFilename;

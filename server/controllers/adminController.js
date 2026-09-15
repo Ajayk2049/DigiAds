@@ -32,8 +32,9 @@ const resolveMediaUrl = (mediaUrl, host) => {
 
 const passwordUtils = require('../utils/password');
 
-function verifyPassword(password, storedPassword) {
-  return passwordUtils.comparePassword(password, storedPassword).isValid;
+async function verifyPassword(password, storedPassword) {
+  const result = await passwordUtils.comparePassword(password, storedPassword);
+  return result.isValid;
 }
 
 const { generateUniqueCustomId } = require('../utils/idGenerator');

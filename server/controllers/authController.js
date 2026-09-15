@@ -17,8 +17,8 @@ const {
 
 const passwordUtils = require('../utils/password');
 
-function verifyPassword(password, storedPassword) {
-  const result = passwordUtils.comparePassword(password, storedPassword);
+async function verifyPassword(password, storedPassword) {
+  const result = await passwordUtils.comparePassword(password, storedPassword);
   return result;
 }
 
@@ -403,14 +403,14 @@ class AuthController {
         return res.status(400).send({ success: false, message: 'Invalid email/phone or password' });
       }
 
-      const pwdResult = verifyPassword(password, user.password);
+      const pwdResult = await verifyPassword(password, user.password);
       if (!pwdResult.isValid) {
         return res.status(400).send({ success: false, message: 'Invalid email/phone or password' });
       }
 
       // Automatically upgrade legacy PBKDF2 hash to bcrypt on successful login
       if (pwdResult.needsRehash) {
-        user.password = passwordUtils.hashPassword(password);
+        user.password = await passwordUtils.hashPassword(password);
         await user.save();
       }
 

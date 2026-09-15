@@ -170,9 +170,14 @@ class ReleaseController {
         fileStream.on('error', reject);
       });
 
-      // Compute SHA-256 hash of saved file
-      const fileBuffer = fs.readFileSync(targetPath);
-      const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex').toLowerCase();
+      // Compute SHA-256 hash of saved file via stream (prevents buffering 60MB+ APK into RAM)
+      const sha256 = await new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(targetPath);
+        stream.on('data', chunk => hash.update(chunk));
+        stream.on('end', () => resolve(hash.digest('hex').toLowerCase()));
+        stream.on('error', reject);
+      });
 
       const newRelease = await AppRelease.create({
         appType,

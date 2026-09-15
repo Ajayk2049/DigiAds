@@ -213,7 +213,7 @@ async function handleDeviceWaiterCall(deviceId, rawWaiterOption, rawTableNumber)
 // ----------------------------------------------------
 const fastify = Fastify({
   loggerInstance: logger,
-  bodyLimit: 104857600 // 100MB body limit for media & release uploads
+  bodyLimit: 52428800 // 50MB default body limit (hardened against event-loop & memory exhaustion)
 });
 
 async function startFastify() {
