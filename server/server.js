@@ -561,7 +561,7 @@ async function startFastify() {
   fastify.route({
     method: ['GET', 'HEAD', 'OPTIONS'],
     url: '/uploads/*',
-    handler: (req, res) => {
+    handler: async (req, res) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
@@ -585,15 +585,18 @@ async function startFastify() {
       }
 
       let filePath = path.join(__dirname, 'uploads', subpath);
-      if (!fs.existsSync(filePath)) {
+      let stat;
+      try {
+        stat = await fs.promises.stat(filePath);
+      } catch (e) {
+        // Fallback to rawSubpath if aliased path was not found
         filePath = path.join(__dirname, 'uploads', rawSubpath);
+        try {
+          stat = await fs.promises.stat(filePath);
+        } catch (err) {
+          return res.status(404).send({ error: 'File not found' });
+        }
       }
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).send({ error: 'File not found' });
-      }
-
-      const stat = fs.statSync(filePath);
       const ext = path.extname(subpath).toLowerCase();
       let contentType = 'application/octet-stream';
       if (ext === '.mp4') contentType = 'video/mp4';

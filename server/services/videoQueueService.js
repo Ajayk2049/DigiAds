@@ -28,6 +28,7 @@ class VideoQueueService {
     this.queue = null;
     this.worker = null;
     this.fallbackQueue = [];
+    this.maxFallbackQueueSize = 50;
     this.isFallbackProcessing = false;
     this.isRedisAvailable = false;
 
@@ -38,6 +39,7 @@ class VideoQueueService {
     redisConnection.on('connect', () => {
       this.isRedisAvailable = true;
       console.log('\x1b[32m[BullMQ Redis]\x1b[0m Successfully connected to Redis server. Persistent queue active.');
+      this.drainFallbackQueueToRedis();
     });
 
     redisConnection.on('error', (err) => {
@@ -113,9 +115,36 @@ class VideoQueueService {
     }
 
     // Direct single-instance in-memory fallback if Redis is offline
+    if (this.fallbackQueue.length >= this.maxFallbackQueueSize) {
+      console.error(`\x1b[31m[VideoQueue Error]\x1b[0m In-memory fallback queue limit reached (${this.maxFallbackQueueSize}). Rejecting transcode to prevent heap exhaustion.`);
+      throw new Error('Video transcoding queue is currently at maximum capacity. Please retry shortly.');
+    }
+
     console.log(`\x1b[35m[VideoQueue]\x1b[0m Enqueued transcode job for ${jobData.modelType || 'AdBooking'} (${jobData.recordId || jobData.bookingId}). Queue length: ${this.fallbackQueue.length + 1}`);
     this.fallbackQueue.push(jobPayload);
     setImmediate(() => this.processNextFallback());
+  }
+
+  /**
+   * Migrate any pending in-memory fallback jobs into BullMQ when Redis connects
+   */
+  async drainFallbackQueueToRedis() {
+    if (!this.queue || !this.isRedisAvailable || this.fallbackQueue.length === 0) return;
+    console.log(`\x1b[35m[BullMQ Redis]\x1b[0m Migrating ${this.fallbackQueue.length} pending fallback jobs into Redis persistent queue...`);
+    while (this.fallbackQueue.length > 0) {
+      const jobPayload = this.fallbackQueue.shift();
+      try {
+        await this.queue.add('transcode', jobPayload, {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { count: 100, age: 3600 },
+          removeOnFail: { count: 50, age: 86400 }
+        });
+      } catch (err) {
+        this.fallbackQueue.unshift(jobPayload);
+        break;
+      }
+    }
   }
 
   /**
@@ -188,13 +217,10 @@ class VideoQueueService {
               '-level 3.1',
               '-pix_fmt yuv420p',
               '-crf 26',               // Optimal compression quality and minimal file size
-              '-preset faster',
-              '-max_muxing_queue_size 1024', // Cap internal multiplexing buffer to prevent memory queue ballooning
-              '-movflags +faststart'   // Enables fast progressive playback
+              '-movflags +faststart',
+              '-an'
             ])
-
             .on('start', (cmdLine) => {
-              // Enforce 40% CPU limit and idle I/O priority on Linux (VPS)
               if (process.platform === 'linux' && ffmpegCommand.ffmpegProc?.pid) {
                 const { exec } = require('child_process');
                 const pid = ffmpegCommand.ffmpegProc.pid;
@@ -210,28 +236,33 @@ class VideoQueueService {
             .save(transcodeTempPath);
         });
 
-        if (fs.existsSync(transcodeTempPath) && fs.statSync(transcodeTempPath).size > 0) {
+        let transcodeStat = null;
+        try {
+          transcodeStat = await fs.promises.stat(transcodeTempPath);
+        } catch (e) {}
+
+        if (transcodeStat && transcodeStat.size > 0) {
           try {
             // Atomic file replacement to prevent truncating live HTTP playback stream
-            fs.renameSync(transcodeTempPath, filePath);
+            await fs.promises.rename(transcodeTempPath, filePath);
           } catch (renameErr) {
-            fs.copyFileSync(transcodeTempPath, filePath);
-            try { fs.unlinkSync(transcodeTempPath); } catch (e) {}
+            await fs.promises.copyFile(transcodeTempPath, filePath);
+            try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
           }
           transcodeSuccess = true;
         }
       } catch (ffErr) {
         console.warn(`\x1b[33m[FFmpeg Warning]\x1b[0m Transcode warning (${ffErr.message}). Using raw file fallback.`);
-        if (fs.existsSync(transcodeTempPath)) {
-          try { fs.unlinkSync(transcodeTempPath); } catch (e) {}
-        }
+        try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
       }
 
       // Fallback to direct raw file copy if FFmpeg fails or is missing
-      if (!transcodeSuccess && fs.existsSync(tempPath) && !fs.existsSync(filePath)) {
-        const fallbackPath = filePath || path.join(job.targetDir || '', `raw_${uniqueFilename}`);
-        fs.copyFileSync(tempPath, fallbackPath);
-        transcodeSuccess = true;
+      if (!transcodeSuccess) {
+        try {
+          const fallbackPath = filePath || path.join(job.targetDir || '', `raw_${uniqueFilename}`);
+          await fs.promises.copyFile(tempPath, fallbackPath);
+          transcodeSuccess = true;
+        } catch (copyErr) {}
       }
     }
 
@@ -298,8 +329,8 @@ class VideoQueueService {
     }
 
     // Safely delete temp staging file
-    if (tempPath && fs.existsSync(tempPath)) {
-      try { fs.unlinkSync(tempPath); } catch (e) {}
+    if (tempPath) {
+      try { await fs.promises.unlink(tempPath); } catch (e) {}
     }
   }
 

@@ -675,12 +675,8 @@ class AdController {
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'ads', 'videos', targetSubdir);
     const stagingDir = path.join(__dirname, '..', 'uploads', 'ads', 'staging');
     
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    if (!fs.existsSync(stagingDir)) {
-      fs.mkdirSync(stagingDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
+    await fs.promises.mkdir(stagingDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, uniqueFilename);
     const tempPath = path.join(stagingDir, `staging_${uuidv4().replace(/-/g, '').slice(0, 12)}${ext}`);
@@ -694,7 +690,9 @@ class AdController {
       let durationSeconds = 0;
       try {
         const metadata = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('ffprobe duration check timed out after 5s')), 5000);
           ffmpeg.ffprobe(tempPath, (err, meta) => {
+            clearTimeout(timer);
             if (err) return reject(err);
             resolve(meta);
           });
@@ -703,9 +701,7 @@ class AdController {
         durationSeconds = metadata?.format?.duration || 0;
         // Allow 0.5s tolerance for encoding container overhead
         if (durationSeconds > allowedMaxDuration + 0.5) {
-          if (fs.existsSync(tempPath)) {
-            try { fs.unlinkSync(tempPath); } catch (e) {}
-          }
+          try { await fs.promises.unlink(tempPath); } catch (e) {}
           mediaLog.status = 'failed';
           await mediaLog.save();
           
@@ -864,9 +860,7 @@ class AdController {
     const uniqueFilename = `img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'ads', 'images', deviceType);
 
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, uniqueFilename);
 

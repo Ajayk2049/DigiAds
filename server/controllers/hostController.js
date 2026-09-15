@@ -753,7 +753,7 @@ class HostController {
   /**
    * Universal helper to safely delete physical media file from server/uploads/
    */
-  unlinkMediaFile(mediaUrl) {
+  async unlinkMediaFile(mediaUrl) {
     if (!mediaUrl || !mediaUrl.includes('/uploads/')) return;
     const fs = require('fs');
     const path = require('path');
@@ -769,10 +769,10 @@ class HostController {
       return;
     }
 
-    if (fs.existsSync(fullPath)) {
-      try {
-        fs.unlinkSync(fullPath);
-      } catch (e) {
+    try {
+      await fs.promises.unlink(fullPath);
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
         console.error('unlinkMediaFile Error:', e.message);
       }
     }
@@ -811,9 +811,7 @@ class HostController {
     const uniqueFilename = `menu_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'menu');
 
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, uniqueFilename);
 
@@ -844,13 +842,9 @@ class HostController {
       });
     } catch (error) {
       console.error('uploadImage Error:', error.message);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (unlinkErr) {
-          console.error('Failed to unlink corrupt file:', unlinkErr.message);
-        }
-      }
+      try {
+        await fs.promises.unlink(filePath);
+      } catch (unlinkErr) {}
       return res.status(500).send({ success: false, message: 'Failed to upload and process image: ' + error.message });
     }
   }
@@ -885,11 +879,11 @@ class HostController {
       const sharp = require('sharp');
       const jsQR = require('jsqr');
 
-      // 1. Convert image to raw RGBA buffer, normalizing max dimensions to 1200px for fast, accurate jsQR parsing
+      // 1. Convert image to raw RGBA buffer, normalizing max dimensions to 600px for fast, low-memory jsQR parsing
       let code = null;
       try {
         const { data, info } = await sharp(buffer)
-          .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+          .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
           .ensureAlpha()
           .raw()
           .toBuffer({ resolveWithObject: true });
@@ -903,7 +897,7 @@ class HostController {
       if (!code || !code.data) {
         try {
           const enhanced = await sharp(buffer)
-            .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
+            .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
             .grayscale()
             .linear(1.3, -20)
             .ensureAlpha()
@@ -1956,7 +1950,9 @@ class HostController {
 
         try {
           const metadata = await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('ffprobe duration check timed out after 5s')), 5000);
             ffmpeg.ffprobe(tempPath, (err, meta) => {
+              clearTimeout(timer);
               if (err) return reject(err);
               resolve(meta);
             });
@@ -1964,9 +1960,7 @@ class HostController {
 
           const durationSeconds = metadata?.format?.duration || 0;
           if (durationSeconds > maxAllowedSeconds + 0.5) {
-            if (fs.existsSync(tempPath)) {
-              try { fs.unlinkSync(tempPath); } catch (e) {}
-            }
+            try { await fs.promises.unlink(tempPath); } catch (e) {}
             return res.status(400).send({
               success: false,
               message: `Uploaded video duration (${Math.round(durationSeconds)}s) exceeds the ${maxAllowedSeconds}-second limit for ${isClosedMode ? 'Closed' : 'Open'} Ads Mode venues.`
@@ -1977,7 +1971,7 @@ class HostController {
         }
 
         // 3. Make an initial raw copy so file exists immediately
-        fs.copyFileSync(tempPath, rawFilePath);
+        await fs.promises.copyFile(tempPath, rawFilePath);
 
         const initialMediaUrl = `/uploads/outlets/${folderName}/promos/${uniqueFilename}`;
 
