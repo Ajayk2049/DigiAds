@@ -5,3 +5,4 @@ export * from './useOrderStore';
 export * from './useMenuStore';
 export * from './usePaymentStore';
 export * from './usePromoStore';
+export * from './useAdvertiserStore';

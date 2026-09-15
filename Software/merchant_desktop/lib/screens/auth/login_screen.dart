@@ -6,6 +6,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/modals/server_config_modal.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -193,7 +194,9 @@ class _LoginScreenState extends State<LoginScreen> {
               // Server Host Config Link
               Center(
                 child: TextButton.icon(
-                  onPressed: _showServerConfigModal,
+                  onPressed: () => ServerConfigModal.show(context, onReconnected: () {
+                    if (mounted) setState(() {});
+                  }),
                   icon: const Icon(Icons.dns, size: 13, color: AppColors.primary),
                   label: Text(
                     'Server: ${AppConfig.serverHost}',
@@ -208,64 +211,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showServerConfigModal() {
-    final controller = TextEditingController(text: AppConfig.serverHost);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.dns, color: AppColors.primary, size: 18),
-            SizedBox(width: 8),
-            Text('Server Connection IP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter the backend server IP and port on your local Wi-Fi network (e.g. 192.168.0.100:4200 or 127.0.0.1:4200):',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Server Host & Port',
-                hintText: '192.168.0.100:4200',
-                prefixIcon: Icon(Icons.wifi, size: 16),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newHost = controller.text.trim();
-              if (newHost.isNotEmpty) {
-                await AppConfig.setServerHost(newHost);
-                ApiService().refreshBaseUrl();
-                if (mounted) {
-                  setState(() {});
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Server host set to $newHost')),
-                  );
-                }
-              }
-            },
-            child: const Text('SAVE & CONNECT'),
-          ),
-        ],
       ),
     );
   }

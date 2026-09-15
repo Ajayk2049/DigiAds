@@ -18,10 +18,14 @@ class WebSocketService {
   int _reconnectAttempts = 0;
   bool _isConnected = false;
   bool _isConnecting = false;
+  bool _hasEverConnected = false;
 
+  final ValueNotifier<bool> connectionStateNotifier = ValueNotifier<bool>(false);
   final Map<String, List<WebSocketEventHandler>> _listeners = {};
 
   bool get isConnected => _isConnected;
+  bool get hasEverConnected => _hasEverConnected;
+  ValueListenable<bool> get connectionNotifier => connectionStateNotifier;
 
   WebSocketService._internal();
 
@@ -67,7 +71,6 @@ class WebSocketService {
         },
       );
 
-      _isConnected = true;
       _isConnecting = false;
       _startHeartbeat();
     } catch (e) {
@@ -83,7 +86,9 @@ class WebSocketService {
 
       if (event == 'connected') {
         _isConnected = true;
+        _hasEverConnected = true;
         _reconnectAttempts = 0;
+        connectionStateNotifier.value = true;
       }
 
       // Notify all specific event listeners
@@ -118,6 +123,7 @@ class WebSocketService {
   void _onDisconnected() {
     _isConnected = false;
     _isConnecting = false;
+    connectionStateNotifier.value = false;
     _pingTimer?.cancel();
     _channel = null;
 
@@ -143,5 +149,6 @@ class WebSocketService {
     _channel = null;
     _isConnected = false;
     _isConnecting = false;
+    connectionStateNotifier.value = false;
   }
 }

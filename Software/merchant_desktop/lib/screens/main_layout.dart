@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,8 @@ import '../providers/printer_provider.dart';
 import '../services/api_service.dart';
 import '../services/tray_notification_service.dart';
 import '../services/websocket_service.dart';
+import '../widgets/connection_status_banner.dart';
+import '../widgets/modals/server_config_modal.dart';
 
 import 'orders/live_orders_screen.dart';
 import 'menu/menu_manager_screen.dart';
@@ -31,16 +34,59 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   void initState() {
     super.initState();
+    _setupConnectionListener();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
     });
   }
 
+  @override
+  void dispose() {
+    WebSocketService().removeListener('connected', _onServerConnected);
+    super.dispose();
+  }
+
+  void _setupConnectionListener() {
+    WebSocketService().addListener('connected', _onServerConnected);
+  }
+
+  void _onServerConnected(Map<String, dynamic> data) {
+    if (!mounted) return;
+    debugPrint('[MainLayout] Server connected signal received. Syncing data...');
+    _syncDataOnConnection();
+  }
+
+  Future<void> _syncDataOnConnection() async {
+    if (!mounted) return;
+    final venueProv = context.read<VenueProvider>();
+    final ordersProv = context.read<OrdersProvider>();
+    final menuProv = context.read<MenuProvider>();
+    final printerProv = context.read<PrinterProvider>();
+
+    try {
+      // If venues were not loaded yet (e.g. server was offline at launch)
+      if (venueProv.selectedVenue == null || venueProv.applications.isEmpty) {
+        await venueProv.fetchApplications();
+      }
+
+      if (venueProv.selectedVenue != null && mounted) {
+        final appId = venueProv.selectedVenue!.id;
+        ordersProv.fetchLiveOrders(appId);
+        menuProv.fetchMenu(appId);
+        printerProv.init();
+      }
+    } catch (e) {
+      debugPrint('[MainLayout] Error syncing data on connection: $e');
+    }
+  }
+
   Future<void> _loadInitialData() async {
     final venueProv = context.read<VenueProvider>();
-    await venueProv.fetchApplications();
+    try {
+      await venueProv.fetchApplications();
+    } catch (_) {}
 
-    // Ensure WebSocket is connected for live real-time orders
+    // Ensure WebSocket is connected for live real-time orders (auto-reconnects if offline)
     WebSocketService().connect();
 
     if (venueProv.selectedVenue != null) {
@@ -65,8 +111,10 @@ class _MainLayoutState extends State<MainLayout> {
     final unhandledOrdersCount = ordersProv.liveOrders.where((o) => o.orderStatus == 'placed').length;
 
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           // TOP NAVIGATION BAR (WEB-STYLE PORTAL HEADER)
           Container(
             height: 60,
@@ -192,7 +240,9 @@ class _MainLayoutState extends State<MainLayout> {
                         if (value == 'printers') {
                           setState(() => _activeTab = 'printers');
                         } else if (value == 'server_config') {
-                          _showServerConfigModal();
+                          ServerConfigModal.show(context, onReconnected: () {
+                            if (mounted) setState(() {});
+                          });
                         } else if (value == 'autostart') {
                           final isEnabled = await TrayNotificationService.isAutoStartEnabled();
                           await TrayNotificationService.toggleAutoStart(!isEnabled);
@@ -339,6 +389,9 @@ class _MainLayoutState extends State<MainLayout> {
             ),
           ),
 
+          // OFFLINE STATUS BANNER STRIP (Shown only when offline)
+          const OfflineBanner(),
+
           // MAIN FULL-WIDTH WORKSPACE VIEW
           Expanded(
             child: Container(
@@ -346,6 +399,11 @@ class _MainLayoutState extends State<MainLayout> {
               child: _buildCurrentTabScreen(),
             ),
           ),
+        ],
+      ),
+
+          // FLOATING "BACK ONLINE" PILL OVERLAY
+          const BackOnlineBanner(),
         ],
       ),
     );
@@ -441,64 +499,5 @@ class _MainLayoutState extends State<MainLayout> {
       default:
         return const LiveOrdersScreen();
     }
-  }
-
-  void _showServerConfigModal() {
-    final controller = TextEditingController(text: AppConfig.serverHost);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.dns, color: AppColors.primary, size: 18),
-            SizedBox(width: 8),
-            Text('Server Connection IP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter the backend server IP and port on your local Wi-Fi network (e.g. 192.168.0.100:4200 or 127.0.0.1:4200):',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Server Host & Port',
-                hintText: '192.168.0.100:4200',
-                prefixIcon: Icon(Icons.wifi, size: 16),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newHost = controller.text.trim();
-              if (newHost.isNotEmpty) {
-                await AppConfig.setServerHost(newHost);
-                ApiService().refreshBaseUrl();
-                WebSocketService().connect(); // Reconnect WebSocket to new host
-                if (mounted) {
-                  setState(() {});
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Server host set to $newHost. Reconnected.')),
-                  );
-                }
-              }
-            },
-            child: const Text('SAVE & RECONNECT'),
-          ),
-        ],
-      ),
-    );
   }
 }
