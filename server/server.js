@@ -11,6 +11,7 @@ const protoLoader = require('@grpc/proto-loader');
 
 const fs = require('fs');
 const config = require('./config/config');
+const isDev = config.env === 'development' || config.demoMode;
 const logger = require('./utils/logger');
 const apiRoutes = require('./routes/api');
 const phonePeService = require('./services/phonePeService');
@@ -284,8 +285,6 @@ async function startFastify() {
   });
 
   // Global IP rate limiting (500 requests per minute per IP, increased to 2000 in dev/demo mode)
-  const isDev = config.env === 'development' || config.demoMode;
-
   // Connect dedicated Redis client for distributed rate limiting store across clusters
   let rateLimitRedis = null;
   try {
