@@ -1299,15 +1299,11 @@ class AdminController {
         // Stream raw upload to temp file
         await pipeline(req.body, fs.createWriteStream(tempPath));
 
-        // Read video duration via ffprobe for default duration value (no duration cutoff for platform admin)
+        // Read video duration via ffprobe with 5s watchdog + SIGKILL process termination
         let durationSeconds = 30;
         try {
-          const metadata = await new Promise((resolve, reject) => {
-            ffmpeg.ffprobe(tempPath, (err, meta) => {
-              if (err) return reject(err);
-              resolve(meta);
-            });
-          });
+          const { probeVideoMetadata } = require('../utils/videoUtils');
+          const metadata = await probeVideoMetadata(tempPath, 5000);
           if (metadata?.format?.duration) {
             durationSeconds = Math.round(metadata.format.duration);
           }
@@ -1315,8 +1311,8 @@ class AdminController {
           console.warn('[uploadPlatformAdMedia] ffprobe warning:', probeErr.message);
         }
 
-        // Copy raw file so media is immediately available
-        fs.copyFileSync(tempPath, rawFilePath);
+        // Copy raw file asynchronously so media is immediately available without blocking event loop
+        await fs.promises.copyFile(tempPath, rawFilePath);
 
         // Enqueue background video transcode with audio stripping & H.264 Baseline 3.1
         const videoQueueService = require('../services/videoQueueService');

@@ -204,14 +204,25 @@ class VideoQueueService {
       );
     }
 
-    if (job.targetDir && !fs.existsSync(job.targetDir)) {
-      fs.mkdirSync(job.targetDir, { recursive: true });
+    if (job.targetDir) {
+      await fs.promises.mkdir(job.targetDir, { recursive: true }).catch(() => {});
     }
 
     let transcodeSuccess = false;
 
+    // Check temp file validity asynchronously to prevent event-loop stalls
+    let isTempValid = false;
+    if (tempPath && filePath) {
+      try {
+        const stats = await fs.promises.stat(tempPath);
+        if (stats.size > 0) isTempValid = true;
+      } catch (_) {
+        isTempValid = false;
+      }
+    }
+
     // 2. Run single-thread FFmpeg H.264 Baseline 3.1 transcode into an isolated temp file first
-    if (fs.existsSync(tempPath) && fs.statSync(tempPath).size > 0 && filePath) {
+    if (isTempValid) {
       const transcodeTempPath = `${filePath}_tmp_${Date.now()}.mp4`;
       try {
         await new Promise((resolve, reject) => {

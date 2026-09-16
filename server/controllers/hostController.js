@@ -1949,15 +1949,8 @@ class HostController {
         const maxAllowedSeconds = isClosedMode ? 60 : 30;
 
         try {
-          const metadata = await new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('ffprobe duration check timed out after 5s')), 5000);
-            ffmpeg.ffprobe(tempPath, (err, meta) => {
-              clearTimeout(timer);
-              if (err) return reject(err);
-              resolve(meta);
-            });
-          });
-
+          const { probeVideoMetadata } = require('../utils/videoUtils');
+          const metadata = await probeVideoMetadata(tempPath, 5000);
           const durationSeconds = metadata?.format?.duration || 0;
           if (durationSeconds > maxAllowedSeconds + 0.5) {
             try { await fs.promises.unlink(tempPath); } catch (e) {}

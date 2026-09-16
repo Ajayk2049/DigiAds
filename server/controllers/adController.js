@@ -703,15 +703,8 @@ class AdController {
       const allowedMaxDuration = targetBookingObj?.maxVideoLengthSeconds || 30;
       let durationSeconds = 0;
       try {
-        const metadata = await new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error('ffprobe duration check timed out after 5s')), 5000);
-          ffmpeg.ffprobe(tempPath, (err, meta) => {
-            clearTimeout(timer);
-            if (err) return reject(err);
-            resolve(meta);
-          });
-        });
-
+        const { probeVideoMetadata } = require('../utils/videoUtils');
+        const metadata = await probeVideoMetadata(tempPath, 5000);
         durationSeconds = metadata?.format?.duration || 0;
         // Allow 0.5s tolerance for encoding container overhead
         if (durationSeconds > allowedMaxDuration + 0.5) {

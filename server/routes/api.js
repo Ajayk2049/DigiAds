@@ -53,7 +53,17 @@ function registerRoutes(fastify, options, done) {
     }
   };
 
-  // 3. General Auth Rate Limit (login, register, check-availability): 30 req/min in prod
+  // 3. Dedicated Login Rate Limit: 5 req/min in prod (protects CPU from password hash brute-force)
+  const loginRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 30 : 5,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 4. General Auth Rate Limit (register, check-availability): 30 req/min in prod
   const authRateLimitConfig = {
     config: {
       rateLimit: {
@@ -98,7 +108,7 @@ function registerRoutes(fastify, options, done) {
   fastify.post('/auth/send-otp', otpRateLimitConfig, authController.sendOtp);
   fastify.post('/auth/verify-otp', otpRateLimitConfig, authController.verifyOtp);
   fastify.post('/auth/register', authRateLimitConfig, authController.register);
-  fastify.post('/auth/login', authRateLimitConfig, authController.login);
+  fastify.post('/auth/login', loginRateLimitConfig, authController.login);
   fastify.post('/auth/reset-password', otpRateLimitConfig, authController.resetPassword);
   fastify.post('/auth/device/activate', activateRateLimitConfig, deviceAuthController.activateDevice);
   fastify.get('/auth/device/ads', { preHandler: authenticate }, deviceAuthController.getDeviceAds);
