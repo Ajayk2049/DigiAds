@@ -292,20 +292,25 @@ async function startFastify() {
   let rateLimitRedis = null;
   try {
     const IORedis = require('ioredis');
-    rateLimitRedis = new IORedis({
+    const client = new IORedis({
       host: config.redisHost || 'localhost',
       port: parseInt(config.redisPort, 10) || 6379,
       lazyConnect: true,
       maxRetriesPerRequest: 1,
-      enableOfflineQueue: false
+      enableOfflineQueue: false,
+      retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 2000))
     });
-    rateLimitRedis.on('error', (err) => {
-      // Catch OOM or transient connection errors without crashing or bubbling to requests
-      console.warn('[RateLimit Redis Warning]:', err.message);
+    let lastWarnTime = 0;
+    client.on('error', (err) => {
+      // Throttle warnings to at most once per 30 seconds to prevent console flooding
+      const now = Date.now();
+      if (now - lastWarnTime > 30000) {
+        lastWarnTime = now;
+        console.warn('[RateLimit Redis Warning]:', (err && err.message) || 'Connection unavailable, falling back to memory store');
+      }
     });
-    rateLimitRedis.connect().catch(() => {
-      rateLimitRedis = null;
-    });
+    await client.connect();
+    rateLimitRedis = client;
   } catch (_) {
     rateLimitRedis = null;
   }
