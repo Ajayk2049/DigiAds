@@ -50,6 +50,23 @@ global.deviceSockets = new Map();
 global.adminSockets = new Map();
 global.pendingDeviceCommands = new Map();
 
+// In-memory throttling map to prevent hammering MongoDB with updateOne on every WebSocket ping / gRPC call
+const deviceLastDbTouch = new Map();
+
+function throttleDeviceDbTouch(deviceId) {
+  const now = Date.now();
+  const lastTouch = deviceLastDbTouch.get(deviceId) || 0;
+  if (now - lastTouch < 20000) {
+    return false; // Skip redundant DB write if touched within 20s
+  }
+  deviceLastDbTouch.set(deviceId, now);
+  if (deviceLastDbTouch.size > 5000) {
+    const oldestKey = deviceLastDbTouch.keys().next().value;
+    deviceLastDbTouch.delete(oldestKey);
+  }
+  return true;
+}
+
 // Module-scoped WeakMap for WebSocket metadata to prevent memory leaks over long uptimes
 const socketMetadata = new WeakMap();
 
@@ -230,12 +247,22 @@ const fastify = Fastify({
 });
 
 async function startFastify() {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : true;
+  const allowedOrigins = Array.isArray(config.clientOrigins) ? config.clientOrigins : [];
 
   await fastify.register(cors, {
-    origin: allowedOrigins,
+    origin: (origin, cb) => {
+      // Allow requests with no origin (mobile applications, Flutter apps, curl, backend gRPC)
+      if (!origin) return cb(null, true);
+      // In development or demo mode, allow all origins
+      if (config.env === 'development' || config.demoMode) {
+        return cb(null, true);
+      }
+      // In production, strictly validate against allowed origins
+      if (allowedOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+      return cb(new Error('Not allowed by CORS'), false);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-ad-category', 'X-Ad-Category', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
     credentials: true
@@ -258,7 +285,27 @@ async function startFastify() {
 
   // Global IP rate limiting (500 requests per minute per IP, increased to 2000 in dev/demo mode)
   const isDev = config.env === 'development' || config.demoMode;
-  await fastify.register(rateLimit, {
+
+  // Connect dedicated Redis client for distributed rate limiting store across clusters
+  let rateLimitRedis = null;
+  try {
+    const IORedis = require('ioredis');
+    rateLimitRedis = new IORedis({
+      host: config.redisHost || 'localhost',
+      port: parseInt(config.redisPort, 10) || 6379,
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false
+    });
+    rateLimitRedis.connect().catch(() => {
+      rateLimitRedis = null;
+    });
+  } catch (_) {
+    rateLimitRedis = null;
+  }
+
+  const rateLimitOptions = {
+    global: true,
     max: isDev ? 2000 : 500,
     timeWindow: '1 minute',
     exclusionRules: (req) => {
@@ -269,7 +316,11 @@ async function startFastify() {
       success: false,
       message: 'Too many requests, please try again later.'
     })
-  });
+  };
+  if (rateLimitRedis) {
+    rateLimitOptions.redis = rateLimitRedis;
+  }
+  await fastify.register(rateLimit, rateLimitOptions);
 
 
   // WebSocket routes for Merchant & Device
@@ -449,21 +500,47 @@ async function startFastify() {
           }
         });
 
+        let socketMessageCount = 0;
+        let socketWindowStart = Date.now();
+
         socket.on('message', async (msg) => {
           try {
+            // Guard: 64KB max payload check against memory exhaustion attacks
+            if (!msg || msg.length > 65536) {
+              console.warn(`[WS Warning] Dropped oversized frame (${msg ? msg.length : 0} bytes) from device ${deviceId}`);
+              return;
+            }
+
+            // Per-socket message rate limit: max 15 messages per 5 seconds
+            const now = Date.now();
+            if (now - socketWindowStart > 5000) {
+              socketWindowStart = now;
+              socketMessageCount = 0;
+            }
+            socketMessageCount++;
+            if (socketMessageCount > 15) {
+              console.warn(`[WS Warning] Message flood throttled for device ${deviceId}`);
+              return;
+            }
+
             setSocketAlive(socket, true);
             const data = JSON.parse(msg.toString());
             if (!data) return;
 
             if (data.event === 'ping' || data.type === 'ping') {
+              // Always send instant pong reply to keep connection alive
               socket.send(JSON.stringify({ event: 'pong', timestamp: Date.now() }));
-              const updateDoc = { status: 'online', lastHeartbeat: new Date() };
-              if (data.appVersion) updateDoc.lastKnownAppVersion = String(data.appVersion);
-              if (data.versionCode) updateDoc.lastKnownVersionCode = parseInt(data.versionCode, 10);
-              await Device.updateOne(
-                { deviceId },
-                { $set: updateDoc }
-              ).catch(() => { });
+
+              // Throttle database heartbeat touches to at most once per 20 seconds
+              if (throttleDeviceDbTouch(deviceId)) {
+                const updateDoc = { status: 'online', lastHeartbeat: new Date() };
+                if (data.appVersion) updateDoc.lastKnownAppVersion = String(data.appVersion);
+                if (data.versionCode) updateDoc.lastKnownVersionCode = parseInt(data.versionCode, 10);
+                Device.updateOne(
+                  { deviceId },
+                  { $set: updateDoc }
+                ).catch(() => { });
+              }
             } else if (data.event === 'call_waiter') {
               await handleDeviceWaiterCall(deviceId, data.waiterOption || data.waiterCallOption, data.tableNumber);
             }
@@ -609,7 +686,13 @@ async function startFastify() {
     method: ['GET', 'HEAD', 'OPTIONS'],
     url: '/uploads/*',
     handler: async (req, res) => {
-      res.header('Access-Control-Allow-Origin', '*');
+      const incomingOrigin = req.headers.origin;
+      const allowedOrigins = Array.isArray(config.clientOrigins) ? config.clientOrigins : [];
+      if (!incomingOrigin || config.env === 'development' || config.demoMode || allowedOrigins.includes(incomingOrigin)) {
+        res.header('Access-Control-Allow-Origin', incomingOrigin || '*');
+      } else {
+        res.header('Access-Control-Allow-Origin', allowedOrigins[0] || 'null');
+      }
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
       res.header('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -784,23 +867,6 @@ const menuDef = protoLoader.loadSync(path.join(__dirname, 'protos', 'menu.proto'
 const orderProto = grpc.loadPackageDefinition(orderDef).order;
 const deviceProto = grpc.loadPackageDefinition(deviceDef).device;
 const menuProto = grpc.loadPackageDefinition(menuDef).menu;
-
-// In-memory throttling map to prevent hammering MongoDB with updateOne on every RPC
-const deviceLastDbTouch = new Map();
-
-function throttleDeviceDbTouch(deviceId) {
-  const now = Date.now();
-  const lastTouch = deviceLastDbTouch.get(deviceId) || 0;
-  if (now - lastTouch < 20000) {
-    return false; // Skip redundant DB write if touched within 20s
-  }
-  deviceLastDbTouch.set(deviceId, now);
-  if (deviceLastDbTouch.size > 5000) {
-    const oldestKey = deviceLastDbTouch.keys().next().value;
-    deviceLastDbTouch.delete(oldestKey);
-  }
-  return true;
-}
 
 // Helper to verify gRPC metadata JWT token for devices
 function verifyGrpcToken(call) {

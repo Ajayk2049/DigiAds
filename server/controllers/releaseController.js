@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const config = require('../config/config');
 const AppRelease = require('../models/AppRelease');
 const Device = require('../models/Device');
 
@@ -22,6 +24,14 @@ class ReleaseController {
         return reply.send({ success: true, release: null });
       }
 
+      // Generate a signed 6-hour time-limited token for OTA APK streaming
+      const signedDownloadToken = jwt.sign(
+        { releaseId: String(release._id), type: 'ota_download' },
+        config.jwtSecret,
+        { expiresIn: '6h' }
+      );
+      const authenticatedDownloadPath = `${release.downloadPath}?token=${signedDownloadToken}`;
+
       return reply.send({
         success: true,
         release: {
@@ -30,7 +40,7 @@ class ReleaseController {
           versionName: release.versionName,
           versionCode: release.versionCode,
           sha256: release.sha256,
-          downloadPath: release.downloadPath,
+          downloadPath: authenticatedDownloadPath,
           isMandatory: release.isMandatory,
           releaseNotes: release.releaseNotes,
         },
@@ -87,6 +97,35 @@ class ReleaseController {
   async downloadRelease(req, reply) {
     try {
       const { releaseId } = req.params;
+
+      // Validate download authorization: Bearer JWT or signed query token
+      const queryToken = req.query ? req.query.token : null;
+      const authHeader = req.headers ? req.headers.authorization : null;
+      let isAuthorized = false;
+
+      if (queryToken) {
+        try {
+          const decoded = jwt.verify(queryToken, config.jwtSecret);
+          if (decoded && decoded.releaseId === String(releaseId) && decoded.type === 'ota_download') {
+            isAuthorized = true;
+          }
+        } catch (_) { }
+      }
+
+      if (!isAuthorized && authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, config.jwtSecret);
+          if (decoded && (decoded.uid || decoded.deviceId)) {
+            isAuthorized = true;
+          }
+        } catch (_) { }
+      }
+
+      if (!isAuthorized) {
+        return reply.code(401).send({ success: false, error: 'Unauthorized: Valid download token or authorization header required.' });
+      }
+
       const release = await AppRelease.findById(releaseId);
       if (!release) {
         return reply.code(404).send({ success: false, error: 'Release not found' });

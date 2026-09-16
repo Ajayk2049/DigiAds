@@ -40,8 +40,9 @@ class DeviceAuthController {
 
     try {
       const cleanDeviceId = deviceId.trim();
+      const escapedDeviceId = cleanDeviceId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const device = await Device.findOne({ 
-        deviceId: { $regex: new RegExp(`^${cleanDeviceId}$`, 'i') } 
+        deviceId: { $regex: new RegExp(`^${escapedDeviceId}$`, 'i') } 
       });
       if (!device) {
         return res.status(404).send({ success: false, message: `Device registration for ID "${cleanDeviceId}" not found in database.` });

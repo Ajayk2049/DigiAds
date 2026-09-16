@@ -30,12 +30,64 @@ function registerRoutes(fastify, options, done) {
     };
   });
 
-  // Strict rate limit config for sensitive public authentication endpoints (100 req/min in prod)
+  // Granular rate limit configurations for sensitive endpoints
   const isDevEnv = process.env.NODE_ENV === 'development' || process.env.DEMO_MODE === 'true';
+
+  // 1. Strict OTP/SMS Rate Limit: 5 req/min in prod (protects SMS gateway budget & wallet)
+  const otpRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 30 : 5,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 2. Device Activation Rate Limit: 10 req/min in prod (prevents ID enumeration/brute-force)
+  const activateRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 60 : 10,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 3. General Auth Rate Limit (login, register, check-availability): 30 req/min in prod
   const authRateLimitConfig = {
     config: {
       rateLimit: {
-        max: isDevEnv ? 500 : 100,
+        max: isDevEnv ? 100 : 30,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 4. Upload Endpoints Rate Limit: 20 req/min in prod (protects disk I/O, Sharp resizing, transcode queue)
+  const uploadRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 60 : 20,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 5. Payment Webhook Callback Rate Limit: 30 req/min in prod
+  const callbackRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 120 : 30,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 6. OTA Release Download Rate Limit: 20 req/min in prod
+  const releaseDownloadRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 60 : 20,
         timeWindow: '1 minute'
       }
     }
@@ -43,17 +95,17 @@ function registerRoutes(fastify, options, done) {
 
   // Public Auth Routes
   fastify.post('/auth/check-availability', authRateLimitConfig, authController.checkAvailability);
-  fastify.post('/auth/send-otp', authRateLimitConfig, authController.sendOtp);
-  fastify.post('/auth/verify-otp', authRateLimitConfig, authController.verifyOtp);
+  fastify.post('/auth/send-otp', otpRateLimitConfig, authController.sendOtp);
+  fastify.post('/auth/verify-otp', otpRateLimitConfig, authController.verifyOtp);
   fastify.post('/auth/register', authRateLimitConfig, authController.register);
   fastify.post('/auth/login', authRateLimitConfig, authController.login);
-  fastify.post('/auth/reset-password', authRateLimitConfig, authController.resetPassword);
-  fastify.post('/auth/device/activate', deviceAuthController.activateDevice);
+  fastify.post('/auth/reset-password', otpRateLimitConfig, authController.resetPassword);
+  fastify.post('/auth/device/activate', activateRateLimitConfig, deviceAuthController.activateDevice);
   fastify.get('/auth/device/ads', { preHandler: authenticate }, deviceAuthController.getDeviceAds);
   fastify.post('/auth/switch-role', { preHandler: authenticate }, authController.switchRole);
 
   // PhonePe Webhook callback (public)
-  fastify.post('/payments/callback', adController.paymentCallback);
+  fastify.post('/payments/callback', callbackRateLimitConfig, adController.paymentCallback);
   fastify.get('/payments/callback', async (request, reply) => ({ status: 'ok', message: 'Callback endpoint is online' }));
 
   // Public Venue Directory & Map Discovery
@@ -70,11 +122,11 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.get('/host/menu', hostController.getMenu.bind(hostController));
     merchantRoutes.post('/host/menu', hostController.updateMenu.bind(hostController));
     merchantRoutes.post('/host/menu/switch-shift', hostController.switchShift.bind(hostController));
-    merchantRoutes.post('/host/menu/upload-image', { bodyLimit: 5242880 }, hostController.uploadImage.bind(hostController));
+    merchantRoutes.post('/host/menu/upload-image', { bodyLimit: 5242880, ...uploadRateLimitConfig }, hostController.uploadImage.bind(hostController));
     merchantRoutes.get('/host/devices', hostController.getMyDevices.bind(hostController));
     merchantRoutes.put('/host/payment-config', hostController.savePaymentConfig.bind(hostController));
     merchantRoutes.get('/host/payment-config', hostController.getPaymentConfig.bind(hostController));
-    merchantRoutes.post('/host/payment-config/upload-qr', { bodyLimit: 5242880 }, hostController.uploadQrCode.bind(hostController));
+    merchantRoutes.post('/host/payment-config/upload-qr', { bodyLimit: 5242880, ...uploadRateLimitConfig }, hostController.uploadQrCode.bind(hostController));
     merchantRoutes.get('/host/orders', hostController.getMyOrders.bind(hostController));
     merchantRoutes.post('/host/orders/update-status', hostController.updateOrderStatus.bind(hostController));
     merchantRoutes.post('/host/orders/confirm', hostController.confirmOrder.bind(hostController));
@@ -87,13 +139,13 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/request-more-devices', hostController.requestMoreDevices.bind(hostController));
     merchantRoutes.post('/host/verify-password', hostController.verifyPassword.bind(hostController));
     merchantRoutes.get('/host/promos', hostController.getHostPromos.bind(hostController));
-    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: 52428800 }, hostController.uploadHostPromoMedia.bind(hostController));
+    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: 52428800, ...uploadRateLimitConfig }, hostController.uploadHostPromoMedia.bind(hostController));
     merchantRoutes.post('/host/promos/stream', hostController.streamHostPromos.bind(hostController));
     merchantRoutes.post('/host/promos/delete-slot', hostController.deleteHostPromoSlot.bind(hostController));
     merchantRoutes.get('/host/analytics', hostController.getVenueAnalytics.bind(hostController));
     merchantRoutes.get('/host/bill-config/:applicationId', hostController.getBillConfig.bind(hostController));
     merchantRoutes.put('/host/bill-config/:applicationId', hostController.updateBillConfig.bind(hostController));
-    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: 5242880 }, hostController.uploadBillImage.bind(hostController));
+    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: 5242880, ...uploadRateLimitConfig }, hostController.uploadBillImage.bind(hostController));
     merchantRoutes.post('/host/bill-config/delete-image', hostController.deleteBillImage.bind(hostController));
     merchantRoutes.post('/host/applications/request-mode-change', hostController.requestModeChange.bind(hostController));
     merchantRoutes.get('/host/applications/mode-change-status', hostController.getModeChangeStatus.bind(hostController));
@@ -114,8 +166,8 @@ function registerRoutes(fastify, options, done) {
     advertiserRoutes.post('/ads/verify-payment/:bookingId', adController.verifyPayment.bind(adController));
     advertiserRoutes.post('/ads/retry-payment/:bookingId', adController.retryPayment.bind(adController));
     advertiserRoutes.post('/ads/cancel-booking/:bookingId', adController.cancelBooking.bind(adController));
-    advertiserRoutes.post('/ads/upload', { bodyLimit: 52428800 }, adController.uploadVideo.bind(adController));
-    advertiserRoutes.post('/ads/upload-image', { bodyLimit: 10485760 }, adController.uploadImage.bind(adController));
+    advertiserRoutes.post('/ads/upload', { bodyLimit: 52428800, ...uploadRateLimitConfig }, adController.uploadVideo.bind(adController));
+    advertiserRoutes.post('/ads/upload-image', { bodyLimit: 10485760, ...uploadRateLimitConfig }, adController.uploadImage.bind(adController));
     next();
   });
 
@@ -161,7 +213,7 @@ function registerRoutes(fastify, options, done) {
 
     // Admin Platform Ads & Global Fallback Ads
     adminRoutes.get('/admin/platform-ads', adminController.getPlatformAds.bind(adminController));
-    adminRoutes.post('/admin/platform-ads/upload', { bodyLimit: 52428800 }, adminController.uploadPlatformAdMedia.bind(adminController));
+    adminRoutes.post('/admin/platform-ads/upload', { bodyLimit: 52428800, ...uploadRateLimitConfig }, adminController.uploadPlatformAdMedia.bind(adminController));
     adminRoutes.post('/admin/platform-ads', adminController.createPlatformAd.bind(adminController));
     adminRoutes.patch('/admin/platform-ads/:id', adminController.updatePlatformAd.bind(adminController));
     adminRoutes.delete('/admin/platform-ads/:id', adminController.deletePlatformAd.bind(adminController));
@@ -176,14 +228,14 @@ function registerRoutes(fastify, options, done) {
 
     // Admin Release Management
     adminRoutes.get('/admin/releases', releaseController.listReleases.bind(releaseController));
-    adminRoutes.post('/admin/releases/upload', { bodyLimit: 104857600 }, releaseController.uploadRelease.bind(releaseController));
+    adminRoutes.post('/admin/releases/upload', { bodyLimit: 104857600, ...uploadRateLimitConfig }, releaseController.uploadRelease.bind(releaseController));
     adminRoutes.put('/admin/releases/:releaseId/status', releaseController.toggleReleaseStatus.bind(releaseController));
     next();
   });
 
   // Public/Device OTA Release Endpoints
   fastify.get('/releases/latest', releaseController.getLatestRelease.bind(releaseController));
-  fastify.get('/releases/download/:releaseId', releaseController.downloadRelease.bind(releaseController));
+  fastify.get('/releases/download/:releaseId', releaseDownloadRateLimitConfig, releaseController.downloadRelease.bind(releaseController));
 
   done();
 }

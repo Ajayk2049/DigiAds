@@ -41,7 +41,26 @@ const config = {
   },
   merchantRedirectUrl: process.env.MERCHANT_REDIRECT_URL || 'http://localhost:3001/merchant/orders',
   maxVideoDurationSeconds: parseInt(process.env.MAX_VIDEO_DURATION_SECONDS, 10) || 60,
-  logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'debug')
+  logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
+  clientOrigins: (() => {
+    const raw = process.env.CLIENT_ORIGINS || process.env.ALLOWED_ORIGINS || '';
+    if (raw) {
+      return raw.split(',').map(o => o.trim()).filter(Boolean);
+    }
+    if (process.env.NODE_ENV === 'production') {
+      return [
+        'https://test-admin.digiads.space',
+        'https://test-user.digiads.space',
+        'https://test.digiads.space',
+        'https://test-landing.digiads.space',
+        'https://admin.digiads.space',
+        'https://user.digiads.space',
+        'https://digiads.space',
+        'https://landing.digiads.space'
+      ];
+    }
+    return ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:4100', 'http://localhost:4200', 'http://localhost:4300'];
+  })()
 };
 
 // Validate critical parameters

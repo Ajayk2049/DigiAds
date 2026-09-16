@@ -32,6 +32,26 @@ function generateToken(user, activeRole = null) {
   );
 }
 
+// Fast in-memory cooldown guard to short-circuit duplicate OTP floods before hitting MongoDB
+const otpCooldownCache = new Map();
+
+function checkOtpCooldown(key, cooldownSec = 60) {
+  const now = Date.now();
+  const lastTime = otpCooldownCache.get(key) || 0;
+  if (now - lastTime < cooldownSec * 1000) {
+    return Math.ceil((cooldownSec * 1000 - (now - lastTime)) / 1000);
+  }
+  return 0;
+}
+
+function recordOtpCooldown(key) {
+  otpCooldownCache.set(key, Date.now());
+  if (otpCooldownCache.size > 10000) {
+    const oldestKey = otpCooldownCache.keys().next().value;
+    otpCooldownCache.delete(oldestKey);
+  }
+}
+
 class AuthController {
   /**
    * Check phone and/or email availability without sending OTP
@@ -122,6 +142,22 @@ class AuthController {
         }
       }
 
+      // 0. Fast-path in-memory throttling (zero DB query overhead on spam/click storms)
+      const phoneCooldown = checkOtpCooldown(`phone:${formattedPhone}`);
+      if (phoneCooldown > 0) {
+        return res.status(429).send({
+          success: false,
+          message: `Please wait ${phoneCooldown} seconds before requesting another OTP.`
+        });
+      }
+      const ipCooldown = checkOtpCooldown(`ip:${ip}`);
+      if (ipCooldown > 0) {
+        return res.status(429).send({
+          success: false,
+          message: `Please wait ${ipCooldown} seconds before requesting another OTP.`
+        });
+      }
+
       // 1. Throttling: must wait at least 60 seconds
       const lastLog = await SMSRequestLog.findOne({
         $or: [{ phone: formattedPhone }, { ip: ip }]
@@ -131,6 +167,8 @@ class AuthController {
         const timeSince = (Date.now() - lastLog.requestedAt.getTime()) / 1000;
         if (timeSince < 60) {
           const waitTime = Math.ceil(60 - timeSince);
+          recordOtpCooldown(`phone:${formattedPhone}`);
+          recordOtpCooldown(`ip:${ip}`);
           return res.status(429).send({
             success: false,
             message: `Please wait ${waitTime} seconds before requesting another OTP.`
@@ -165,6 +203,8 @@ class AuthController {
       // Log this request
       const logEntry = new SMSRequestLog({ phone: formattedPhone, ip: ip });
       await logEntry.save();
+      recordOtpCooldown(`phone:${formattedPhone}`);
+      recordOtpCooldown(`ip:${ip}`);
     } catch (err) {
       console.error('OTP rate limiting check failed:', err.message);
       // Fallback: don't block server if DB checks fail, but log it
