@@ -137,7 +137,8 @@ const OrderSchema = new mongoose.Schema({
   tableStatus: {
     type: String,
     enum: ['active', 'close_table', 'completed', 'completed_acked'],
-    default: 'active'
+    default: 'active',
+    index: true
   },
   waiterCallStatus: {
     type: String,
@@ -186,6 +187,7 @@ OrderSchema.index({ hostApplicationId: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, paymentStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, tableStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, waiterCallStatus: 1 });
+OrderSchema.index({ deviceId: 1, tableStatus: 1 });
 OrderSchema.index({ deviceId: 1, tableStatus: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Order', OrderSchema);

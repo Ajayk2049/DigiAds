@@ -6,6 +6,9 @@ const config = require('../config/config');
 const AppRelease = require('../models/AppRelease');
 const Device = require('../models/Device');
 
+// Canonical releases upload directory within server/uploads/releases
+const RELEASES_DIR = path.resolve(__dirname, '../uploads/releases');
+
 class ReleaseController {
   // GET /api/v1/releases/latest?appType=...
   async getLatestRelease(req, reply) {
@@ -40,9 +43,10 @@ class ReleaseController {
           versionName: release.versionName,
           versionCode: release.versionCode,
           sha256: release.sha256,
-          downloadPath: authenticatedDownloadPath,
           isMandatory: release.isMandatory,
           releaseNotes: release.releaseNotes,
+          downloadPath: authenticatedDownloadPath,
+          createdAt: release.createdAt,
         },
       });
     } catch (err) {
@@ -64,20 +68,13 @@ class ReleaseController {
         createdAt: { $lte: fifteenDaysAgo },
       });
 
-      const uploadsDir = path.join(__dirname, '../../uploads/releases');
       let cleanedCount = 0;
 
       for (const rel of staleRevokedReleases) {
         if (rel.fileName) {
-          const filePath = path.join(uploadsDir, rel.fileName);
-          if (fs.existsSync(filePath)) {
-            try {
-              fs.unlinkSync(filePath);
-              console.log(`[OTA Disk Cleanup] Unlinked 15d+ old revoked release binary: ${rel.fileName}`);
-            } catch (unlinkErr) {
-              console.error(`[OTA Disk Cleanup] Failed to unlink ${rel.fileName}:`, unlinkErr.message);
-            }
-          }
+          const filePath = path.join(RELEASES_DIR, rel.fileName);
+          await fs.promises.unlink(filePath).catch(() => {});
+          console.log(`[OTA Disk Cleanup] Unlinked 15d+ old revoked release binary: ${rel.fileName}`);
         }
         rel.isDiskCleaned = true;
         rel.cleanedAt = new Date();
@@ -135,8 +132,7 @@ class ReleaseController {
         return reply.code(404).send({ success: false, error: 'APK binary file has been auto-cleaned from disk after 15+ days. Release metadata and history preserved.' });
       }
 
-      const uploadsDir = path.join(__dirname, '../../uploads/releases');
-      const filePath = path.join(uploadsDir, release.fileName);
+      const filePath = path.join(RELEASES_DIR, release.fileName);
 
       if (!fs.existsSync(filePath)) {
         return reply.code(404).send({ success: false, error: 'APK file missing on server' });
@@ -192,13 +188,10 @@ class ReleaseController {
         return reply.code(400).send({ success: false, error: 'Missing required release metadata headers (x-app-type, x-version-name, x-version-code)' });
       }
 
-      const uploadsDir = path.join(__dirname, '../../uploads/releases');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
+      await fs.promises.mkdir(RELEASES_DIR, { recursive: true });
 
       const safeFileName = `${appType.toLowerCase()}_v${versionName}_${Date.now()}.apk`;
-      const targetPath = path.join(uploadsDir, safeFileName);
+      const targetPath = path.join(RELEASES_DIR, safeFileName);
 
       // Stream raw binary body directly to disk to handle large APKs (>60MB) cleanly
       await new Promise((resolve, reject) => {
@@ -217,6 +210,12 @@ class ReleaseController {
         stream.on('end', () => resolve(hash.digest('hex').toLowerCase()));
         stream.on('error', reject);
       });
+
+      // Deactivate any prior active releases for this appType so only the newly uploaded release is active
+      await AppRelease.updateMany(
+        { appType, status: 'active' },
+        { status: 'inactive' }
+      );
 
       const newRelease = await AppRelease.create({
         appType,

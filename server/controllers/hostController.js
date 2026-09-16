@@ -138,7 +138,7 @@ async function notifyDeviceSessionUpdate(order) {
     };
 
     const socket = global.deviceSockets ? global.deviceSockets.get(order.deviceId) : null;
-    if (socket) {
+    if (socket && socket.readyState === 1) {
       socket.send(JSON.stringify(payload));
       console.log(`[WS] Push session update to Device ${order.deviceId}: status=${order.tableStatus}, orderStatus=${order.orderStatus}, amount=${finalAmountPaise}`);
     }
@@ -535,6 +535,10 @@ class HostController {
         return res.status(403).send({ success: false, message: 'Access denied: Host application does not belong to you' });
       }
 
+      if (Array.isArray(items) && items.length > 500) {
+        return res.status(400).send({ success: false, message: 'Menu cannot exceed 500 items to prevent document bloat' });
+      }
+
       // Unlink orphaned menu item images from disk if removed or replaced
       const existingMenu = await Menu.findOne({ hostApplicationId });
       if (existingMenu && Array.isArray(existingMenu.items)) {
@@ -596,9 +600,10 @@ class HostController {
         (!shifts || JSON.stringify(existingMenu.shifts) === JSON.stringify(shifts)) &&
         (!activeShift || existingMenu.activeShift === activeShift)
       ) {
+        const oldMap = new Map(existingMenu.items.map(i => [i.itemId, i]));
         const changedItems = [];
         for (const newItem of items) {
-          const oldItem = existingMenu.items.find(i => i.itemId === newItem.itemId);
+          const oldItem = oldMap.get(newItem.itemId);
           if (!oldItem) {
             changedItems.push(newItem);
             break;
@@ -640,6 +645,10 @@ class HostController {
         updateData,
         { upsert: true, new: true }
       );
+
+      if (typeof global.invalidateMenuCache === 'function') {
+        global.invalidateMenuCache(hostApplicationId);
+      }
 
       // Notify devices via WebSocket: compact delta if single item property changed, otherwise full reload
       if (global.deviceSockets) {
@@ -879,34 +888,49 @@ class HostController {
       const sharp = require('sharp');
       const jsQR = require('jsqr');
 
-      // 1. Convert image to raw RGBA buffer, normalizing max dimensions to 600px for fast, low-memory jsQR parsing
+      // Helper to execute CPU-bound jsQR decoding inside setImmediate so it never starves event loop I/O or websockets
+      const decodeQrAsync = (pixelData, width, height) => {
+        return new Promise((resolve) => {
+          setImmediate(() => {
+            try {
+              const res = jsQR(new Uint8ClampedArray(pixelData), width, height);
+              resolve(res);
+            } catch (_) {
+              resolve(null);
+            }
+          });
+        });
+      };
+
+      // 1. Single-pass normalized pipeline: resize to 450x450 (cuts pixel scan footprint by ~44%), grayscale & contrast normalize
       let code = null;
       try {
         const { data, info } = await sharp(buffer)
-          .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+          .resize(450, 450, { fit: 'inside', withoutEnlargement: true })
+          .grayscale()
           .ensureAlpha()
           .raw()
           .toBuffer({ resolveWithObject: true });
 
-        code = jsQR(new Uint8ClampedArray(data), info.width, info.height);
+        code = await decodeQrAsync(data, info.width, info.height);
       } catch (sharpErr) {
-        console.warn('Initial sharp decode warning:', sharpErr.message);
+        console.warn('QR single-pass decode warning:', sharpErr.message);
       }
 
-      // 2. If decoding fails, try with grayscale + contrast boost (handles low-light phone photos)
+      // 2. Fallback pass with linear contrast stretch only if first pass failed (e.g. faint/shadowed camera photo)
       if (!code || !code.data) {
         try {
           const enhanced = await sharp(buffer)
-            .resize(500, 500, { fit: 'inside', withoutEnlargement: true })
+            .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
             .grayscale()
             .linear(1.3, -20)
             .ensureAlpha()
             .raw()
             .toBuffer({ resolveWithObject: true });
 
-          code = jsQR(new Uint8ClampedArray(enhanced.data), enhanced.info.width, enhanced.info.height);
+          code = await decodeQrAsync(enhanced.data, enhanced.info.width, enhanced.info.height);
         } catch (enhanceErr) {
-          console.warn('Enhanced sharp decode warning:', enhanceErr.message);
+          console.warn('Enhanced QR decode warning:', enhanceErr.message);
         }
       }
 
@@ -1077,7 +1101,7 @@ class HostController {
       }
 
       const matchStage = { hostApplicationId: { $in: appIds } };
-      const queryLimit = parseInt(limit, 10) || 500;
+      const queryLimit = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
 
       if (search && search.trim()) {
         const sRaw = search.trim();
@@ -1167,7 +1191,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       // Enforce forward-only order status progression
       if (order.orderStatus === 'served' && orderStatus !== 'served') {
@@ -1217,7 +1241,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       order.orderStatus = 'confirmed';
       order.confirmedAt = new Date();
@@ -1245,7 +1269,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
       if (isEmpty) {
@@ -1332,7 +1356,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       order.tableStatus = 'completed';
       order.paymentStatus = 'completed';
@@ -1364,7 +1388,15 @@ class HostController {
       if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
 
       const { v4: uuidv4 } = require('uuid');
-      const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
+      let orderId;
+      let exists = true;
+      let retryCount = 0;
+      while (exists && retryCount < 10) {
+        orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 7).toUpperCase()}`;
+        const count = await Order.countDocuments({ orderId });
+        if (count === 0) exists = false;
+        retryCount++;
+      }
 
       const subtotalPaise = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
 
@@ -1391,7 +1423,7 @@ class HostController {
         orderId,
         merchantId: req.user.uid,
         hostApplicationId,
-        deviceId: 'COUNTER_POS',
+        deviceId: `COUNTER_POS_${hostApplicationId}`,
         tableNumber: 'TAKEOUT',
         items: items.map(item => ({
           itemId: String(item.itemId || item._id || uuidv4().slice(0, 8)),
@@ -1448,7 +1480,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isGstExempt !== undefined ? Boolean(isGstExempt) : Boolean(removeGst);
       order.isGstExempt = isExempt;
@@ -1514,7 +1546,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isServiceTaxExempt !== undefined ? Boolean(isServiceTaxExempt) : Boolean(removeServiceTax);
       order.isServiceTaxExempt = isExempt;
@@ -1580,7 +1612,7 @@ class HostController {
       if (!order) return res.status(404).send({ success: false, message: 'Session/Order not found' });
 
       const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(403).send({ success: false, message: 'Access denied' });
+      if (!app) return res.status(404).send({ success: false, message: 'Session/Order not found' });
 
       order.waiterCallStatus = 'serviced';
       await order.save();
@@ -1895,6 +1927,7 @@ class HostController {
       }
     }
 
+    let tempPath = null;
     try {
       const hostApp = await HostApplication.findById(hostApplicationId);
       if (!hostApp) {
@@ -1913,11 +1946,19 @@ class HostController {
       if (!isVideo && !isImage) {
         return res.status(400).send({ success: false, message: 'Unsupported file format' });
       }
+
+      // Early quota gate: fast-reject before streaming 50MB to disk if all video quotas are already exhausted
+      if (isVideo && hostApp.dailyVideoChangesRemaining !== undefined && hostApp.dailyVideoChangesRemaining <= 0 && hostApp.dailyScreenVideoChangesRemaining !== undefined && hostApp.dailyScreenVideoChangesRemaining <= 0) {
+        res.header('Retry-After', '300');
+        return res.status(429).send({
+          success: false,
+          message: 'Daily promo video change quota exhausted! Resets at 2:00 AM IST.'
+        });
+      }
+
       const { folderName } = await this.getVenueFolderInfo(hostApplicationId);
       const uploadsDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'promos');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
 
       if (isImage) {
         const uniqueFilename = `promo_img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
@@ -1936,9 +1977,18 @@ class HostController {
         });
       } else {
         // Video upload with instant 1-2s response + asynchronous background video queue
-        const videoQueue = require('../utils/videoQueue');
+        const videoQueueService = require('../services/videoQueueService');
+        const canAccept = await videoQueueService.canAcceptJob();
+        if (!canAccept) {
+          res.header('Retry-After', '300');
+          return res.status(429).send({
+            success: false,
+            message: 'Video transcoding queue is currently at maximum capacity. Please retry in a few minutes.'
+          });
+        }
+
         const uniqueFilename = `promo_vid_${uuidv4().replace(/-/g, '').slice(0, 16)}.mp4`;
-        const tempPath = path.join(os.tmpdir(), `tmp-host-promo-${Date.now()}${ext}`);
+        tempPath = path.join(os.tmpdir(), `tmp-host-promo-${Date.now()}${ext}`);
         const rawFilePath = path.join(uploadsDir, uniqueFilename);
 
         // 1. Stream raw upload directly to temp storage
@@ -1986,7 +2036,7 @@ class HostController {
       }
     } catch (error) {
       console.error('uploadHostPromoMedia Error:', error.message);
-      if (typeof tempPath !== 'undefined' && tempPath) {
+      if (tempPath) {
         try { await fs.promises.unlink(tempPath); } catch (_) {}
       }
       return res.status(500).send({ success: false, message: 'Failed to upload and process promo media' });
@@ -2008,7 +2058,7 @@ class HostController {
     }
 
     try {
-      const hostApp = await HostApplication.findById(hostApplicationId);
+      let hostApp = await HostApplication.findById(hostApplicationId);
       if (!hostApp) {
         return res.status(404).send({ success: false, message: 'Host application not found' });
       }
@@ -2043,14 +2093,30 @@ class HostController {
         hostApp.dailyScreenChangesRemaining = defaultScreenQuota;
       }
 
+      const hasPendingVideo = slots.some(s => s && s.tempPath && s.mediaType === 'video');
+      if (hasPendingVideo) {
+        const videoQueueService = require('../services/videoQueueService');
+        const canAccept = await videoQueueService.canAcceptJob();
+        if (!canAccept) {
+          res.header('Retry-After', '300');
+          return res.status(429).send({
+            success: false,
+            message: 'Video transcoding queue is currently at maximum capacity. Please retry in a few minutes.'
+          });
+        }
+      }
+
       let videoChangesConsumed = 0;
       let imageChangesConsumed = 0;
       let screenVideoChangesConsumed = 0;
       let screenImageChangesConsumed = 0;
       let screenChangesConsumed = 0;
 
+      // 1. Pre-flight slot check to calculate exact required quota deductions
+      const slotChecks = [];
       for (const slot of slots) {
-        const { slotType, slotIndex, title, mediaUrl, mediaType, isDeleted } = slot;
+        if (!slot) continue;
+        const { slotType, slotIndex, mediaUrl, isDeleted } = slot;
 
         const existingPromo = await VenuePromo.findOne({
           hostApplicationId: hostApp._id,
@@ -2058,57 +2124,93 @@ class HostController {
           slotIndex
         });
 
+        slotChecks.push({ slot, existingPromo });
+
+        if (isDeleted || !mediaUrl) continue;
+
+        const isNewMedia = !existingPromo || existingPromo.mediaUrl !== mediaUrl;
+        if (isNewMedia) {
+          if (slotType === 'video') {
+            videoChangesConsumed++;
+          } else if (slotType === 'screen_video') {
+            screenVideoChangesConsumed++;
+          } else if (slotType === 'screen_image') {
+            screenImageChangesConsumed++;
+          } else if (slotType === 'screen') {
+            screenChangesConsumed++;
+          } else {
+            imageChangesConsumed++;
+          }
+        }
+      }
+
+      // 2. Atomic quota deduction via findOneAndUpdate with $gte guards to prevent concurrent double-spends
+      const totalChangesConsumed = videoChangesConsumed + screenVideoChangesConsumed + screenImageChangesConsumed + screenChangesConsumed + imageChangesConsumed;
+      if (totalChangesConsumed > 0) {
+        const query = { _id: hostApp._id };
+        const inc = {};
+
+        if (videoChangesConsumed > 0) {
+          query.dailyVideoChangesRemaining = { $gte: videoChangesConsumed };
+          inc.dailyVideoChangesRemaining = -videoChangesConsumed;
+        }
+        if (screenVideoChangesConsumed > 0) {
+          query.dailyScreenVideoChangesRemaining = { $gte: screenVideoChangesConsumed };
+          inc.dailyScreenVideoChangesRemaining = -screenVideoChangesConsumed;
+        }
+        if (screenImageChangesConsumed > 0) {
+          query.dailyScreenImageChangesRemaining = { $gte: screenImageChangesConsumed };
+          inc.dailyScreenImageChangesRemaining = -screenImageChangesConsumed;
+        }
+        if (screenChangesConsumed > 0) {
+          query.dailyScreenChangesRemaining = { $gte: screenChangesConsumed };
+          inc.dailyScreenChangesRemaining = -screenChangesConsumed;
+        }
+        if (imageChangesConsumed > 0) {
+          query.dailyImageChangesRemaining = { $gte: imageChangesConsumed };
+          inc.dailyImageChangesRemaining = -imageChangesConsumed;
+        }
+
+        const updatedHostApp = await HostApplication.findOneAndUpdate(
+          query,
+          { $inc: inc },
+          { new: true }
+        );
+
+        if (!updatedHostApp) {
+          res.header('Retry-After', '300');
+          return res.status(429).send({
+            success: false,
+            message: 'Daily promo change quota exhausted or concurrent update conflict! Resets at 2:00 AM IST.'
+          });
+        }
+        hostApp = updatedHostApp;
+      }
+
+      // 3. Process promo updates and enqueue any background transcode jobs
+      for (const { slot, existingPromo } of slotChecks) {
+        const { slotType, slotIndex, title, mediaUrl, mediaType, isDeleted } = slot;
+
         if (isDeleted) {
           if (existingPromo) {
-            // Delete physical file from disk
+            // Delete physical file from disk asynchronously
             if (existingPromo.mediaUrl && existingPromo.mediaUrl.startsWith('/uploads/host_promos/')) {
               const relPath = existingPromo.mediaUrl.replace('/uploads/host_promos/', '');
               const fullPath = path.join(__dirname, '..', 'uploads', 'host_promos', relPath);
-              if (fs.existsSync(fullPath)) {
-                try { fs.unlinkSync(fullPath); } catch (e) { console.error('Unlink error:', e.message); }
-              }
+              await fs.promises.unlink(fullPath).catch(() => {});
             }
             await VenuePromo.deleteOne({ _id: existingPromo._id });
           }
           continue;
         }
 
-        // If media changed, unlink old media file and deduct quota
-        const isNewMedia = !existingPromo || existingPromo.mediaUrl !== mediaUrl;
-        if (isNewMedia && mediaUrl) {
-          if (slotType === 'video') {
-            if (hostApp.dailyVideoChangesRemaining - videoChangesConsumed <= 0) {
-              return res.status(429).send({ success: false, message: 'Daily tablet video change quota exhausted! Resets at 2:00 AM IST.' });
-            }
-            videoChangesConsumed++;
-          } else if (slotType === 'screen_video') {
-            if (hostApp.dailyScreenVideoChangesRemaining - screenVideoChangesConsumed <= 0) {
-              return res.status(429).send({ success: false, message: 'Daily screen video change quota exhausted! Resets at 2:00 AM IST.' });
-            }
-            screenVideoChangesConsumed++;
-          } else if (slotType === 'screen_image') {
-            if (hostApp.dailyScreenImageChangesRemaining - screenImageChangesConsumed <= 0) {
-              return res.status(429).send({ success: false, message: 'Daily screen image change quota exhausted! Resets at 2:00 AM IST.' });
-            }
-            screenImageChangesConsumed++;
-          } else if (slotType === 'screen') {
-            if (hostApp.dailyScreenChangesRemaining - screenChangesConsumed <= 0) {
-              return res.status(429).send({ success: false, message: 'Daily screen ad change quota exhausted! Resets at 2:00 AM IST.' });
-            }
-            screenChangesConsumed++;
-          } else {
-            if (hostApp.dailyImageChangesRemaining - imageChangesConsumed <= 0) {
-              return res.status(429).send({ success: false, message: 'Daily tablet image change quota exhausted! Resets at 2:00 AM IST.' });
-            }
-            imageChangesConsumed++;
-          }
-
-          if (existingPromo && existingPromo.mediaUrl && existingPromo.mediaUrl.startsWith('/uploads/host_promos/')) {
+        const isNewMedia = (!existingPromo || existingPromo.mediaUrl !== mediaUrl) && mediaUrl;
+        if (isNewMedia) {
+          // Delete old promo file from disk if URL changed
+          if (existingPromo && existingPromo.mediaUrl && existingPromo.mediaUrl !== mediaUrl && existingPromo.mediaUrl.startsWith('/uploads/host_promos/')) {
             const relPath = existingPromo.mediaUrl.replace('/uploads/host_promos/', '');
             const fullPath = path.join(__dirname, '..', 'uploads', 'host_promos', relPath);
-            if (fs.existsSync(fullPath)) {
-              try { fs.unlinkSync(fullPath); } catch (e) { console.error('Unlink error:', e.message); }
-            }
+            await fs.promises.unlink(fullPath).catch(() => {});
           }
 
           const videoQueue = require('../utils/videoQueue');
@@ -2134,31 +2236,52 @@ class HostController {
           }
 
           if (slot.tempPath && mediaType === 'video') {
+            const os = require('os');
+            const resolvedTemp = path.resolve(slot.tempPath);
+            const allowedTmp = path.resolve(os.tmpdir());
+            const allowedUploads = path.resolve(__dirname, '..', 'uploads');
+
+            const isAllowedPath = resolvedTemp.startsWith(allowedTmp + path.sep) ||
+              resolvedTemp.startsWith(allowedUploads + path.sep);
+
+            if (!isAllowedPath) {
+              console.warn(`[Security Warning] Blocked path traversal attempt in streamHostPromos: ${slot.tempPath}`);
+              continue;
+            }
+
+            let tempFileExists = false;
+            try {
+              const stat = await fs.promises.stat(resolvedTemp);
+              if (stat.size > 0) tempFileExists = true;
+            } catch (_) {}
+
+            if (!tempFileExists) {
+              console.warn(`[streamHostPromos] Temp file does not exist or is empty: ${resolvedTemp}`);
+              continue;
+            }
+
             const filename = path.basename(mediaUrl);
             const uploadsDir = path.join(__dirname, '..', 'uploads', 'host_promos', hostApp._id.toString());
-            videoQueue.enqueue({
-              modelType: 'VenuePromo',
-              recordId: savedPromo._id,
-              tempPath: slot.tempPath,
-              targetDir: uploadsDir,
-              relativeSubdir: `host_promos/${hostApp._id}`,
-              finalFilename: filename,
-              hostApplicationId: hostApp._id
-            });
+            try {
+              await videoQueue.enqueue({
+                modelType: 'VenuePromo',
+                recordId: savedPromo._id,
+                tempPath: resolvedTemp,
+                targetDir: uploadsDir,
+                relativeSubdir: `host_promos/${hostApp._id}`,
+                finalFilename: filename,
+                hostApplicationId: hostApp._id
+              });
+            } catch (queueErr) {
+              try { await fs.promises.unlink(resolvedTemp); } catch (_) {}
+              throw queueErr;
+            }
           }
         } else if (existingPromo) {
           existingPromo.title = title || '';
           await existingPromo.save();
         }
       }
-
-      // Deduct consumed daily quota
-      hostApp.dailyVideoChangesRemaining = Math.max(0, hostApp.dailyVideoChangesRemaining - videoChangesConsumed);
-      hostApp.dailyImageChangesRemaining = Math.max(0, hostApp.dailyImageChangesRemaining - imageChangesConsumed);
-      hostApp.dailyScreenVideoChangesRemaining = Math.max(0, hostApp.dailyScreenVideoChangesRemaining - screenVideoChangesConsumed);
-      hostApp.dailyScreenImageChangesRemaining = Math.max(0, hostApp.dailyScreenImageChangesRemaining - screenImageChangesConsumed);
-      hostApp.dailyScreenChangesRemaining = Math.max(0, hostApp.dailyScreenChangesRemaining - screenChangesConsumed);
-      await hostApp.save();
 
       // Emit reload signal to connected venue devices (WebSockets + gRPC screens)
       if (typeof global.notifyDevicesReloadAds === 'function') {
@@ -2170,11 +2293,21 @@ class HostController {
         message: 'Venue promos updated and streaming on devices!',
         data: {
           dailyVideoChangesRemaining: hostApp.dailyVideoChangesRemaining,
-          dailyImageChangesRemaining: hostApp.dailyImageChangesRemaining
+          dailyImageChangesRemaining: hostApp.dailyImageChangesRemaining,
+          dailyScreenVideoChangesRemaining: hostApp.dailyScreenVideoChangesRemaining,
+          dailyScreenImageChangesRemaining: hostApp.dailyScreenImageChangesRemaining,
+          dailyScreenChangesRemaining: hostApp.dailyScreenChangesRemaining
         }
       });
     } catch (error) {
       console.error('streamHostPromos Error:', error.message);
+      if (error.isCapacityError) {
+        res.header('Retry-After', '300');
+        return res.status(429).send({
+          success: false,
+          message: error.message
+        });
+      }
       return res.status(500).send({ success: false, message: 'Failed to stream venue promos' });
     }
   }
@@ -2200,9 +2333,7 @@ class HostController {
         if (existingPromo.mediaUrl && existingPromo.mediaUrl.startsWith('/uploads/host_promos/')) {
           const relPath = existingPromo.mediaUrl.replace('/uploads/host_promos/', '');
           const fullPath = path.join(__dirname, '..', 'uploads', 'host_promos', relPath);
-          if (fs.existsSync(fullPath)) {
-            try { fs.unlinkSync(fullPath); } catch (e) {}
-          }
+          await fs.promises.unlink(fullPath).catch(() => {});
         }
         await VenuePromo.deleteOne({ _id: existingPromo._id });
       }
@@ -2248,7 +2379,7 @@ class HostController {
           { tableStatus: { $in: ['completed', 'completed_acked'] } }
         ],
         orderStatus: { $ne: 'cancelled' }
-      });
+      }).limit(1000).lean();
 
       // Fetch Menu to get item names and prices
       const menu = await Menu.findOne({ hostApplicationId: hostApp._id });
@@ -2453,17 +2584,16 @@ class HostController {
 
       const prevConfig = hostApp.billConfig ? hostApp.billConfig.toObject() : {};
 
+      const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
+
       // Immediately unlink old logoUrl from server disk if deleted or replaced
       if (prevConfig.logoUrl && billConfigData.logoUrl !== undefined && billConfigData.logoUrl !== prevConfig.logoUrl) {
         if (prevConfig.logoUrl.startsWith('/uploads/')) {
-          const oldPath = path.join(__dirname, '..', prevConfig.logoUrl);
-          if (fs.existsSync(oldPath)) {
-            try {
-              fs.unlinkSync(oldPath);
-              console.log('[BillConfig] Unlinked deleted header logo from disk:', oldPath);
-            } catch (e) {
-              console.error('[BillConfig] Failed to unlink header logo:', e.message);
-            }
+          const relativeClean = prevConfig.logoUrl.replace(/^\/uploads\//, '');
+          const oldPath = path.resolve(uploadsRoot, relativeClean);
+          if (oldPath.startsWith(uploadsRoot + path.sep)) {
+            await fs.promises.unlink(oldPath).catch(() => {});
+            console.log('[BillConfig] Unlinked deleted header logo from disk:', oldPath);
           }
         }
       }
@@ -2471,14 +2601,11 @@ class HostController {
       // Immediately unlink old qrImageUrl from server disk if deleted or replaced
       if (prevConfig.qrImageUrl && billConfigData.qrImageUrl !== undefined && billConfigData.qrImageUrl !== prevConfig.qrImageUrl) {
         if (prevConfig.qrImageUrl.startsWith('/uploads/')) {
-          const oldPath = path.join(__dirname, '..', prevConfig.qrImageUrl);
-          if (fs.existsSync(oldPath)) {
-            try {
-              fs.unlinkSync(oldPath);
-              console.log('[BillConfig] Unlinked deleted footer QR image from disk:', oldPath);
-            } catch (e) {
-              console.error('[BillConfig] Failed to unlink footer QR image:', e.message);
-            }
+          const relativeClean = prevConfig.qrImageUrl.replace(/^\/uploads\//, '');
+          const oldPath = path.resolve(uploadsRoot, relativeClean);
+          if (oldPath.startsWith(uploadsRoot + path.sep)) {
+            await fs.promises.unlink(oldPath).catch(() => {});
+            console.log('[BillConfig] Unlinked deleted footer QR image from disk:', oldPath);
           }
         }
       }
@@ -2581,8 +2708,8 @@ class HostController {
     const filenameHeader = req.headers['x-filename'] || 'bill_image.png';
     const ext = path.extname(filenameHeader).toLowerCase() || '.png';
 
-    if (!['.jpg', '.jpeg', '.png', '.webp', '.svg'].includes(ext)) {
-      return res.status(400).send({ success: false, message: 'Unsupported file type. Only JPG, JPEG, PNG, WEBP, and SVG are allowed.' });
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      return res.status(400).send({ success: false, message: 'Unsupported file type. Only JPG, JPEG, PNG, and WEBP are allowed.' });
     }
 
     const uploadDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'bills');
@@ -2596,16 +2723,24 @@ class HostController {
       return res.status(400).send({ success: false, message: 'Bill image file size exceeds maximum limit of 5MB' });
     }
 
-    const uniqueFilename = `bill_logo_${uuidv4().replace(/-/g, '').slice(0, 16)}${ext}`;
+    const uniqueFilename = `bill_logo_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
     try {
+      const sharp = require('sharp');
+      const transformer = sharp()
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 85 });
+
       if (req.body && typeof req.body.pipe === 'function') {
-        await pipeline(req.body, fs.createWriteStream(filePath));
+        await pipeline(req.body, transformer, fs.createWriteStream(filePath));
       } else if (Buffer.isBuffer(req.body)) {
-        await fs.promises.writeFile(filePath, req.body);
+        await sharp(req.body)
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 85 })
+          .toFile(filePath);
       } else if (req.raw) {
-        await pipeline(req.raw, fs.createWriteStream(filePath));
+        await pipeline(req.raw, transformer, fs.createWriteStream(filePath));
       } else {
         return res.status(400).send({ success: false, message: 'Invalid or empty image payload' });
       }

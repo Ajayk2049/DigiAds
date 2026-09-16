@@ -123,8 +123,8 @@ class GeocodeService {
   }
 
   /**
-   * Multi-tier Geocoding Pipeline
-   * 1. If explicit valid GPS lat/lng provided, use them directly
+   * Resolve geographic coordinates with a 5-tier fallback cascade:
+   * 1. Client-supplied GPS coordinates (highest precision)
    * 2. Full Street Address via OpenStreetMap Nominatim
    * 3. Pincode Centroid via OpenStreetMap Nominatim
    * 4. City + State via OpenStreetMap Nominatim
@@ -152,17 +152,32 @@ class GeocodeService {
     const cleanState = (state || '').trim();
     const cleanZip = (zipCode || '').toString().trim();
 
+    // In-memory cache check
+    const cacheKey = `${cleanStreet}|${cleanCity}|${cleanState}|${cleanZip}`.toLowerCase();
+    if (geocodeCache.has(cacheKey)) {
+      return geocodeCache.get(cacheKey);
+    }
+
+    const setCache = (res) => {
+      if (geocodeCache.size > 5000) {
+        const first = geocodeCache.keys().next().value;
+        geocodeCache.delete(first);
+      }
+      geocodeCache.set(cacheKey, res);
+      return res;
+    };
+
     // Tier 2: Try Full Street Address lookup
     if (cleanStreet && cleanCity) {
       const fullQuery = `${cleanStreet}, ${cleanCity}, ${cleanState} ${cleanZip}, India`.replace(/,\s*,/g, ',').trim();
       const resStreet = await this.queryNominatim({ q: fullQuery });
-      if (resStreet) return resStreet;
+      if (resStreet) return setCache(resStreet);
     }
 
     // Tier 3: Try Pincode Centroid lookup (very accurate for Indian 6-digit postal zones)
     if (cleanZip && /^\d{6}$/.test(cleanZip)) {
       const resZip = await this.queryNominatim({ postalcode: cleanZip, country: 'India' });
-      if (resZip) return resZip;
+      if (resZip) return setCache(resZip);
     }
 
     // Tier 4: Try City + State lookup
@@ -172,7 +187,7 @@ class GeocodeService {
         state: cleanState || undefined,
         country: 'India'
       });
-      if (resCity) return resCity;
+      if (resCity) return setCache(resCity);
     }
 
     // Tier 5: Internal expanded Indian cities dictionary fallback
@@ -181,11 +196,11 @@ class GeocodeService {
 
     if (matchedCity) {
       const coord = EXPANDED_CITY_COORDINATES[matchedCity];
-      return {
+      return setCache({
         latitude: coord.lat,
         longitude: coord.lng,
         source: 'city_dictionary'
-      };
+      });
     }
 
     // Default Anchor: Bengaluru City Center

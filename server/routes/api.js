@@ -103,6 +103,36 @@ function registerRoutes(fastify, options, done) {
     }
   };
 
+  // 7. Device Ads Playlist Rate Limit: 120 req/min in prod
+  const deviceAdsRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 300 : 120,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 8. Public Venue Directory Rate Limit: 100 req/min in prod
+  const venueRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 300 : 100,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
+  // 9. OTA Latest Release Check Rate Limit: 60 req/min in prod
+  const otaLatestRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 200 : 60,
+        timeWindow: '1 minute'
+      }
+    }
+  };
+
   // Public Auth Routes
   fastify.post('/auth/check-availability', authRateLimitConfig, authController.checkAvailability);
   fastify.post('/auth/send-otp', otpRateLimitConfig, authController.sendOtp);
@@ -111,7 +141,7 @@ function registerRoutes(fastify, options, done) {
   fastify.post('/auth/login', loginRateLimitConfig, authController.login);
   fastify.post('/auth/reset-password', otpRateLimitConfig, authController.resetPassword);
   fastify.post('/auth/device/activate', activateRateLimitConfig, deviceAuthController.activateDevice);
-  fastify.get('/auth/device/ads', { preHandler: authenticate }, deviceAuthController.getDeviceAds);
+  fastify.get('/auth/device/ads', { preHandler: authenticate, ...deviceAdsRateLimitConfig }, deviceAuthController.getDeviceAds);
   fastify.post('/auth/switch-role', { preHandler: authenticate }, authController.switchRole);
 
   // PhonePe Webhook callback (public)
@@ -119,7 +149,7 @@ function registerRoutes(fastify, options, done) {
   fastify.get('/payments/callback', async (request, reply) => ({ status: 'ok', message: 'Callback endpoint is online' }));
 
   // Public Venue Directory & Map Discovery
-  fastify.get('/public/venues', publicController.getPublicVenues.bind(publicController));
+  fastify.get('/public/venues', venueRateLimitConfig, publicController.getPublicVenues.bind(publicController));
 
   // Merchant Host Routes
   fastify.register((merchantRoutes, opts, next) => {
@@ -244,7 +274,7 @@ function registerRoutes(fastify, options, done) {
   });
 
   // Public/Device OTA Release Endpoints
-  fastify.get('/releases/latest', releaseController.getLatestRelease.bind(releaseController));
+  fastify.get('/releases/latest', otaLatestRateLimitConfig, releaseController.getLatestRelease.bind(releaseController));
   fastify.get('/releases/download/:releaseId', releaseDownloadRateLimitConfig, releaseController.downloadRelease.bind(releaseController));
 
   done();

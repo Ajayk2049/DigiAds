@@ -56,10 +56,17 @@ class AdminController {
     }
 
     try {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+      const skip = (page - 1) * limit;
+
       const apps = await HostApplication.find(query)
         .populate('userId', 'phone name')
-        .sort({ createdAt: -1 });
-      return res.status(200).send({ success: true, data: apps });
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+      return res.status(200).send({ success: true, data: apps, page, limit });
     } catch (error) {
       console.error('admin getHostApplications Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to fetch host applications' });
@@ -260,10 +267,16 @@ class AdminController {
     if (approvalStatus) query.approvalStatus = approvalStatus;
 
     try {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+      const skip = (page - 1) * limit;
+
       const bookings = await AdBooking.find(query)
         .populate('advertiserId', 'phone name')
         .populate('outletId', 'outletName city state')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
 
       const mappedBookings = bookings.map(b => {
         const obj = b.toObject();
@@ -338,14 +351,8 @@ class AdminController {
             if (urlParts.length > 1) {
               const relativePath = urlParts[1];
               const localFilePath = path.join(__dirname, '..', 'uploads', relativePath);
-              if (fs.existsSync(localFilePath)) {
-                try {
-                  fs.unlinkSync(localFilePath);
-                  console.log(`[REJECTION CLEANUP] Unlinked rejected media file: ${localFilePath}`);
-                } catch (unlinkErr) {
-                  console.error(`[REJECTION CLEANUP] Failed to unlink ${localFilePath}:`, unlinkErr.message);
-                }
-              }
+              await fs.promises.unlink(localFilePath).catch(() => {});
+              console.log(`[REJECTION CLEANUP] Unlinked rejected media file: ${localFilePath}`);
             }
           }
 
@@ -532,8 +539,11 @@ class AdminController {
       const totalDevicesCount = await Device.countDocuments({});
       const activeDevicesCount = await Device.countDocuments({ status: 'online' });
       
-      const paidBookings = await PhonePeTransaction.find({ status: 'completed' });
-      const totalRevenue = paidBookings.reduce((sum, txn) => sum + txn.amount, 0); // in paise
+      const revenueAgg = await PhonePeTransaction.aggregate([
+        { $match: { status: 'completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      const totalRevenue = (revenueAgg.length > 0 && revenueAgg[0].total) ? revenueAgg[0].total : 0; // in paise
 
       return res.status(200).send({
         success: true,
@@ -566,13 +576,20 @@ class AdminController {
    */
   async getDevices(req, res) {
     try {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100));
+      const skip = (page - 1) * limit;
+
       const devices = await Device.find({})
         .populate({
           path: 'hostApplicationId',
           select: 'outletName contactPerson phone city state requestTablet tabletQuantity requestScreen screenQuantity'
         })
-        .sort({ createdAt: -1 });
-      return res.status(200).send({ success: true, data: devices });
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+      return res.status(200).send({ success: true, data: devices, page, limit });
     } catch (error) {
       console.error('getDevices Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to fetch devices' });
@@ -637,7 +654,16 @@ class AdminController {
    */
   async getUsers(req, res) {
     try {
-      const users = await User.find({ role: { $ne: 'admin' } }).select('-password').sort({ createdAt: -1 });
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+      const skip = (page - 1) * limit;
+
+      const users = await User.find({ role: { $ne: 'admin' } })
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
       
       // Get supplementary count information
       const enrichedUsers = await Promise.all(users.map(async (u) => {
@@ -770,7 +796,7 @@ class AdminController {
         return res.status(403).send({ success: false, message: 'Unauthorized access' });
       }
 
-      const isPasswordValid = verifyPassword(adminPassword, admin.password);
+      const isPasswordValid = await verifyPassword(adminPassword, admin.password);
       if (!isPasswordValid) {
         return res.status(400).send({ success: false, message: 'Invalid password. Action rejected.' });
       }
@@ -874,7 +900,7 @@ class AdminController {
         return res.status(403).send({ success: false, message: 'Unauthorized access' });
       }
 
-      const isPasswordValid = verifyPassword(adminPassword, admin.password);
+      const isPasswordValid = await verifyPassword(adminPassword, admin.password);
       if (!isPasswordValid) {
         return res.status(400).send({ success: false, message: 'Invalid password. Action rejected.' });
       }
@@ -901,15 +927,9 @@ class AdminController {
           if (urlParts.length > 1) {
             const relativePath = urlParts[1];
             const targetPath = path.join(__dirname, '..', 'uploads', relativePath);
-            if (fs.existsSync(targetPath)) {
-              try {
-                fs.unlinkSync(targetPath);
-                console.log(`[REVOCATION CLEANUP] Unlinked revoked media file: ${targetPath}`);
-                localFilePath = targetPath;
-              } catch (err) {
-                console.error('Failed to delete revoked media file locally:', err.message);
-              }
-            }
+            await fs.promises.unlink(targetPath).catch(() => {});
+            console.log(`[REVOCATION CLEANUP] Unlinked revoked media file: ${targetPath}`);
+            localFilePath = targetPath;
           }
         }
       }
@@ -1268,10 +1288,9 @@ class AdminController {
     }
 
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'platform-ads', adType);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadsDir, { recursive: true });
 
+    let tempPath = null;
     try {
       if (isImage) {
         const uniqueFilename = `pad_img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
@@ -1292,8 +1311,18 @@ class AdminController {
           }
         });
       } else {
+        const videoQueueService = require('../services/videoQueueService');
+        const canAccept = await videoQueueService.canAcceptJob();
+        if (!canAccept) {
+          res.header('Retry-After', '300');
+          return res.status(429).send({
+            success: false,
+            message: 'Video transcoding queue is currently at maximum capacity. Please retry in a few minutes.'
+          });
+        }
+
         const uniqueFilename = `pad_vid_${uuidv4().replace(/-/g, '').slice(0, 16)}.mp4`;
-        const tempPath = path.join(os.tmpdir(), `tmp-pad-${Date.now()}${ext}`);
+        tempPath = path.join(os.tmpdir(), `tmp-pad-${Date.now()}${ext}`);
         const rawFilePath = path.join(uploadsDir, uniqueFilename);
 
         // Stream raw upload to temp file
@@ -1315,10 +1344,9 @@ class AdminController {
         await fs.promises.copyFile(tempPath, rawFilePath);
 
         // Enqueue background video transcode with audio stripping & H.264 Baseline 3.1
-        const videoQueueService = require('../services/videoQueueService');
         const initialMediaUrl = `/uploads/platform-ads/${adType}/${uniqueFilename}`;
 
-        videoQueueService.addTranscodeJob({
+        await videoQueueService.addTranscodeJob({
           modelType: 'PlatformAd',
           recordId: uniqueFilename,
           tempPath,
@@ -1342,8 +1370,15 @@ class AdminController {
       }
     } catch (error) {
       console.error('uploadPlatformAdMedia Error:', error.message);
-      if (typeof tempPath !== 'undefined' && tempPath) {
-        try { fs.unlinkSync(tempPath); } catch (_) {}
+      if (tempPath) {
+        try { await fs.promises.unlink(tempPath); } catch (_) {}
+      }
+      if (error.isCapacityError) {
+        res.header('Retry-After', '300');
+        return res.status(429).send({
+          success: false,
+          message: error.message
+        });
       }
       return res.status(500).send({ success: false, message: 'Failed to upload and process media: ' + error.message });
     }
@@ -1508,13 +1543,9 @@ class AdminController {
           const relPath = mediaUrl.split('/uploads/')[1];
           const fullPath = path.resolve(uploadsDir, relPath);
 
-          if (fullPath.startsWith(uploadsDir) && fs.existsSync(fullPath)) {
-            try {
-              fs.unlinkSync(fullPath);
-              console.log(`\x1b[33m[PlatformAd]\x1b[0m Immediately unlinked physical file: ${fullPath}`);
-            } catch (unlinkErr) {
-              console.warn(`[PlatformAd] Could not unlink file ${fullPath}:`, unlinkErr.message);
-            }
+          if (fullPath.startsWith(uploadsDir)) {
+            await fs.promises.unlink(fullPath).catch(() => {});
+            console.log(`\x1b[33m[PlatformAd]\x1b[0m Immediately unlinked physical file: ${fullPath}`);
           }
         }
       }

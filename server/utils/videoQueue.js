@@ -12,8 +12,8 @@ class SingleVideoQueueWrapper {
    * @param {String} job.finalFilename - Transcoded output filename
    * @param {String} job.hostApplicationId - Optional host app ID for socket broadcast
    */
-  enqueue(job) {
-    videoQueueService.addTranscodeJob(job);
+  async enqueue(job) {
+    return await videoQueueService.addTranscodeJob(job);
   }
 }
 

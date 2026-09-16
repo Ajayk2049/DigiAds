@@ -49,6 +49,10 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
+// High-performance compound indexes for RBAC and admin user directory queries
+UserSchema.index({ roles: 1, createdAt: -1 });
+UserSchema.index({ role: 1, createdAt: -1 });
+
 const bcrypt = require('bcryptjs');
 
 // Pre-save hook to hash password before saving to MongoDB

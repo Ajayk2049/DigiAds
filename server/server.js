@@ -24,6 +24,9 @@ const requiredDirs = [
   path.join(__dirname, 'uploads/outlets'),
   path.join(__dirname, 'uploads/ads'),
   path.join(__dirname, 'uploads/staging'),
+  path.join(__dirname, 'uploads/releases'),
+  path.join(__dirname, 'uploads/host_promos'),
+  path.join(__dirname, 'uploads/platform-ads'),
   path.join(__dirname, 'logs')
 ];
 
@@ -326,6 +329,13 @@ async function startFastify() {
     rateLimitOptions.redis = rateLimitRedis;
   }
   await fastify.register(rateLimit, rateLimitOptions);
+
+  // Gracefully quit rateLimit Redis client on Fastify server shutdown
+  fastify.addHook('onClose', async () => {
+    if (rateLimitRedis) {
+      try { await rateLimitRedis.quit(); } catch (_) {}
+    }
+  });
 
 
   // WebSocket routes for Merchant & Device
@@ -719,13 +729,21 @@ async function startFastify() {
         subpath = rawSubpath.replace(/^media\//, 'ads/');
       }
 
-      let filePath = path.join(__dirname, 'uploads', subpath);
+      const uploadsRoot = path.resolve(__dirname, 'uploads');
+      let filePath = path.resolve(uploadsRoot, subpath);
+      if (!filePath.startsWith(uploadsRoot + path.sep) && filePath !== uploadsRoot) {
+        return res.status(403).send({ error: 'Access denied: Invalid file path' });
+      }
+
       let stat;
       try {
         stat = await fs.promises.stat(filePath);
       } catch (e) {
         // Fallback to rawSubpath if aliased path was not found
-        filePath = path.join(__dirname, 'uploads', rawSubpath);
+        filePath = path.resolve(uploadsRoot, rawSubpath);
+        if (!filePath.startsWith(uploadsRoot + path.sep) && filePath !== uploadsRoot) {
+          return res.status(403).send({ error: 'Access denied: Invalid file path' });
+        }
         try {
           stat = await fs.promises.stat(filePath);
         } catch (err) {
@@ -829,27 +847,59 @@ async function startFastify() {
   const { cleanupOldMediaLogs } = require('./utils/mediaCleanup');
   cleanupOldMediaLogs().catch(err => console.error('[CLEANUP] Boot cleanup failed:', err.message));
 
-  // Run boot-time cleanup of orphaned temporary upload files
-  (() => {
+  // Comprehensive non-blocking cleanup of orphaned upload scratch files across /tmp and uploads staging
+  async function cleanupOrphanedTempFiles(maxAgeMs = 6 * 60 * 60 * 1000) {
     try {
-      const fs = require('fs');
+      const fs = require('fs').promises;
       const os = require('os');
-      const tempDir = os.tmpdir();
-      const files = fs.readdirSync(tempDir);
+      const now = Date.now();
       let count = 0;
-      for (const file of files) {
-        if (file.startsWith('tmp-ad-upload-')) {
-          fs.unlinkSync(path.join(tempDir, file));
-          count++;
-        }
+
+      // Scan directories holding transient upload fragments
+      const targets = [
+        { dir: os.tmpdir(), isMatch: (f) => f.startsWith('tmp-ad-upload-') || f.startsWith('tmp-host-promo-') || f.startsWith('tmp-pad-') || f.startsWith('staging_') },
+        { dir: path.join(__dirname, 'uploads', 'ads', 'staging'), isMatch: (f) => f.startsWith('staging_') || f.endsWith('.tmp') },
+        { dir: path.join(__dirname, 'uploads', 'staging'), isMatch: (f) => f.startsWith('staging_') || f.endsWith('.tmp') }
+      ];
+
+      for (const target of targets) {
+        try {
+          const files = await fs.readdir(target.dir);
+          for (const file of files) {
+            if (target.isMatch(file)) {
+              const filePath = path.join(target.dir, file);
+              try {
+                if (maxAgeMs > 0) {
+                  const stat = await fs.stat(filePath);
+                  if (now - stat.mtimeMs < maxAgeMs) continue; // Keep recent and queued files
+                }
+                await fs.unlink(filePath);
+                count++;
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
       }
+
       if (count > 0) {
-        console.log(`[CLEANUP] Removed ${count} orphaned temporary upload files.`);
+        console.log(`[CLEANUP] Pruned ${count} orphaned upload scratch file(s) older than ${Math.round(maxAgeMs / 3600000)}h.`);
       }
     } catch (err) {
-      console.error('[CLEANUP] Failed to clear temp files:', err.message);
+      console.warn('[CLEANUP] Temp scratch cleaner notice:', err.message);
     }
-  })();
+  }
+
+  // 1. Run safe cleanup on boot: only prune stale orphaned scratch files older than 6 hours
+  // NEVER wipe all files on boot so active queue inputs from PM2 restarts are preserved!
+  cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => {});
+
+  // 2. Periodic background sweeper every 60 minutes: prunes scratch files older than 6 hours (unref'd)
+  const tempSweeperTimer = setInterval(() => {
+    cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => {});
+  }, 60 * 60 * 1000);
+  if (typeof tempSweeperTimer.unref === 'function') {
+    tempSweeperTimer.unref();
+  }
 
 
 
@@ -886,8 +936,11 @@ const orderProto = grpc.loadPackageDefinition(orderDef).order;
 const deviceProto = grpc.loadPackageDefinition(deviceDef).device;
 const menuProto = grpc.loadPackageDefinition(menuDef).menu;
 
+// In-memory cache for device activation status to protect MongoDB from gRPC telemetry query storms
+const deviceStatusCache = new Map();
+
 // Helper to verify gRPC metadata JWT token for devices
-function verifyGrpcToken(call) {
+async function verifyGrpcToken(call) {
   const metadata = call.metadata;
   if (!metadata) {
     throw { code: grpc.status.UNAUTHENTICATED, message: 'No metadata provided' };
@@ -903,19 +956,35 @@ function verifyGrpcToken(call) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
-    if (decoded && decoded.deviceId) {
-      // Touch lastHeartbeat & online status in MongoDB on valid gRPC calls (throttled to at most once every 20s)
-      if (throttleDeviceDbTouch(decoded.deviceId)) {
-        Device.updateOne(
-          { deviceId: decoded.deviceId },
-          { $set: { status: 'online', lastHeartbeat: new Date() } }
-        ).catch(err => {
-          console.error(`[gRPC Touch] Failed to update heartbeat for ${decoded.deviceId}:`, err.message);
-        });
-      }
+    if (!decoded || !decoded.deviceId) {
+      throw { code: grpc.status.UNAUTHENTICATED, message: 'Invalid device credentials in token' };
     }
+
+    // Verify that device is activated and not revoked (cached for 30s)
+    const now = Date.now();
+    let cached = deviceStatusCache.get(decoded.deviceId);
+    if (!cached || cached.expiresAt < now) {
+      const devDoc = await Device.findOne({ deviceId: decoded.deviceId }).select('isActivated').lean();
+      cached = { isActivated: devDoc?.isActivated === true, expiresAt: now + 30000 };
+      deviceStatusCache.set(decoded.deviceId, cached);
+    }
+    if (!cached.isActivated) {
+      throw { code: grpc.status.UNAUTHENTICATED, message: 'Device is not activated or has been revoked' };
+    }
+
+    // Touch lastHeartbeat & online status in MongoDB on valid gRPC calls (throttled to at most once every 20s)
+    if (throttleDeviceDbTouch(decoded.deviceId)) {
+      Device.updateOne(
+        { deviceId: decoded.deviceId },
+        { $set: { status: 'online', lastHeartbeat: new Date() } }
+      ).catch(err => {
+        console.error(`[gRPC Touch] Failed to update heartbeat for ${decoded.deviceId}:`, err.message);
+      });
+    }
+
     return decoded; // { deviceId, deviceType, hostApplicationId }
   } catch (err) {
+    if (err.code === grpc.status.UNAUTHENTICATED) throw err;
     throw { code: grpc.status.UNAUTHENTICATED, message: 'Invalid or expired device token' };
   }
 }
@@ -960,7 +1029,7 @@ const computeImpressionExpiresAt = (booking) => {
 const deviceServiceHandlers = {
   RegisterDevice: async (call, callback) => {
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { deviceId } = claims;
 
       await Device.updateOne(
@@ -982,7 +1051,7 @@ const deviceServiceHandlers = {
 
   SendHeartbeat: async (call, callback) => {
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { deviceId } = claims;
       const { callWaiter, waiterOption, tableNumber } = call.request;
 
@@ -1075,20 +1144,21 @@ const deviceServiceHandlers = {
 
         tableSessionJson = JSON.stringify(sessionPayload);
       } else {
-        // Check if order was completed (payment received)
-        const completedOrder = await Order.findOne({
-          deviceId,
-          tableStatus: 'completed',
-          updatedAt: { $gt: new Date(Date.now() - 30000) } // within last 30s
-        }).sort({ updatedAt: -1 });
+        // Check if order was completed (payment received) and atomically claim it
+        const completedOrder = await Order.findOneAndUpdate(
+          {
+            deviceId,
+            tableStatus: 'completed',
+            updatedAt: { $gt: new Date(Date.now() - 30000) } // within last 30s
+          },
+          { $set: { tableStatus: 'completed_acked' } },
+          { sort: { updatedAt: -1 } }
+        );
         if (completedOrder) {
           tableSessionJson = JSON.stringify({
             status: 'completed',
             orderId: completedOrder.orderId
           });
-          // Mark as handled so it doesn't repeat
-          completedOrder.tableStatus = 'completed_acked';
-          await completedOrder.save();
         }
       }
 
@@ -1113,7 +1183,7 @@ const deviceServiceHandlers = {
   TrackAdImpression: async (call, callback) => {
     const { bookingId, durationSeconds, interactiveClicks } = call.request;
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { deviceId } = claims;
 
       // Skip telemetry logging and DB writes for free fallback ads, platform promos, and venue specials
@@ -1189,7 +1259,7 @@ const deviceServiceHandlers = {
   BatchTrackAdImpressions: async (call, callback) => {
     const { impressions } = call.request || {};
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { deviceId } = claims;
       const deviceDoc = await Device.findOne({ deviceId }).select('hostApplicationId').lean();
 
@@ -1253,12 +1323,16 @@ const deviceServiceHandlers = {
             }
           }
 
-          // 3. Batch insert all impressions in a single operation
+          // 3. Batch insert impressions in chunks of 200 to prevent 16MB BSON and driver socket saturation
           if (docsToInsert.length > 0) {
-            await AdImpression.insertMany(docsToInsert, { ordered: false });
+            const CHUNK_SIZE = 200;
+            for (let i = 0; i < docsToInsert.length; i += CHUNK_SIZE) {
+              const chunk = docsToInsert.slice(i, i + CHUNK_SIZE);
+              await AdImpression.insertMany(chunk, { ordered: false });
+            }
           }
 
-          // 4. Batch update booking totals using bulkWrite
+          // 4. Batch update booking totals using bulkWrite in chunks of 200
           if (bookingIncrements.size > 0) {
             const bulkOps = [];
             for (const [bId, inc] of bookingIncrements.entries()) {
@@ -1276,7 +1350,11 @@ const deviceServiceHandlers = {
               });
             }
             if (bulkOps.length > 0) {
-              await AdBooking.bulkWrite(bulkOps, { ordered: false });
+              const CHUNK_SIZE = 200;
+              for (let i = 0; i < bulkOps.length; i += CHUNK_SIZE) {
+                const chunk = bulkOps.slice(i, i + CHUNK_SIZE);
+                await AdBooking.bulkWrite(chunk, { ordered: false });
+              }
             }
           }
         }
@@ -1293,17 +1371,31 @@ const deviceServiceHandlers = {
   }
 };
 
+// In-memory TTL cache for GetMenu (30 seconds per venue)
+const grpcMenuCache = new Map();
+global.invalidateMenuCache = (hostAppId) => {
+  if (hostAppId) grpcMenuCache.delete(hostAppId.toString());
+};
+
 // Implement Menu gRPC Service
 const menuServiceHandlers = {
   GetMenu: async (call, callback) => {
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { hostApplicationId } = claims;
+      const hostAppKey = hostApplicationId ? hostApplicationId.toString() : null;
 
-      const app = await HostApplication.findById(hostApplicationId);
+      if (hostAppKey) {
+        const cached = grpcMenuCache.get(hostAppKey);
+        if (cached && Date.now() < cached.expiresAt) {
+          return callback(null, cached.payload);
+        }
+      }
+
+      const app = await HostApplication.findById(hostApplicationId).select('outletName').lean();
       const outletName = app ? app.outletName : 'Aster & Ice';
 
-      const menu = await Menu.findOne({ hostApplicationId });
+      const menu = await Menu.findOne({ hostApplicationId }).select('activeShift items categories popularCategory').lean();
       const activeShift = menu?.activeShift || 'Breakfast';
 
       const items = menu ? menu.items
@@ -1345,7 +1437,7 @@ const menuServiceHandlers = {
           }).filter(c => c.name.length > 0)
         : [];
 
-      callback(null, {
+      const responsePayload = {
         success: true,
         message: outletName,
         items,
@@ -1354,7 +1446,16 @@ const menuServiceHandlers = {
           name: (menu?.popularCategory?.name || 'Popular').trim(),
           icon: (menu?.popularCategory?.icon || 'star').trim()
         }
-      });
+      };
+
+      if (hostAppKey) {
+        grpcMenuCache.set(hostAppKey, {
+          payload: responsePayload,
+          expiresAt: Date.now() + 30000 // 30s cache
+        });
+      }
+
+      callback(null, responsePayload);
     } catch (err) {
       const code = err.code || grpc.status.INTERNAL;
       callback({ code, message: err.message });
@@ -1362,12 +1463,30 @@ const menuServiceHandlers = {
   }
 };
 
+// Mutex lock to serialize concurrent order creation and item additions per table device
+const deviceOrderLocks = new Map();
+
+async function withDeviceOrderLock(deviceId, fn) {
+  while (deviceOrderLocks.has(deviceId)) {
+    try { await deviceOrderLocks.get(deviceId); } catch (_) {}
+  }
+  let resolveLock;
+  const lockPromise = new Promise(resolve => { resolveLock = resolve; });
+  deviceOrderLocks.set(deviceId, lockPromise);
+  try {
+    return await fn();
+  } finally {
+    deviceOrderLocks.delete(deviceId);
+    resolveLock();
+  }
+}
+
 // Implement Order gRPC Service
 const orderServiceHandlers = {
   CreateOrder: async (call, callback) => {
     const { tableNumber, items, totalAmount } = call.request;
     try {
-      const claims = verifyGrpcToken(call);
+      const claims = await verifyGrpcToken(call);
       const { deviceId, hostApplicationId } = claims;
 
       const device = await Device.findOne({ deviceId }).populate('hostApplicationId');
@@ -1441,121 +1560,124 @@ const orderServiceHandlers = {
 
       const serverCalculatedTotal = validatedItems.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
 
-      // Check if there is already an active order session on this table device
-      let order = await Order.findOne({
-        deviceId,
-        tableStatus: 'active'
-      });
-
-      if (order) {
-        // Merge items into existing active order (matching itemId, isPacked, and customization)
-        validatedItems.forEach(newItem => {
-          const existingItem = order.items.find(i =>
-            i.itemId === newItem.itemId &&
-            Boolean(i.isPacked) === Boolean(newItem.isPacked) &&
-            (i.customization || '') === (newItem.customization || '')
-          );
-          if (existingItem) {
-            existingItem.quantity += newItem.quantity;
-          } else {
-            order.items.push({
-              itemId: newItem.itemId,
-              name: newItem.name,
-              quantity: newItem.quantity,
-              price: newItem.price,
-              isPacked: newItem.isPacked,
-              customization: newItem.customization
-            });
-          }
-        });
-
-        // Recalculate subtotal, taxes, and total across all combined items in order
-        const app = device.hostApplicationId || {};
-        const billConfig = order.billConfigSnapshot || app.billConfig || {};
-        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
-        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
-
-        const subtotalPaise = order.items.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 1)), 0);
-
-        const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
-        const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
-        const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
-        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
-
-        let finalAmountPaise = rawTotalPaise;
-        let roundOffPaise = 0;
-        if (enableAutoRoundOff) {
-          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-          roundOffPaise = finalAmountPaise - rawTotalPaise;
-        }
-
-        order.subtotalAmount = subtotalPaise;
-        order.cgstAmount = cgstPaise;
-        order.sgstAmount = sgstPaise;
-        order.serviceTaxAmount = serviceTaxPaise;
-        order.roundOffAmount = roundOffPaise;
-        order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
-        order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
-        order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
-        order.enableAutoRoundOff = enableAutoRoundOff;
-        order.totalAmount = finalAmountPaise;
-
-        // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
-        order.orderStatus = 'placed';
-
-        await order.save();
-      } else {
-        // Create a new order if no active session exists
-        const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
-
-        const app = device.hostApplicationId || {};
-        const billConfig = app.billConfig || {};
-        const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-        const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
-        const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
-
-        const subtotalPaise = serverCalculatedTotal;
-        const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-        const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-        const serviceTaxPaise = Math.round(subtotalPaise * (serviceTaxPct / 100));
-        const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
-
-        let finalAmountPaise = rawTotalPaise;
-        let roundOffPaise = 0;
-        if (enableAutoRoundOff) {
-          finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-          roundOffPaise = finalAmountPaise - rawTotalPaise;
-        }
-
-        order = new Order({
-          orderId,
-          merchantId,
-          hostApplicationId,
+      let order;
+      await withDeviceOrderLock(deviceId, async () => {
+        // Check if there is already an active order session on this table device
+        order = await Order.findOne({
           deviceId,
-          tableNumber,
-          items: validatedItems,
-          subtotalAmount: subtotalPaise,
-          cgstAmount: cgstPaise,
-          sgstAmount: sgstPaise,
-          serviceTaxAmount: serviceTaxPaise,
-          roundOffAmount: roundOffPaise,
-          cgstPercent: cgstPct,
-          sgstPercent: sgstPct,
-          serviceTaxPercent: serviceTaxPct,
-          isGstExempt: false,
-          isServiceTaxExempt: false,
-          enableAutoRoundOff,
-          billConfigSnapshot: billConfig,
-          totalAmount: finalAmountPaise,
-          paymentStatus: 'pending',
-          orderStatus: 'placed',
           tableStatus: 'active'
-        });
-        await order.save();
-      }
+        }).sort({ createdAt: -1 });
+
+        if (order) {
+          // Merge items into existing active order (matching itemId, isPacked, and customization)
+          validatedItems.forEach(newItem => {
+            const existingItem = order.items.find(i =>
+              i.itemId === newItem.itemId &&
+              Boolean(i.isPacked) === Boolean(newItem.isPacked) &&
+              (i.customization || '') === (newItem.customization || '')
+            );
+            if (existingItem) {
+              existingItem.quantity += newItem.quantity;
+            } else {
+              order.items.push({
+                itemId: newItem.itemId,
+                name: newItem.name,
+                quantity: newItem.quantity,
+                price: newItem.price,
+                isPacked: newItem.isPacked,
+                customization: newItem.customization
+              });
+            }
+          });
+
+          // Recalculate subtotal, taxes, and total across all combined items in order
+          const app = device.hostApplicationId || {};
+          const billConfig = order.billConfigSnapshot || app.billConfig || {};
+          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+          const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
+          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+          const subtotalPaise = order.items.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 1)), 0);
+
+          const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
+          const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
+          const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
+          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
+
+          let finalAmountPaise = rawTotalPaise;
+          let roundOffPaise = 0;
+          if (enableAutoRoundOff) {
+            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+            roundOffPaise = finalAmountPaise - rawTotalPaise;
+          }
+
+          order.subtotalAmount = subtotalPaise;
+          order.cgstAmount = cgstPaise;
+          order.sgstAmount = sgstPaise;
+          order.serviceTaxAmount = serviceTaxPaise;
+          order.roundOffAmount = roundOffPaise;
+          order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
+          order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
+          order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
+          order.enableAutoRoundOff = enableAutoRoundOff;
+          order.totalAmount = finalAmountPaise;
+
+          // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
+          order.orderStatus = 'placed';
+
+          await order.save();
+        } else {
+          // Create a new order if no active session exists
+          const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
+
+          const app = device.hostApplicationId || {};
+          const billConfig = app.billConfig || {};
+          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
+          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+          const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
+          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+
+          const subtotalPaise = serverCalculatedTotal;
+          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
+          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
+          const serviceTaxPaise = Math.round(subtotalPaise * (serviceTaxPct / 100));
+          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
+
+          let finalAmountPaise = rawTotalPaise;
+          let roundOffPaise = 0;
+          if (enableAutoRoundOff) {
+            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
+            roundOffPaise = finalAmountPaise - rawTotalPaise;
+          }
+
+          order = new Order({
+            orderId,
+            merchantId,
+            hostApplicationId,
+            deviceId,
+            tableNumber,
+            items: validatedItems,
+            subtotalAmount: subtotalPaise,
+            cgstAmount: cgstPaise,
+            sgstAmount: sgstPaise,
+            serviceTaxAmount: serviceTaxPaise,
+            roundOffAmount: roundOffPaise,
+            cgstPercent: cgstPct,
+            sgstPercent: sgstPct,
+            serviceTaxPercent: serviceTaxPct,
+            isGstExempt: false,
+            isServiceTaxExempt: false,
+            enableAutoRoundOff,
+            billConfigSnapshot: billConfig,
+            totalAmount: finalAmountPaise,
+            paymentStatus: 'pending',
+            orderStatus: 'placed',
+            tableStatus: 'active'
+          });
+          await order.save();
+        }
+      });
 
       // Notify kiosk tablet & merchant dashboard via WebSocket
       const { notifyDeviceSessionUpdate } = require('./controllers/hostController');
@@ -1582,7 +1704,7 @@ const orderServiceHandlers = {
   GetOrderStatus: async (call, callback) => {
     const { orderId } = call.request;
     try {
-      verifyGrpcToken(call);
+      await verifyGrpcToken(call);
 
       const order = await Order.findOne({ orderId });
       if (!order) {
@@ -1628,7 +1750,10 @@ function startGrpc() {
 //     so their deviceId is free for re-activation on another physical machine.
 function startHeartbeatMonitor() {
   console.log('[Heartbeat Monitor] Started background device check interval (15s)...');
-  setInterval(async () => {
+  let isHeartbeatRunning = false;
+  const heartbeatTimer = setInterval(async () => {
+    if (isHeartbeatRunning) return;
+    isHeartbeatRunning = true;
     try {
       const offlineThreshold = new Date(Date.now() - 35000); // 35s — mark offline
       const detachThreshold = new Date(Date.now() - 120000); // 2 min — auto-detach
@@ -1740,43 +1865,18 @@ function startHeartbeatMonitor() {
         logger.info(`[Heartbeat Monitor] Marked ${staleResult.modifiedCount} stale devices OFFLINE.`);
       }
 
-      // 2) Auto-detach devices that have been offline for the full grace period (2 min)
-      // Exclude devices that currently have an active, responsive WebSocket
-      const activeWsDeviceIds = [];
-      if (global.deviceSockets) {
-        for (const [devId, sock] of global.deviceSockets.entries()) {
-          if (sock && sock.readyState === 1 && getSocketMeta(sock).isAlive !== false) {
-            activeWsDeviceIds.push(devId);
-          }
-        }
-      }
-
-      const detachQuery = {
-        isActivated: true,
-        status: 'offline',
-        lastHeartbeat: { $lt: detachThreshold }
-      };
-      if (activeWsDeviceIds.length > 0) {
-        detachQuery.deviceId = { $nin: activeWsDeviceIds };
-      }
-
-      const detachResult = await Device.updateMany(
-        detachQuery,
-        {
-          $set: {
-            isActivated: false,
-            hardwareId: null,
-            kioskPasswordHash: null
-          }
-        }
-      );
-      if (detachResult.modifiedCount > 0) {
-        logger.info(`[Heartbeat Monitor] Auto-detached ${detachResult.modifiedCount} devices after extended offline period.`);
-      }
+      // 2) Ensure offline devices retain their activation credentials (hardwareId & kioskPasswordHash)
+      // Devices remain bound so retail tablets and screens auto-reconnect seamlessly when network/power restores.
+      // Credentials are only reset via explicit manual action in the admin portal.
     } catch (err) {
       logger.error(`[Heartbeat Monitor] Error running device check: ${err.message}`);
+    } finally {
+      isHeartbeatRunning = false;
     }
   }, 15000); // Check every 15 seconds
+  if (typeof heartbeatTimer.unref === 'function') {
+    heartbeatTimer.unref();
+  }
 }
 
 // Start background OTA revoked releases disk cleanup task (runs on boot & every 24 hours)
@@ -1784,9 +1884,12 @@ function startOtaDiskCleanupTask() {
   const releaseController = require('./controllers/releaseController');
   console.log('[OTA Disk Cleanup] Initializing background revoked releases cleanup task (24h)...');
   releaseController.cleanupOldRevokedReleases().catch(() => { });
-  setInterval(() => {
+  const otaTimer = setInterval(() => {
     releaseController.cleanupOldRevokedReleases().catch(() => { });
   }, 24 * 60 * 60 * 1000);
+  if (typeof otaTimer.unref === 'function') {
+    otaTimer.unref();
+  }
 }
 
 // Start both servers

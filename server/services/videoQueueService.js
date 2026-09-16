@@ -31,6 +31,7 @@ class VideoQueueService {
     this.maxFallbackQueueSize = 50;
     this.isFallbackProcessing = false;
     this.isRedisAvailable = false;
+    this.lastEvictedKeys = null;
 
     this.init();
   }
@@ -81,6 +82,68 @@ class VideoQueueService {
       console.warn('[VideoQueueService] BullMQ init notice:', err.message);
       this.isRedisAvailable = false;
     }
+
+    this.startRedisMemoryMonitor();
+  }
+
+  /**
+   * Monitor Redis memory utilization and evicted_keys counter to alert before/during fail-open evictions
+   */
+  async checkRedisMemory() {
+    if (!this.isRedisAvailable) return;
+    try {
+      const memoryRaw = await redisConnection.info('memory');
+      const statsRaw = await redisConnection.info('stats');
+
+      const parseInfo = (str) => {
+        const out = {};
+        if (!str) return out;
+        for (const line of str.split('\r\n')) {
+          if (!line || line.startsWith('#')) continue;
+          const idx = line.indexOf(':');
+          if (idx !== -1) {
+            out[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+          }
+        }
+        return out;
+      };
+
+      const mem = parseInfo(memoryRaw);
+      const stats = parseInfo(statsRaw);
+
+      const usedBytes = parseInt(mem.used_memory || '0', 10);
+      const maxBytes = parseInt(mem.maxmemory || '0', 10);
+      const evictedKeys = parseInt(stats.evicted_keys || '0', 10);
+
+      // Warning 1: Approaching maxmemory limit (warn at >= 85% capacity before evictions begin)
+      if (maxBytes > 0) {
+        const ratio = usedBytes / maxBytes;
+        if (ratio >= 0.85) {
+          const pct = Math.round(ratio * 100);
+          console.warn(`\x1b[33m[Redis Memory Alert]\x1b[0m Memory threshold warning: ${pct}% used (${mem.used_memory_human || usedBytes} / ${mem.maxmemory_human || maxBytes}). Approaching volatile-lru eviction limit.`);
+        }
+      }
+
+      // Warning 2: Active eviction notification (alert when volatile-lru is dropping keys)
+      if (this.lastEvictedKeys !== null && evictedKeys > this.lastEvictedKeys) {
+        const delta = evictedKeys - this.lastEvictedKeys;
+        console.warn(`\x1b[31m[Redis Eviction Alert]\x1b[0m Eviction detected! Total evicted keys: ${evictedKeys} (+${delta} in window). Shared volatile-lru is actively evicting keys with TTL.`);
+      }
+      this.lastEvictedKeys = evictedKeys;
+    } catch (_) {
+      // Non-intrusive: never throw or disrupt queue execution
+    }
+  }
+
+  startRedisMemoryMonitor() {
+    // Check 5s after startup
+    setTimeout(() => this.checkRedisMemory(), 5000);
+
+    // Periodic check every 2 minutes (unref'd so it never keeps process alive)
+    const monitorTimer = setInterval(() => this.checkRedisMemory(), 2 * 60 * 1000);
+    if (typeof monitorTimer.unref === 'function') {
+      monitorTimer.unref();
+    }
   }
 
   /**
@@ -90,8 +153,9 @@ class VideoQueueService {
   async canAcceptJob() {
     if (this.queue && this.isRedisAvailable) {
       try {
-        const waitingCount = await this.queue.getWaitingCount();
-        if (waitingCount >= 100) return false;
+        const counts = await this.queue.getJobCounts('waiting', 'active', 'delayed');
+        const totalBacklog = (counts.waiting || 0) + (counts.active || 0) + (counts.delayed || 0);
+        if (totalBacklog >= 100) return false;
         return true;
       } catch (_) {}
     }
@@ -109,6 +173,24 @@ class VideoQueueService {
    * Add a transcode job to the processing queue
    */
   async addTranscodeJob(jobData) {
+    // 1. Gate TOCTOU protection: verify queue capacity immediately before enqueueing
+    const canAccept = await this.canAcceptJob();
+    if (!canAccept) {
+      console.error(`\x1b[31m[VideoQueue Error]\x1b[0m Queue backlog reached capacity limit. Rejecting transcode.`);
+      const capacityError = new Error('Video transcoding queue is currently at maximum capacity. Please retry shortly.');
+      capacityError.statusCode = 429;
+      capacityError.isCapacityError = true;
+      throw capacityError;
+    }
+
+    // 2. Refresh mtime on scratch temp file to reset TTL sweeper timer
+    if (jobData.tempPath) {
+      try {
+        const now = new Date();
+        await fs.promises.utimes(jobData.tempPath, now, now);
+      } catch (_) {}
+    }
+
     const jobPayload = {
       ...jobData,
       enqueuedAt: Date.now()
@@ -221,139 +303,210 @@ class VideoQueueService {
       }
     }
 
-    // 2. Run single-thread FFmpeg H.264 Baseline 3.1 transcode into an isolated temp file first
-    if (isTempValid) {
-      const transcodeTempPath = `${filePath}_tmp_${Date.now()}.mp4`;
-      try {
-        await new Promise((resolve, reject) => {
-          let ffmpegCommand = ffmpeg(tempPath).videoCodec('libx264').format('mp4');
-
-          if (resolution) {
-            ffmpegCommand = ffmpegCommand.size(resolution).fps(30);
-          }
-
-          ffmpegCommand
-            .noAudio()                 // Strip audio stream for silent kiosk video playback
-            .renice(19)                // Maximum low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
-            .videoFilters([
-              'scale=w=\'if(gt(iw,ih),min(1280,iw),min(720,iw))\':h=\'if(gt(iw,ih),min(720,ih),min(1280,ih))\':force_original_aspect_ratio=decrease',
-              'scale=trunc(iw/16)*16:trunc(ih/16)*16'
-            ]) // Normalizes landscape screens to max 1280x720 (720p) and tablets to 720x1280 with 16px macroblock alignment
-            .outputOptions([
-              '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
-              '-profile:v baseline',   // Android Baseline 3.1 compatibility (max 720p)
-              '-level 3.1',
-              '-pix_fmt yuv420p',
-              '-crf 26',               // Optimal compression quality and minimal file size
-              '-movflags +faststart',
-              '-an'
-            ])
-            .on('start', (cmdLine) => {
-              if (process.platform === 'linux' && ffmpegCommand.ffmpegProc?.pid) {
-                const { exec } = require('child_process');
-                const pid = ffmpegCommand.ffmpegProc.pid;
-                exec(`cpulimit -l 40 -p ${pid} -b`, (err) => {
-                  if (err) console.warn(`\x1b[33m[cpulimit Warning]\x1b[0m Failed to attach cpulimit: ${err.message}`);
-                  else console.log(`\x1b[35m[cpulimit]\x1b[0m Hard CPU cap of 40% attached to FFmpeg PID ${pid}`);
-                });
-                exec(`ionice -c 3 -p ${pid}`, () => {}); // Idle I/O class: prevents disk contention
-              }
-            })
-            .on('end', () => resolve(true))
-            .on('error', (err) => reject(err))
-            .save(transcodeTempPath);
+    if (!isTempValid) {
+      console.error(`\x1b[31m[FFmpeg Worker Error]\x1b[0m Input scratch file is missing or empty (0 bytes): "${tempPath}" for ${modelType} (${recordIdStr}). Marking transcode as failed.`);
+      if (modelType === 'VenuePromo') {
+        await VenuePromo.findByIdAndUpdate(rawRecordId, {
+          transcodeStatus: 'failed'
         });
+      } else if (modelType === 'PlatformAd') {
+        await PlatformAd.updateMany(
+          isMongoId ? { _id: rawRecordId } : { adId: recordIdStr },
+          { transcodeStatus: 'failed' }
+        );
+      } else if (modelType === 'AdBooking') {
+        await AdBooking.findOneAndUpdate(
+          isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
+          { transcodeStatus: 'failed' }
+        );
+      }
+      if (mediaLogId) {
+        await MediaLog.findByIdAndUpdate(mediaLogId, {
+          status: 'failed',
+          errorMessage: 'Input scratch file was missing or empty before transcode execution.'
+        });
+      }
+      if (tempPath) {
+        try { await fs.promises.unlink(tempPath); } catch (_) {}
+      }
+      return; // CRITICAL: Stop here. NEVER mark completed or broadcast reload on missing input!
+    }
 
-        let transcodeStat = null;
-        try {
-          transcodeStat = await fs.promises.stat(transcodeTempPath);
-        } catch (e) {}
+    // 2. Run single-thread FFmpeg H.264 Baseline 3.1 transcode into an isolated temp file first
+    const transcodeTempPath = `${filePath}_tmp_${Date.now()}.mp4`;
+    try {
+      await new Promise((resolve, reject) => {
+        let ffmpegCommand = ffmpeg(tempPath).videoCodec('libx264').format('mp4');
 
-        if (transcodeStat && transcodeStat.size > 0) {
-          try {
-            // Atomic file replacement to prevent truncating live HTTP playback stream
-            await fs.promises.rename(transcodeTempPath, filePath);
-          } catch (renameErr) {
-            await fs.promises.copyFile(transcodeTempPath, filePath);
-            try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
-          }
-          transcodeSuccess = true;
+        if (resolution) {
+          ffmpegCommand = ffmpegCommand.size(resolution).fps(30);
         }
-      } catch (ffErr) {
-        console.warn(`\x1b[33m[FFmpeg Warning]\x1b[0m Transcode warning (${ffErr.message}). Using raw file fallback.`);
-        try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
-      }
 
-      // Fallback to direct raw file copy if FFmpeg fails or is missing
-      if (!transcodeSuccess) {
+        ffmpegCommand
+          .noAudio()                 // Strip audio stream for silent kiosk video playback
+          .renice(19)                // Maximum low-priority OS scheduling: yields CPU immediately to Node.js & WebSockets
+          .videoFilters([
+            'scale=w=\'if(gt(iw,ih),min(1280,iw),min(720,iw))\':h=\'if(gt(iw,ih),min(720,ih),min(1280,ih))\':force_original_aspect_ratio=decrease',
+            'scale=trunc(iw/16)*16:trunc(ih/16)*16'
+          ]) // Normalizes landscape screens to max 1280x720 (720p) and tablets to 720x1280 with 16px macroblock alignment
+          .outputOptions([
+            '-threads 1',            // STRICT 1-THREAD LIMIT to keep CPU usage low
+            '-profile:v baseline',   // Android Baseline 3.1 compatibility (max 720p)
+            '-level 3.1',
+            '-pix_fmt yuv420p',
+            '-crf 26',               // Optimal compression quality and minimal file size
+            '-movflags +faststart',
+            '-an'
+          ])
+          .on('start', (cmdLine) => {
+            if (process.platform === 'linux' && ffmpegCommand.ffmpegProc?.pid) {
+              const { exec } = require('child_process');
+              const pid = ffmpegCommand.ffmpegProc.pid;
+              exec(`cpulimit -l 40 -p ${pid} -b`, (err) => {
+                if (err) console.warn(`\x1b[33m[cpulimit Warning]\x1b[0m Failed to attach cpulimit: ${err.message}`);
+                else console.log(`\x1b[35m[cpulimit]\x1b[0m Hard CPU cap of 40% attached to FFmpeg PID ${pid}`);
+              });
+              exec(`ionice -c 3 -p ${pid}`, () => {}); // Idle I/O class: prevents disk contention
+            }
+          })
+          .on('end', () => resolve(true))
+          .on('error', (err) => reject(err))
+          .save(transcodeTempPath);
+      });
+
+      let transcodeStat = null;
+      try {
+        transcodeStat = await fs.promises.stat(transcodeTempPath);
+      } catch (e) {}
+
+      if (transcodeStat && transcodeStat.size > 0) {
         try {
-          const fallbackPath = filePath || path.join(job.targetDir || '', `raw_${uniqueFilename}`);
-          await fs.promises.copyFile(tempPath, fallbackPath);
-          transcodeSuccess = true;
-        } catch (copyErr) {}
+          // Atomic file replacement to prevent truncating live HTTP playback stream
+          await fs.promises.rename(transcodeTempPath, filePath);
+        } catch (renameErr) {
+          await fs.promises.copyFile(transcodeTempPath, filePath);
+          try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
+        }
+        transcodeSuccess = true;
       }
+    } catch (ffErr) {
+      console.warn(`\x1b[33m[FFmpeg Warning]\x1b[0m Transcode warning (${ffErr.message}). Using raw file fallback.`);
+      try { await fs.promises.unlink(transcodeTempPath); } catch (e) {}
+    }
+
+    // Fallback to direct raw file copy if FFmpeg fails or is missing
+    if (!transcodeSuccess) {
+      try {
+        const fallbackPath = filePath || path.join(job.targetDir || '', `raw_${uniqueFilename}`);
+        await fs.promises.copyFile(tempPath, fallbackPath);
+        transcodeSuccess = true;
+      } catch (copyErr) {}
+    }
+
+    if (!transcodeSuccess) {
+      console.error(`\x1b[31m[FFmpeg Worker Error]\x1b[0m Both FFmpeg transcode and raw copy failed for ${modelType} (${recordIdStr}).`);
+      if (modelType === 'VenuePromo') {
+        await VenuePromo.findByIdAndUpdate(rawRecordId, { transcodeStatus: 'failed' });
+      } else if (modelType === 'PlatformAd') {
+        await PlatformAd.updateMany(
+          isMongoId ? { _id: rawRecordId } : { adId: recordIdStr },
+          { transcodeStatus: 'failed' }
+        );
+      } else if (modelType === 'AdBooking') {
+        await AdBooking.findOneAndUpdate(
+          isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
+          { transcodeStatus: 'failed' }
+        );
+      }
+      if (mediaLogId) {
+        await MediaLog.findByIdAndUpdate(mediaLogId, {
+          status: 'failed',
+          errorMessage: 'Both FFmpeg transcode and raw copy fallback failed.'
+        });
+      }
+      if (tempPath) {
+        try { await fs.promises.unlink(tempPath); } catch (_) {}
+      }
+      return;
     }
 
     // 3. Update database status and URLs upon completion
-    const relativeUrl = `/uploads/${targetSubdir.startsWith('ads/') || targetSubdir.startsWith('platform-ads/') ? targetSubdir : `ads/videos/${targetSubdir}`}/${uniqueFilename}`.replace(/\/+/g, '/');
+    const isFullSubdir = targetSubdir.startsWith('ads/') || 
+                         targetSubdir.startsWith('platform-ads/') || 
+                         targetSubdir.startsWith('host_promos/') || 
+                         targetSubdir.startsWith('outlets/');
+    const resolvedSubdir = isFullSubdir ? targetSubdir : `ads/videos/${targetSubdir}`;
+    const relativeUrl = `/uploads/${resolvedSubdir}/${uniqueFilename}`.replace(/\/+/g, '/');
 
-    if (modelType === 'VenuePromo') {
-      const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
-      await VenuePromo.findByIdAndUpdate(rawRecordId, {
-        mediaUrl: finalUrl,
-        transcodedMediaUrl: finalUrl,
-        transcodeStatus: 'completed'
-      });
-    } else if (modelType === 'PlatformAd') {
-      const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
-      const regexEscaped = uniqueFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      await PlatformAd.updateMany(
-        isMongoId 
-          ? { _id: rawRecordId } 
-          : { $or: [{ adId: recordIdStr }, { mediaUrl: { $regex: new RegExp(regexEscaped) } }, { mediaUrls: { $regex: new RegExp(regexEscaped) } }] },
-        {
+    try {
+      if (modelType === 'VenuePromo') {
+        const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
+        await VenuePromo.findByIdAndUpdate(rawRecordId, {
           mediaUrl: finalUrl,
+          transcodedMediaUrl: finalUrl,
           transcodeStatus: 'completed'
-        }
-      );
-    } else if (modelType === 'AdBooking') {
-      await AdBooking.findOneAndUpdate(
-        isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
-        {
-          mediaUrl: relativeUrl,
-          transcodedMediaUrl: relativeUrl,
-          transcodeStatus: 'completed'
-        }
-      );
-    }
+        });
+      } else if (modelType === 'PlatformAd') {
+        const finalUrl = job.relativeSubdir ? `/uploads/${job.relativeSubdir}/${uniqueFilename}`.replace(/\/+/g, '/') : relativeUrl;
+        const regexEscaped = uniqueFilename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        await PlatformAd.updateMany(
+          isMongoId 
+            ? { _id: rawRecordId } 
+            : { $or: [{ adId: recordIdStr }, { mediaUrl: { $regex: new RegExp(regexEscaped) } }, { mediaUrls: { $regex: new RegExp(regexEscaped) } }] },
+          {
+            mediaUrl: finalUrl,
+            transcodeStatus: 'completed'
+          }
+        );
+      } else if (modelType === 'AdBooking') {
+        await AdBooking.findOneAndUpdate(
+          isMongoId ? { _id: rawRecordId } : { bookingId: recordIdStr },
+          {
+            mediaUrl: relativeUrl,
+            transcodedMediaUrl: relativeUrl,
+            transcodeStatus: 'completed'
+          }
+        );
+      }
 
-    if (mediaLogId) {
-      await MediaLog.findByIdAndUpdate(mediaLogId, {
-        status: 'completed',
-        finalizedFilename: uniqueFilename,
-        outputPath: filePath
-      });
+      if (mediaLogId) {
+        await MediaLog.findByIdAndUpdate(mediaLogId, {
+          status: 'completed',
+          finalizedFilename: uniqueFilename,
+          outputPath: filePath
+        });
+      }
+    } catch (dbErr) {
+      console.error(`\x1b[31m[FFmpeg Worker DB Error]\x1b[0m Failed to update completion status for ${modelType} (${recordIdStr}):`, dbErr.message);
     }
 
     console.log(`\x1b[32m[FFmpeg Worker]\x1b[0m Transcode completed successfully for ${modelType} (${recordIdStr}) -> ${relativeUrl}`);
 
     // Broadcast reload signals to both WebSocket kiosks and gRPC screen displays
-    if (typeof global.notifyDevicesReloadAds === 'function') {
-      global.notifyDevicesReloadAds(job.hostApplicationId);
-    } else {
-      if (global.deviceSockets) {
-        if (modelType === 'PlatformAd') {
-          const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
-          for (const [deviceId, socket] of global.deviceSockets.entries()) {
-            try { socket.send(payload); } catch (e) {}
-          }
+    try {
+      if (typeof global.notifyDevicesReloadAds === 'function') {
+        if (modelType === 'PlatformAd' || modelType === 'AdBooking') {
+          global.notifyDevicesReloadAds(null);
         } else if (job.hostApplicationId) {
-          const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
-          for (const [deviceId, socket] of global.deviceSockets.entries()) {
-            try { socket.send(payload); } catch (e) {}
+          global.notifyDevicesReloadAds(job.hostApplicationId);
+        }
+      } else {
+        if (global.deviceSockets) {
+          if (modelType === 'PlatformAd' || modelType === 'AdBooking') {
+            const payload = JSON.stringify({ event: 'reload_ads', reason: 'platform_ad_updated' });
+            for (const [deviceId, socket] of global.deviceSockets.entries()) {
+              try { socket.send(payload); } catch (e) {}
+            }
+          } else if (job.hostApplicationId) {
+            const payload = JSON.stringify({ event: 'reload_promos', hostApplicationId: job.hostApplicationId.toString() });
+            for (const [deviceId, socket] of global.deviceSockets.entries()) {
+              try { socket.send(payload); } catch (e) {}
+            }
           }
         }
       }
+    } catch (notifyErr) {
+      console.error('[VideoQueue Notify Error]:', notifyErr.message);
     }
 
     // Safely delete temp staging file

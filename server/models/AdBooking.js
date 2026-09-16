@@ -135,6 +135,7 @@ AdBookingSchema.pre('save', function (next) {
 });
 
 // High-performance compound indexes for device playlist fetches, advertiser portal dashboards, and admin management
+AdBookingSchema.index({ outletId: 1, deviceType: 1, approvalStatus: 1, paymentStatus: 1 });
 AdBookingSchema.index({ outletId: 1, approvalStatus: 1, paymentStatus: 1 });
 AdBookingSchema.index({ advertiserId: 1, createdAt: -1 });
 AdBookingSchema.index({ approvalStatus: 1, paymentStatus: 1, createdAt: -1 });

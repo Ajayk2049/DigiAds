@@ -32,8 +32,17 @@ function generateCustomId(prefix) {
 async function generateUniqueCustomId(Model, fieldName, prefix) {
   let customId;
   let exists = true;
-  while (exists) {
-    customId = generateCustomId(prefix);
+  let attempts = 0;
+  while (exists && attempts < 15) {
+    attempts++;
+    if (attempts > 5) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let extra = '';
+      for (let i = 0; i < 8; i++) extra += chars.charAt(Math.floor(Math.random() * chars.length));
+      customId = `${prefix}${extra}`;
+    } else {
+      customId = generateCustomId(prefix);
+    }
     const count = await Model.countDocuments({ [fieldName]: customId });
     if (count === 0) exists = false;
   }

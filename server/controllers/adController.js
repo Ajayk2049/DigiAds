@@ -22,7 +22,7 @@ const resolveMediaUrl = (mediaUrl, host) => {
   return resolvedList.join(', ');
 };
 
-const deleteMediaFile = (mediaUrl) => {
+const deleteMediaFile = async (mediaUrl) => {
   if (!mediaUrl) return;
   const fs = require('fs');
   const path = require('path');
@@ -38,14 +38,8 @@ const deleteMediaFile = (mediaUrl) => {
       return;
     }
 
-    if (fs.existsSync(localFilePath)) {
-      try {
-        fs.unlinkSync(localFilePath);
-        console.log(`[Media Cleanup] Successfully deleted failed payment media: ${localFilePath}`);
-      } catch (err) {
-        console.error('[Media Cleanup] Failed to delete media file:', err.message);
-      }
-    }
+    await fs.promises.unlink(localFilePath).catch(() => {});
+    console.log(`[Media Cleanup] Successfully deleted failed payment media: ${localFilePath}`);
   }
 };
 
@@ -71,13 +65,17 @@ const stopTransactionPolling = (bookingId) => {
 const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => {
   if (!bookingId || !transactionId) return;
 
-  // Deduplication: if already actively polling this booking, avoid spawning duplicate chains
+  // Deduplication & Capacity guard: if already polling or max capacity (50) reached, avoid spawning
   if (activePollTimers.has(bookingId) && initialAttempt === 0) {
     console.log(`[Auto-Polling] Polling chain already active for booking ${bookingId}. Skipping duplicate spawn.`);
     return;
   }
+  if (activePollTimers.size >= 50 && !activePollTimers.has(bookingId)) {
+    console.warn(`[Auto-Polling] Maximum active polling capacity reached (50). Booking ${bookingId} will be settled via webhook or reconciler.`);
+    return;
+  }
 
-  const maxAttempts = 32; // 32 attempts * 15 seconds = 480 seconds (8 minutes) total
+  const maxAttempts = 32; // 32 attempts (~8 minutes) total
   const pollIntervalMs = 15000;
   let attempts = initialAttempt;
 
@@ -169,8 +167,10 @@ const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => 
       }
     }
 
-    // Schedule next attempt strictly after previous asynchronous check completely settles
-    const nextTimer = setTimeout(runPollStep, pollIntervalMs);
+    // Schedule next attempt with jitter (15s ± 3s)
+    const jitter = Math.floor(Math.random() * 6000) - 3000;
+    const nextInterval = Math.max(10000, pollIntervalMs + jitter);
+    const nextTimer = setTimeout(runPollStep, nextInterval);
     if (typeof nextTimer.unref === 'function') {
       nextTimer.unref();
     }
@@ -185,19 +185,19 @@ const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => 
 };
 
 /**
- * Startup Reconciler: Resumes polling for pending transactions created within the last 15 minutes
+ * Transaction Reconciler: Resumes polling for pending transactions created within the last 2 hours
  */
 const reconcilePendingTransactions = async () => {
   try {
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const pendingBookings = await AdBooking.find({
       paymentStatus: 'pending',
       transactionId: { $exists: true, $ne: null },
-      createdAt: { $gte: fifteenMinutesAgo }
-    }).select('bookingId transactionId').limit(20);
+      createdAt: { $gte: twoHoursAgo }
+    }).select('bookingId transactionId').limit(50);
 
     if (pendingBookings.length > 0) {
-      console.log(`[Reconciler] Found ${pendingBookings.length} pending bookings to reconcile on boot.`);
+      console.log(`[Reconciler] Reconciling ${pendingBookings.length} pending booking(s)...`);
       for (const b of pendingBookings) {
         if (!activePollTimers.has(b.bookingId)) {
           pollTransactionStatus(b.bookingId, b.transactionId);
@@ -208,6 +208,17 @@ const reconcilePendingTransactions = async () => {
     console.warn('[Reconciler] Error reconciling pending transactions:', err.message);
   }
 };
+
+// Initial startup reconcile
+reconcilePendingTransactions().catch(() => {});
+
+// Recurring sweep every 5 minutes (unref'd so it never keeps process alive)
+const reconcileCronTimer = setInterval(() => {
+  reconcilePendingTransactions().catch(() => {});
+}, 5 * 60 * 1000);
+if (typeof reconcileCronTimer.unref === 'function') {
+  reconcileCronTimer.unref();
+}
 
 const { generateUniqueCustomId } = require('../utils/idGenerator');
 
@@ -408,16 +419,7 @@ class AdController {
         ? `${redirectUrl}&verifyBookingId=${bookingId}`
         : `${redirectUrl}?verifyBookingId=${bookingId}`;
 
-      // 1. Call PhonePe Checkout page first
-      const initiateResult = await phonePeService.initiatePayment({
-        transactionId,
-        userId: req.user.uid,
-        amount: totalAmount,
-        redirectUrl: finalRedirectUrl,
-        phone: req.user.phone
-      });
-
-      // 2. Save PhonePe transaction record
+      // 1. Save PhonePe transaction record
       const phonePeTxn = new PhonePeTransaction({
         transactionId,
         orderId,
@@ -428,7 +430,7 @@ class AdController {
       });
       await phonePeTxn.save();
 
-      // 3. Create Ad Booking record
+      // 2. Create Ad Booking record
       const booking = new AdBooking({
         bookingId,
         advertiserId: req.user.uid,
@@ -450,6 +452,22 @@ class AdController {
         orderId
       });
       await booking.save();
+
+      // 3. Call PhonePe Checkout page (rolls back records on gateway error)
+      let initiateResult;
+      try {
+        initiateResult = await phonePeService.initiatePayment({
+          transactionId,
+          userId: req.user.uid,
+          amount: totalAmount,
+          redirectUrl: finalRedirectUrl,
+          phone: req.user.phone
+        });
+      } catch (gatewayErr) {
+        await PhonePeTransaction.deleteOne({ transactionId });
+        await AdBooking.deleteOne({ bookingId });
+        throw gatewayErr;
+      }
 
       // Start background status polling
       pollTransactionStatus(bookingId, transactionId);
@@ -756,7 +774,6 @@ class AdController {
     const filePath = path.join(uploadsDir, uniqueFilename);
     const tempPath = path.join(stagingDir, `staging_${uuidv4().replace(/-/g, '').slice(0, 12)}${ext}`);
 
-    // Early pre-flight capacity check before streaming 50MB to disk
     const canAccept = await videoQueueService.canAcceptJob();
     if (!canAccept) {
       if (mediaLog) {
@@ -764,6 +781,7 @@ class AdController {
         mediaLog.errorMessage = 'Transcoding queue at maximum capacity';
         await mediaLog.save();
       }
+      res.header('Retry-After', '300');
       return res.status(429).send({
         success: false,
         message: 'Video transcoding queue is currently at maximum capacity. Please retry in a few minutes.'
@@ -849,6 +867,7 @@ class AdController {
         await mediaLog.save();
       }
       if (error.isCapacityError) {
+        res.header('Retry-After', '300');
         return res.status(429).send({
           success: false,
           message: error.message
@@ -985,8 +1004,11 @@ class AdController {
           if (!isFirstInBatch && targetBookingObj.mediaUrl) {
             existingUrls = targetBookingObj.mediaUrl.split(',').map(s => s.trim()).filter(Boolean);
           }
+          if (existingUrls.length >= 2) {
+            existingUrls = existingUrls.slice(0, 1); // Strictly enforce max 2 images per campaign
+          }
           existingUrls.push(fileUrl);
-          targetBookingObj.mediaUrl = existingUrls.join(', ');
+          targetBookingObj.mediaUrl = existingUrls.slice(0, 2).join(', ');
           const incomingCategory = req.query.adCategory || req.headers['x-ad-category'];
           if (incomingCategory) {
             targetBookingObj.adCategory = decodeURIComponent(incomingCategory).trim();
@@ -1040,6 +1062,14 @@ class AdController {
         return res.status(404).send({ success: false, message: 'Booking not found' });
       }
 
+      // Verify ownership: only the booking owner or an administrator can trigger verification
+      if (req.user && req.user.role !== 'admin') {
+        const bookingOwnerId = booking.userId || booking.advertiserId;
+        if (bookingOwnerId && String(bookingOwnerId) !== String(req.user.uid)) {
+          return res.status(403).send({ success: false, message: 'Unauthorized: You do not have permission to verify this booking payment' });
+        }
+      }
+
       if (booking.paymentStatus === 'completed') {
         return res.status(200).send({ 
           success: true, 
@@ -1056,22 +1086,9 @@ class AdController {
         mappedStatus = checkResult.status; // COMPLETED, FAILED, PENDING
         
         console.log(`[PhonePe Status Check for ${booking.bookingId}]:`, checkResult);
-
-        // Fallback for local testing or demo mode:
-        // Only auto-complete if PhonePe hasn't indexed the transaction yet (sandbox delay).
-        // Do NOT auto-complete explicitly FAILED transactions.
-        if (config.demoMode && checkResult.code === 'TRANSACTION_NOT_FOUND') {
-          mappedStatus = 'COMPLETED';
-          checkResult.code = 'PAYMENT_SUCCESS';
-        }
       } catch (err) {
-        console.error('PhonePe Check Error, falling back to manual complete in demo mode:', err.message);
-        if (config.demoMode) {
-          mappedStatus = 'COMPLETED';
-          checkResult.code = 'PAYMENT_SUCCESS';
-        } else {
-          return res.status(500).send({ success: false, message: 'Failed to verify payment with gateway: ' + err.message });
-        }
+        console.error('PhonePe Check Error:', err.message);
+        return res.status(500).send({ success: false, message: 'Failed to verify payment with gateway: ' + err.message });
       }
 
       if (mappedStatus === 'COMPLETED') {
@@ -1295,8 +1312,7 @@ class AdController {
             _id: null,
             totalPlays: { $sum: 1 },
             totalDurationSeconds: { $sum: { $ifNull: ["$durationSeconds", defaultDuration] } },
-            totalClicks: { $sum: { $ifNull: ["$interactiveClicks", 0] } },
-            uniqueDevices: { $addToSet: "$deviceId" }
+            totalClicks: { $sum: { $ifNull: ["$interactiveClicks", 0] } }
           }
         }
       ]);
@@ -1304,15 +1320,17 @@ class AdController {
       const agg = aggregateStats.length > 0 ? aggregateStats[0] : {
         totalPlays: 0,
         totalDurationSeconds: 0,
-        totalClicks: 0,
-        uniqueDevices: []
+        totalClicks: 0
       };
+
+      // Distinct count via indexed distinct query to avoid 16MB BSON group document limit crash
+      const distinctDevices = await AdImpression.distinct('deviceId', { bookingId, deviceId: { $ne: null } });
+      const uniqueDevicesCount = distinctDevices.length;
 
       // Cumulative total plays, duration, and clicks stored directly on AdBooking schema (preserves full history across log trimming/TTL)
       const totalPlays = Math.max(booking.totalPlays || 0, agg.totalPlays);
       const totalDurationSeconds = Math.max(booking.totalDurationSeconds || 0, agg.totalDurationSeconds);
       const totalClicks = Math.max(booking.totalClicks || 0, agg.totalClicks);
-      const uniqueDevicesCount = (agg.uniqueDevices || []).filter(Boolean).length;
 
       // Fetch ONLY the 10 most recent impressions for display
       const impressions = await AdImpression.find({ bookingId })

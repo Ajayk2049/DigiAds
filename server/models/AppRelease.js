@@ -53,6 +53,6 @@ const AppReleaseSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-AppReleaseSchema.index({ appType: 1, statusCode: 1, versionCode: -1 });
+AppReleaseSchema.index({ appType: 1, status: 1, versionCode: -1 });
 
 module.exports = mongoose.model('AppRelease', AppReleaseSchema);

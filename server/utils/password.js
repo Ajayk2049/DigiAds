@@ -50,9 +50,9 @@ async function comparePassword(password, storedHash) {
     }
   }
 
-  // Fallback check
+  // Fallback check: if plaintext match, force immediate rehash to modern bcrypt
   const isValid = (password === storedHash);
-  return { isValid, needsRehash: false };
+  return { isValid, needsRehash: isValid };
 }
 
 module.exports = {

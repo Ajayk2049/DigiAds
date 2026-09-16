@@ -83,7 +83,8 @@ class DeviceAuthController {
           deviceType: device.deviceType, 
           hostApplicationId: device.hostApplicationId 
         },
-        config.jwtSecret
+        config.jwtSecret,
+        { expiresIn: '30d' }
       );
 
       return res.status(200).send({

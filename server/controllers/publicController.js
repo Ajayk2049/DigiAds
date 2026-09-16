@@ -33,7 +33,8 @@ class PublicController {
       }
 
       if (search && search.trim()) {
-        const searchRegex = new RegExp(search.trim(), 'i');
+        const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(safeSearch, 'i');
         query.$or = [
           { outletName: searchRegex },
           { city: searchRegex },
@@ -46,6 +47,7 @@ class PublicController {
       const venues = await HostApplication.find(query)
         .select('_id venueId outletName outletDescription category street city state zipCode requestTablet tabletQuantity requestScreen screenQuantity latitude longitude createdAt')
         .sort({ createdAt: -1 })
+        .limit(100)
         .lean();
 
       // Format and resolve geo-coordinates for each venue
