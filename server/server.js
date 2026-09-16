@@ -317,7 +317,8 @@ async function startFastify() {
       return req.url.startsWith('/ws') || req.url.startsWith('/uploads');
     },
     errorResponseBuilder: (request, context) => ({
-      success: false,
+      statusCode: 429,
+      error: 'Too Many Requests',
       message: 'Too many requests, please try again later.'
     })
   };
