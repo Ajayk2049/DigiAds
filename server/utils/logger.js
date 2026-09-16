@@ -9,6 +9,47 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
+// 20MB Log Rotation to prevent disk exhaustion (ENOSPC on VPS)
+const MAX_LOG_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_LOG_BACKUPS = 3;
+
+function rotateLogFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return;
+    const stat = fs.statSync(filePath);
+    if (stat.size < MAX_LOG_SIZE_BYTES) return;
+
+    // Shift older log backups: .2 -> .3, .1 -> .2, file -> .1
+    for (let i = MAX_LOG_BACKUPS - 1; i >= 1; i--) {
+      const oldFile = `${filePath}.${i}`;
+      const newFile = `${filePath}.${i + 1}`;
+      if (fs.existsSync(oldFile)) {
+        if (i === MAX_LOG_BACKUPS - 1 && fs.existsSync(newFile)) {
+          try { fs.unlinkSync(newFile); } catch (_) {}
+        }
+        try { fs.renameSync(oldFile, newFile); } catch (_) {}
+      }
+    }
+    const backupOne = `${filePath}.1`;
+    try { fs.renameSync(filePath, backupOne); } catch (_) {}
+  } catch (err) {
+    console.warn('[Logger] Log rotation warning:', err.message);
+  }
+}
+
+// Rotate on boot if existing log files exceed 20MB
+rotateLogFile(path.join(logsDir, 'combined.log'));
+rotateLogFile(path.join(logsDir, 'error.log'));
+
+// Periodic background check every 6 hours (unref'd so it never keeps process alive)
+const logRotateTimer = setInterval(() => {
+  rotateLogFile(path.join(logsDir, 'combined.log'));
+  rotateLogFile(path.join(logsDir, 'error.log'));
+}, 6 * 60 * 60 * 1000);
+if (typeof logRotateTimer.unref === 'function') {
+  logRotateTimer.unref();
+}
+
 const isProduction = process.env.NODE_ENV === 'production';
 const logLevel = config.logLevel || (isProduction ? 'warn' : 'debug');
 

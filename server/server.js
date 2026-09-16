@@ -769,9 +769,22 @@ async function startFastify() {
   // REST API Routes
   await fastify.register(apiRoutes, { prefix: '/api/v1' });
 
-  // DB Connection & Seeding Admin
-  await mongoose.connect(config.mongoUri);
+  // DB Connection & Seeding Admin with tuned connection pool bounds (optimizes 1 vCPU RAM & Atlas limits)
+  await mongoose.connect(config.mongoUri, {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    maxIdleTimeMS: 30000,
+    serverSelectionTimeoutMS: 5000
+  });
   console.log('[Database] Connected to MongoDB');
+
+  // Startup Reconciliation: Resume polling for pending bookings created within the last 15 minutes
+  try {
+    const adController = require('./controllers/adController');
+    adController.reconcilePendingTransactions();
+  } catch (reconcileErr) {
+    console.warn('[Startup] Transaction reconciler warning:', reconcileErr.message);
+  }
 
   // Database migration for dual-device HostApplication schema
   try {

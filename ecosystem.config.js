@@ -12,6 +12,8 @@ module.exports = {
       wait_ready: true,
       listen_timeout: 8000,
       kill_timeout: 5000,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
       env: {
         NODE_ENV: 'production'
       }
@@ -23,6 +25,8 @@ module.exports = {
       args: 'start -p 4100',
       max_memory_restart: '250M',
       kill_timeout: 5000,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
       env: {
         NODE_ENV: 'production'
       }
@@ -34,6 +38,8 @@ module.exports = {
       args: 'start -p 4200',
       max_memory_restart: '400M',
       kill_timeout: 5000,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
       env: {
         NODE_ENV: 'production'
       }
@@ -45,6 +51,8 @@ module.exports = {
       args: 'start -p 4300',
       max_memory_restart: '350M',
       kill_timeout: 5000,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
       env: {
         NODE_ENV: 'production'
       }

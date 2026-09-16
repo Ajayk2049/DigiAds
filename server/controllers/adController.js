@@ -49,17 +49,47 @@ const deleteMediaFile = (mediaUrl) => {
   }
 };
 
-const pollTransactionStatus = (bookingId, transactionId) => {
-  let attempts = 0;
+// Active polling timers tracker: Map<bookingId, NodeJS.Timeout>
+const activePollTimers = new Map();
+
+/**
+ * Cancel active background polling for a booking (e.g. when webhook arrives or manual verification settles)
+ */
+const stopTransactionPolling = (bookingId) => {
+  if (activePollTimers.has(bookingId)) {
+    const timer = activePollTimers.get(bookingId);
+    clearTimeout(timer);
+    activePollTimers.delete(bookingId);
+    console.log(`[Auto-Polling] Stopped active polling timer for booking ${bookingId}`);
+  }
+};
+
+/**
+ * Poll PhonePe transaction status using a sequential setTimeout chain.
+ * Guarantees no async overlap, single active poller per booking, unref timers, and clean cancellation.
+ */
+const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => {
+  if (!bookingId || !transactionId) return;
+
+  // Deduplication: if already actively polling this booking, avoid spawning duplicate chains
+  if (activePollTimers.has(bookingId) && initialAttempt === 0) {
+    console.log(`[Auto-Polling] Polling chain already active for booking ${bookingId}. Skipping duplicate spawn.`);
+    return;
+  }
+
   const maxAttempts = 32; // 32 attempts * 15 seconds = 480 seconds (8 minutes) total
-  const interval = setInterval(async () => {
+  const pollIntervalMs = 15000;
+  let attempts = initialAttempt;
+
+  const runPollStep = async () => {
     attempts++;
     console.log(`[Auto-Polling] Checking status for booking ${bookingId} (Attempt ${attempts}/${maxAttempts})...`);
+
     try {
       const booking = await AdBooking.findOne({ bookingId });
       if (!booking || booking.paymentStatus !== 'pending') {
         console.log(`[Auto-Polling] Polling stopped for booking ${bookingId}. Status is already ${booking?.paymentStatus || 'unknown'}`);
-        clearInterval(interval);
+        activePollTimers.delete(bookingId);
         return;
       }
 
@@ -83,7 +113,8 @@ const pollTransactionStatus = (bookingId, transactionId) => {
         if (global.broadcastToAdmins) {
           global.broadcastToAdmins('new_campaign', { bookingId: booking.bookingId });
         }
-        clearInterval(interval);
+        activePollTimers.delete(bookingId);
+        return;
       } else if (mappedStatus === 'FAILED') {
         console.log(`[Auto-Polling] Booking ${bookingId} payment FAILED`);
         await PhonePeTransaction.updateOne(
@@ -95,7 +126,8 @@ const pollTransactionStatus = (bookingId, transactionId) => {
         }
         booking.paymentStatus = 'failed';
         await booking.save();
-        clearInterval(interval);
+        activePollTimers.delete(bookingId);
+        return;
       } else {
         console.log(`[Auto-Polling] Booking ${bookingId} is still PENDING`);
         if (attempts >= maxAttempts) {
@@ -109,13 +141,13 @@ const pollTransactionStatus = (bookingId, transactionId) => {
           }
           booking.paymentStatus = 'failed';
           await booking.save();
-          clearInterval(interval);
+          activePollTimers.delete(bookingId);
+          return;
         }
       }
     } catch (err) {
       console.error(`[Auto-Polling] Error checking status for booking ${bookingId}:`, err.message);
       if (attempts >= maxAttempts) {
-        // On error at max attempts, also mark as failed
         try {
           await PhonePeTransaction.updateOne(
             { transactionId },
@@ -132,10 +164,49 @@ const pollTransactionStatus = (bookingId, transactionId) => {
         } catch (cleanupErr) {
           console.error(`[Auto-Polling] Cleanup error for ${bookingId}:`, cleanupErr.message);
         }
-        clearInterval(interval);
+        activePollTimers.delete(bookingId);
+        return;
       }
     }
-  }, 15000); // Poll every 15 seconds (8 minutes total)
+
+    // Schedule next attempt strictly after previous asynchronous check completely settles
+    const nextTimer = setTimeout(runPollStep, pollIntervalMs);
+    if (typeof nextTimer.unref === 'function') {
+      nextTimer.unref();
+    }
+    activePollTimers.set(bookingId, nextTimer);
+  };
+
+  const timer = setTimeout(runPollStep, pollIntervalMs);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+  activePollTimers.set(bookingId, timer);
+};
+
+/**
+ * Startup Reconciler: Resumes polling for pending transactions created within the last 15 minutes
+ */
+const reconcilePendingTransactions = async () => {
+  try {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const pendingBookings = await AdBooking.find({
+      paymentStatus: 'pending',
+      transactionId: { $exists: true, $ne: null },
+      createdAt: { $gte: fifteenMinutesAgo }
+    }).select('bookingId transactionId').limit(20);
+
+    if (pendingBookings.length > 0) {
+      console.log(`[Reconciler] Found ${pendingBookings.length} pending bookings to reconcile on boot.`);
+      for (const b of pendingBookings) {
+        if (!activePollTimers.has(b.bookingId)) {
+          pollTransactionStatus(b.bookingId, b.transactionId);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Reconciler] Error reconciling pending transactions:', err.message);
+  }
 };
 
 const { generateUniqueCustomId } = require('../utils/idGenerator');
@@ -503,8 +574,11 @@ class AdController {
           { new: true }
         );
 
-        if (booking && global.broadcastToAdmins) {
-          global.broadcastToAdmins('new_campaign', { bookingId: booking.bookingId });
+        if (booking) {
+          stopTransactionPolling(booking.bookingId);
+          if (global.broadcastToAdmins) {
+            global.broadcastToAdmins('new_campaign', { bookingId: booking.bookingId });
+          }
         }
 
         // Update corresponding Order (if it was a kiosk customer order)
@@ -539,6 +613,7 @@ class AdController {
 
         const booking = await AdBooking.findOne({ transactionId: merchantTransactionId });
         if (booking) {
+          stopTransactionPolling(booking.bookingId);
           if (booking.mediaUrl) {
             deleteMediaFile(booking.mediaUrl);
           }
@@ -1013,6 +1088,7 @@ class AdController {
         // Update corresponding AdBooking
         booking.paymentStatus = 'completed';
         booking.approvalStatus = 'pending';
+        stopTransactionPolling(booking.bookingId);
         
         // Extract paymentId from status check result
         const paymentId = checkResult.raw?.payload?.transactionId || checkResult.raw?.payload?.providerReferenceId || 'PAY_MOCK_' + uuidv4().replace(/-/g, '').slice(0, 10).toUpperCase();
@@ -1035,6 +1111,7 @@ class AdController {
         }
         booking.paymentStatus = 'failed';
         await booking.save();
+        stopTransactionPolling(booking.bookingId);
 
         return res.status(200).send({
           success: true,
@@ -1283,6 +1360,20 @@ class AdController {
       console.error('getCampaignAnalytics Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to retrieve campaign analytics' });
     }
+  }
+
+  /**
+   * Reconcile pending transaction polling on server startup
+   */
+  async reconcilePendingTransactions() {
+    return await reconcilePendingTransactions();
+  }
+
+  /**
+   * Stop active polling for a booking
+   */
+  stopTransactionPolling(bookingId) {
+    return stopTransactionPolling(bookingId);
   }
 }
 
