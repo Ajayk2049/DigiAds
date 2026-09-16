@@ -1346,6 +1346,9 @@ class AdminController {
       }
     } catch (error) {
       console.error('uploadPlatformAdMedia Error:', error.message);
+      if (typeof tempPath !== 'undefined' && tempPath) {
+        try { fs.unlinkSync(tempPath); } catch (_) {}
+      }
       return res.status(500).send({ success: false, message: 'Failed to upload and process media: ' + error.message });
     }
   }

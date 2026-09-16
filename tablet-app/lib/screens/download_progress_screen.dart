@@ -97,10 +97,14 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen> {
   }
 
   void _initGrpc() {
+    final host = cleanGrpcHost(widget.serverHost);
+    final isLocal = host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
     _channel = ClientChannel(
-      cleanGrpcHost(widget.serverHost),
+      host,
       port: 4201,
-      options: const ChannelOptions(credentials: ChannelCredentials.insecure()),
+      options: ChannelOptions(
+        credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+      ),
     );
     _menuClient = MenuServiceClient(_channel!);
   }

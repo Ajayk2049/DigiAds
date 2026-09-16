@@ -1993,6 +1993,9 @@ class HostController {
       }
     } catch (error) {
       console.error('uploadHostPromoMedia Error:', error.message);
+      if (typeof tempPath !== 'undefined' && tempPath) {
+        try { await fs.promises.unlink(tempPath); } catch (_) {}
+      }
       return res.status(500).send({ success: false, message: 'Failed to upload and process promo media' });
     }
   }

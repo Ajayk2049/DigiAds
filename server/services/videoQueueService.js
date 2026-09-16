@@ -84,6 +84,21 @@ class VideoQueueService {
   }
 
   /**
+   * Pre-flight capacity check before streaming uploads to disk
+   * @returns {Promise<boolean>}
+   */
+  async canAcceptJob() {
+    if (this.queue && this.isRedisAvailable) {
+      try {
+        const waitingCount = await this.queue.getWaitingCount();
+        if (waitingCount >= 100) return false;
+        return true;
+      } catch (_) {}
+    }
+    return this.fallbackQueue.length < this.maxFallbackQueueSize;
+  }
+
+  /**
    * Add a transcode job to the processing queue (backward compatible alias)
    */
   enqueueJob(jobData) {
@@ -117,7 +132,9 @@ class VideoQueueService {
     // Direct single-instance in-memory fallback if Redis is offline
     if (this.fallbackQueue.length >= this.maxFallbackQueueSize) {
       console.error(`\x1b[31m[VideoQueue Error]\x1b[0m In-memory fallback queue limit reached (${this.maxFallbackQueueSize}). Rejecting transcode to prevent heap exhaustion.`);
-      throw new Error('Video transcoding queue is currently at maximum capacity. Please retry shortly.');
+      const capacityError = new Error('Video transcoding queue is currently at maximum capacity. Please retry shortly.');
+      capacityError.isCapacityError = true;
+      throw capacityError;
     }
 
     console.log(`\x1b[35m[VideoQueue]\x1b[0m Enqueued transcode job for ${jobData.modelType || 'AdBooking'} (${jobData.recordId || jobData.bookingId}). Queue length: ${this.fallbackQueue.length + 1}`);

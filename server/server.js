@@ -297,6 +297,10 @@ async function startFastify() {
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false
     });
+    rateLimitRedis.on('error', (err) => {
+      // Catch OOM or transient connection errors without crashing or bubbling to requests
+      console.warn('[RateLimit Redis Warning]:', err.message);
+    });
     rateLimitRedis.connect().catch(() => {
       rateLimitRedis = null;
     });
@@ -308,6 +312,7 @@ async function startFastify() {
     global: true,
     max: isDev ? 2000 : 500,
     timeWindow: '1 minute',
+    skipOnError: true,
     exclusionRules: (req) => {
       // Exclude websockets and static uploads from rate limiting to prevent playback/sync cuts
       return req.url.startsWith('/ws') || req.url.startsWith('/uploads');
@@ -1588,8 +1593,10 @@ function startGrpc() {
   grpcServer.addService(menuProto.MenuService.service, menuServiceHandlers);
   grpcServer.addService(orderProto.OrderService.service, orderServiceHandlers);
 
+  const grpcBindHost = process.env.GRPC_BIND_HOST || (isDev ? '0.0.0.0' : '127.0.0.1');
+
   grpcServer.bindAsync(
-    `0.0.0.0:${config.grpcPort}`,
+    `${grpcBindHost}:${config.grpcPort}`,
     grpc.ServerCredentials.createInsecure(),
     (err, port) => {
       if (err) {
@@ -1597,7 +1604,7 @@ function startGrpc() {
         return;
       }
       grpcServer.start();
-      console.log(`[gRPC Server] Listening on port ${port}`);
+      console.log(`[gRPC Server] Listening on ${grpcBindHost}:${port}`);
     }
   );
 }

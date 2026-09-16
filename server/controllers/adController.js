@@ -681,6 +681,20 @@ class AdController {
     const filePath = path.join(uploadsDir, uniqueFilename);
     const tempPath = path.join(stagingDir, `staging_${uuidv4().replace(/-/g, '').slice(0, 12)}${ext}`);
 
+    // Early pre-flight capacity check before streaming 50MB to disk
+    const canAccept = await videoQueueService.canAcceptJob();
+    if (!canAccept) {
+      if (mediaLog) {
+        mediaLog.status = 'failed';
+        mediaLog.errorMessage = 'Transcoding queue at maximum capacity';
+        await mediaLog.save();
+      }
+      return res.status(429).send({
+        success: false,
+        message: 'Video transcoding queue is currently at maximum capacity. Please retry in a few minutes.'
+      });
+    }
+
     try {
       // Stream raw payload directly to staging folder
       await pipeline(req.body, fs.createWriteStream(tempPath));
@@ -719,7 +733,7 @@ class AdController {
       }
 
       // Enqueue job for background sequential CPU-throttled transcoding
-      videoQueueService.enqueueJob({
+      await videoQueueService.enqueueJob({
         tempPath,
         filePath,
         targetSubdir,
@@ -760,13 +774,17 @@ class AdController {
 
     } catch (error) {
       console.error('uploadVideo Staging Error:', error.message);
-      if (fs.existsSync(tempPath)) {
-        try { fs.unlinkSync(tempPath); } catch (err) {}
-      }
+      try { await fs.promises.unlink(tempPath); } catch (err) {}
       if (mediaLog) {
         mediaLog.status = 'failed';
         mediaLog.errorMessage = error.message;
         await mediaLog.save();
+      }
+      if (error.isCapacityError) {
+        return res.status(429).send({
+          success: false,
+          message: error.message
+        });
       }
       return res.status(500).send({ success: false, message: 'Failed to stage video upload: ' + error.message });
     }
