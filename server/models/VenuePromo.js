@@ -67,4 +67,8 @@ VenuePromoSchema.pre('save', function (next) {
   next();
 });
 
+// High-performance compound indexes for device promo loading and live streaming
+VenuePromoSchema.index({ hostApplicationId: 1, slotType: 1, slotIndex: 1 });
+VenuePromoSchema.index({ hostApplicationId: 1, isStreaming: 1 });
+
 module.exports = mongoose.model('VenuePromo', VenuePromoSchema);

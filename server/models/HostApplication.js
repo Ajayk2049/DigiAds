@@ -230,4 +230,9 @@ HostApplicationSchema.pre('save', function (next) {
   next();
 });
 
+// High-performance compound indexes for merchant dashboards, auth validation, and advertiser venue search
+HostApplicationSchema.index({ userId: 1, status: 1 });
+HostApplicationSchema.index({ userId: 1, createdAt: -1 });
+HostApplicationSchema.index({ status: 1, allowOpenAds: 1, city: 1 });
+
 module.exports = mongoose.model('HostApplication', HostApplicationSchema);

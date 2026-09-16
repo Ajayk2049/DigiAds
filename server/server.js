@@ -836,6 +836,42 @@ function verifyGrpcToken(call) {
   }
 }
 
+// Telemetry duration resolution helper:
+// - Image Ads: Platform decided duration (1 image = 8s, 2 images = 16s)
+// - Video Ads: Actual video runtime (from gRPC telemetry or probed booking.mediaDuration)
+const resolveAdDuration = (booking, durationSeconds) => {
+  let resolvedDuration = Number(durationSeconds) > 0 ? Number(durationSeconds) : 0;
+  if (booking) {
+    const rawUrls = (booking.mediaUrl || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isImageCampaign = booking.mediaType === 'image' || rawUrls.some(u => u.endsWith('.webp') || u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg'));
+
+    if (isImageCampaign) {
+      resolvedDuration = rawUrls.length >= 2 ? 16 : 8;
+    } else {
+      resolvedDuration = (resolvedDuration > 0 && resolvedDuration !== 15)
+        ? resolvedDuration
+        : (booking.mediaDuration || 15);
+    }
+  } else if (resolvedDuration === 0) {
+    resolvedDuration = 8;
+  }
+  return resolvedDuration;
+};
+
+// Compute dynamic TTL expiration date for AdImpression telemetry (Plan duration + 1 day buffer)
+const computeImpressionExpiresAt = (booking) => {
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  if (booking) {
+    const durationDays = Number(booking.adDurationDays) || 7;
+    const createdAtMs = booking.createdAt ? new Date(booking.createdAt).getTime() : now;
+    const planPlusOneMs = createdAtMs + ((durationDays + 1) * ONE_DAY_MS);
+    // Guarantee minimum 24-hour retention from receipt for offline-synced or late impressions
+    return new Date(Math.max(planPlusOneMs, now + ONE_DAY_MS));
+  }
+  return new Date(now + (8 * ONE_DAY_MS)); // Fallback: 8 days (7-day plan + 1-day grace)
+};
+
 // Implement Device gRPC Service
 const deviceServiceHandlers = {
   RegisterDevice: async (call, callback) => {
@@ -1016,27 +1052,12 @@ const deviceServiceHandlers = {
       console.log(`[gRPC telemetry] Device ${deviceId} tracked impression for Booking ${bookingId}: ${durationSeconds}s, Clicks: ${interactiveClicks}`);
 
       if (bookingId && bookingId !== 'unknown') {
-        const booking = await AdBooking.findOne({ bookingId });
-        const deviceDoc = await Device.findOne({ deviceId });
+        const booking = await AdBooking.findOne({ bookingId }).lean();
+        const deviceDoc = await Device.findOne({ deviceId }).select('hostApplicationId').lean();
 
-        // Dynamic duration resolution:
-        // - Image Ads: Platform decided duration (1 image = 8s, 2 images = 16s)
-        // - Video Ads: Actual video runtime (from gRPC telemetry or probed booking.mediaDuration)
-        let resolvedDuration = Number(durationSeconds) > 0 ? Number(durationSeconds) : 0;
-        if (booking) {
-          const rawUrls = (booking.mediaUrl || '').split(',').map(s => s.trim()).filter(Boolean);
-          const isImageCampaign = booking.mediaType === 'image' || rawUrls.some(u => u.endsWith('.webp') || u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg'));
-
-          if (isImageCampaign) {
-            resolvedDuration = rawUrls.length >= 2 ? 16 : 8;
-          } else {
-            resolvedDuration = (resolvedDuration > 0 && resolvedDuration !== 15)
-              ? resolvedDuration
-              : (booking.mediaDuration || 15);
-          }
-        } else if (resolvedDuration === 0) {
-          resolvedDuration = 8;
-        }
+        const resolvedDuration = resolveAdDuration(booking, durationSeconds);
+        const clicks = Number(interactiveClicks) || 0;
+        const expiresAt = computeImpressionExpiresAt(booking);
 
         await AdImpression.create({
           bookingId,
@@ -1044,8 +1065,9 @@ const deviceServiceHandlers = {
           deviceId: deviceId || null,
           hostApplicationId: booking ? booking.hostApplicationId : (deviceDoc ? deviceDoc.hostApplicationId : null),
           durationSeconds: resolvedDuration,
-          interactiveClicks: Number(interactiveClicks) || 0,
-          createdAt: new Date()
+          interactiveClicks: clicks,
+          createdAt: new Date(),
+          expiresAt
         });
 
         // Atomically increment cumulative lifetime stats on AdBooking document (verified against device venue)
@@ -1061,23 +1083,12 @@ const deviceServiceHandlers = {
               {
                 $inc: {
                   totalPlays: 1,
-                  totalDurationSeconds: resolvedDuration
+                  totalDurationSeconds: resolvedDuration,
+                  totalClicks: clicks
                 }
               }
             );
           }
-        }
-
-        // Retention policy: Keep only the 10 most recent impression logs per bookingId
-        const recentImpressions = await AdImpression.find({ bookingId })
-          .sort({ createdAt: -1 })
-          .select('_id')
-          .skip(10)
-          .lean();
-
-        if (recentImpressions.length > 0) {
-          const oldIds = recentImpressions.map(doc => doc._id);
-          await AdImpression.deleteMany({ _id: { $in: oldIds } });
         }
       }
 
@@ -1096,79 +1107,93 @@ const deviceServiceHandlers = {
     try {
       const claims = verifyGrpcToken(call);
       const { deviceId } = claims;
-      const deviceDoc = await Device.findOne({ deviceId });
+      const deviceDoc = await Device.findOne({ deviceId }).select('hostApplicationId').lean();
 
       if (Array.isArray(impressions) && impressions.length > 0) {
         console.log(`[gRPC telemetry] Device ${deviceId} syncing ${impressions.length} batched offline ad impressions`);
 
-        for (const item of impressions) {
-          const { bookingId, durationSeconds, interactiveClicks } = item;
-          if (
-            !bookingId ||
-            bookingId === 'unknown' ||
-            bookingId.startsWith('FALLBACK') ||
-            bookingId.startsWith('PAD') ||
-            bookingId.startsWith('VENUE_AD') ||
-            bookingId === 'FALLBACK' ||
-            bookingId === 'PAD' ||
-            bookingId === 'VENUE_AD'
-          ) continue;
+        // 1. Filter out non-billable and invalid items
+        const validImpressions = impressions.filter(item => {
+          const bId = item && item.bookingId;
+          return bId &&
+            bId !== 'unknown' &&
+            !bId.startsWith('FALLBACK') &&
+            !bId.startsWith('PAD') &&
+            !bId.startsWith('VENUE_AD') &&
+            bId !== 'FALLBACK' &&
+            bId !== 'PAD' &&
+            bId !== 'VENUE_AD';
+        });
 
-          const booking = await AdBooking.findOne({ bookingId });
-          let resolvedDuration = Number(durationSeconds) > 0 ? Number(durationSeconds) : 0;
-          if (booking) {
-            const rawUrls = (booking.mediaUrl || '').split(',').map(s => s.trim()).filter(Boolean);
-            const isImageCampaign = booking.mediaType === 'image' || rawUrls.some(u => u.endsWith('.webp') || u.endsWith('.png') || u.endsWith('.jpg') || u.endsWith('.jpeg'));
-            if (isImageCampaign) {
-              resolvedDuration = rawUrls.length >= 2 ? 16 : 8;
-            } else {
-              resolvedDuration = (resolvedDuration > 0 && resolvedDuration !== 15) ? resolvedDuration : (booking.mediaDuration || 15);
+        if (validImpressions.length > 0) {
+          // 2. Batch-fetch all referenced bookings in a single query
+          const uniqueBookingIds = [...new Set(validImpressions.map(i => i.bookingId))];
+          const bookings = await AdBooking.find({ bookingId: { $in: uniqueBookingIds } }).lean();
+          const bookingMap = new Map();
+          bookings.forEach(b => bookingMap.set(b.bookingId, b));
+
+          const docsToInsert = [];
+          const bookingIncrements = new Map(); // bookingId -> { totalPlays, totalDurationSeconds, totalClicks }
+          const deviceHostAppId = (deviceDoc && deviceDoc.hostApplicationId) ? deviceDoc.hostApplicationId.toString() : null;
+
+          for (const item of validImpressions) {
+            const { bookingId, durationSeconds, interactiveClicks } = item;
+            const booking = bookingMap.get(bookingId);
+            const resolvedDuration = resolveAdDuration(booking, durationSeconds);
+            const clicks = Number(interactiveClicks) || 0;
+            const expiresAt = computeImpressionExpiresAt(booking);
+
+            docsToInsert.push({
+              bookingId,
+              advertiserId: booking ? (booking.advertiserId || booking.userId) : null,
+              deviceId: deviceId || null,
+              hostApplicationId: booking ? booking.hostApplicationId : (deviceDoc ? deviceDoc.hostApplicationId : null),
+              durationSeconds: resolvedDuration,
+              interactiveClicks: clicks,
+              createdAt: new Date(),
+              expiresAt
+            });
+
+            // Accumulate cumulative counters with venue verification
+            if (booking) {
+              const bookingOutletId = booking.outletId ? booking.outletId.toString() : null;
+              if (bookingOutletId && deviceHostAppId && bookingOutletId !== deviceHostAppId) {
+                console.warn(`[Security Warning] Batch impression attribution skipped: Device ${deviceId} (Venue: ${deviceHostAppId}) reported for Booking ${bookingId} (Target Venue: ${bookingOutletId})`);
+              } else {
+                const current = bookingIncrements.get(bookingId) || { totalPlays: 0, totalDurationSeconds: 0, totalClicks: 0 };
+                current.totalPlays += 1;
+                current.totalDurationSeconds += resolvedDuration;
+                current.totalClicks += clicks;
+                bookingIncrements.set(bookingId, current);
+              }
             }
-          } else if (resolvedDuration === 0) {
-            resolvedDuration = 8;
           }
 
-          // Create detail log record
-          await AdImpression.create({
-            bookingId,
-            advertiserId: booking ? (booking.advertiserId || booking.userId) : null,
-            deviceId: deviceId || null,
-            hostApplicationId: booking ? booking.hostApplicationId : (deviceDoc ? deviceDoc.hostApplicationId : null),
-            durationSeconds: resolvedDuration,
-            interactiveClicks: Number(interactiveClicks) || 0,
-            createdAt: new Date()
-          });
+          // 3. Batch insert all impressions in a single operation
+          if (docsToInsert.length > 0) {
+            await AdImpression.insertMany(docsToInsert, { ordered: false });
+          }
 
-          // Atomically increment cumulative lifetime stats on AdBooking (verified against device venue)
-          if (booking) {
-            const bookingOutletId = booking.outletId ? booking.outletId.toString() : null;
-            const deviceHostAppId = (deviceDoc && deviceDoc.hostApplicationId) ? deviceDoc.hostApplicationId.toString() : null;
-
-            if (bookingOutletId && deviceHostAppId && bookingOutletId !== deviceHostAppId) {
-              console.warn(`[Security Warning] Batch impression attribution skipped: Device ${deviceId} (Venue: ${deviceHostAppId}) reported for Booking ${bookingId} (Target Venue: ${bookingOutletId})`);
-            } else {
-              await AdBooking.updateOne(
-                { bookingId },
-                {
-                  $inc: {
-                    totalPlays: 1,
-                    totalDurationSeconds: resolvedDuration
+          // 4. Batch update booking totals using bulkWrite
+          if (bookingIncrements.size > 0) {
+            const bulkOps = [];
+            for (const [bId, inc] of bookingIncrements.entries()) {
+              bulkOps.push({
+                updateOne: {
+                  filter: { bookingId: bId },
+                  update: {
+                    $inc: {
+                      totalPlays: inc.totalPlays,
+                      totalDurationSeconds: inc.totalDurationSeconds,
+                      totalClicks: inc.totalClicks
+                    }
                   }
                 }
-              );
+              });
             }
-          }
-
-          // Rolling 10-log window cleanup per bookingId
-          const recentImpressions = await AdImpression.find({ bookingId })
-            .sort({ createdAt: -1 })
-            .select('_id')
-            .skip(10)
-            .lean();
-
-          if (recentImpressions.length > 0) {
-            const oldIds = recentImpressions.map(doc => doc._id);
-            await AdImpression.deleteMany({ _id: { $in: oldIds } });
+            if (bulkOps.length > 0) {
+              await AdBooking.bulkWrite(bulkOps, { ordered: false });
+            }
           }
         }
       }

@@ -1220,10 +1220,10 @@ class AdController {
         uniqueDevices: []
       };
 
-      // Cumulative total plays and duration stored directly on AdBooking schema (preserves full history across log trimming)
+      // Cumulative total plays, duration, and clicks stored directly on AdBooking schema (preserves full history across log trimming/TTL)
       const totalPlays = Math.max(booking.totalPlays || 0, agg.totalPlays);
       const totalDurationSeconds = Math.max(booking.totalDurationSeconds || 0, agg.totalDurationSeconds);
-      const totalClicks = agg.totalClicks;
+      const totalClicks = Math.max(booking.totalClicks || 0, agg.totalClicks);
       const uniqueDevicesCount = (agg.uniqueDevices || []).filter(Boolean).length;
 
       // Fetch ONLY the 10 most recent impressions for display

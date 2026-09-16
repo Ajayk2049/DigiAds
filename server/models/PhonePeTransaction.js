@@ -59,4 +59,8 @@ PhonePeTransactionSchema.pre('save', function (next) {
   next();
 });
 
+// High-performance indexes for user transaction history and payment reconciliation
+PhonePeTransactionSchema.index({ userId: 1, createdAt: -1 });
+PhonePeTransactionSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('PhonePeTransaction', PhonePeTransactionSchema);

@@ -25,9 +25,11 @@ const MediaLogSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   }
 });
+
+// Auto TTL index: automatically deletes media log entries after 30 days
+MediaLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
 module.exports = mongoose.model('MediaLog', MediaLogSchema);

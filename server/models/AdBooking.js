@@ -105,6 +105,10 @@ const AdBookingSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  totalClicks: {
+    type: Number,
+    default: 0
+  },
   transcodeStatus: {
     type: String,
     enum: ['pending', 'processing', 'completed', 'failed'],
@@ -129,5 +133,11 @@ AdBookingSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// High-performance compound indexes for device playlist fetches, advertiser portal dashboards, and admin management
+AdBookingSchema.index({ outletId: 1, approvalStatus: 1, paymentStatus: 1 });
+AdBookingSchema.index({ advertiserId: 1, createdAt: -1 });
+AdBookingSchema.index({ approvalStatus: 1, paymentStatus: 1, createdAt: -1 });
+AdBookingSchema.index({ bookingId: 1, advertiserId: 1 });
 
 module.exports = mongoose.model('AdBooking', AdBookingSchema);

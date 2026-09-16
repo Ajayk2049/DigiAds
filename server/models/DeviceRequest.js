@@ -45,4 +45,8 @@ const DeviceRequestSchema = new mongoose.Schema({
   }
 });
 
+// High-performance compound indexes for host applications and merchant device requests
+DeviceRequestSchema.index({ hostApplicationId: 1, status: 1 });
+DeviceRequestSchema.index({ userId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('DeviceRequest', DeviceRequestSchema);

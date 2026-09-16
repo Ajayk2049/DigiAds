@@ -68,4 +68,8 @@ const PlatformAdSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// High-performance compound indexes for device fallback and platform ads
+PlatformAdSchema.index({ isActive: 1, type: 1, targetDeviceType: 1 });
+PlatformAdSchema.index({ isActive: 1, type: 1, targetVenueIds: 1 });
+
 module.exports = mongoose.model('PlatformAd', PlatformAdSchema);

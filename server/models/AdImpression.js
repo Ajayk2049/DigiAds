@@ -33,6 +33,11 @@ const AdImpressionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
     index: true
+  },
+  expiresAt: {
+    type: Date,
+    required: true,
+    index: { expiresAfterSeconds: 0 } // Auto TTL index: deletes document dynamically when expiresAt is reached (Plan duration + 1 day)
   }
 });
 
