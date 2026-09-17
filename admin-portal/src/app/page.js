@@ -475,7 +475,12 @@ export default function AdminPortal() {
       }
     } catch (err) {
       console.error(err);
-      showNotification(err.response?.data?.error || 'Failed to upload release APK.', 'error');
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.headers['retry-after'] || 300;
+        showNotification(`Upload rate limit reached. Please wait ${retryAfter} seconds before retrying.`, 'error');
+      } else {
+        showNotification(err.response?.data?.error || 'Failed to upload release APK.', 'error');
+      }
     } finally {
       setUploadingRelease(false);
     }
@@ -1238,7 +1243,10 @@ export default function AdminPortal() {
     } catch (err) {
       console.error(err);
       let errorMsg = err.response?.data?.message || err.message || 'Failed to create platform ad';
-      if (err.response?.status === 413 || err.response?.data?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || errorMsg.toLowerCase().includes('100mb') || errorMsg.toLowerCase().includes('large')) {
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.headers['retry-after'] || 300;
+        errorMsg = `Upload rate limit reached. Please wait ${retryAfter} seconds before retrying.`;
+      } else if (err.response?.status === 413 || err.response?.data?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || errorMsg.toLowerCase().includes('100mb') || errorMsg.toLowerCase().includes('large')) {
         errorMsg = 'Upload rejected: File exceeds the maximum 100 MB size limit.';
       }
       showToast(errorMsg, 'error');

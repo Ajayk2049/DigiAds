@@ -778,6 +778,7 @@ class AdController {
 
     const filePath = path.join(uploadsDir, uniqueFilename);
     const tempPath = path.join(stagingDir, `staging_${uuidv4().replace(/-/g, '').slice(0, 12)}${ext}`);
+    let mediaLog = null;
 
     const canAccept = await videoQueueService.canAcceptJob();
     if (!canAccept) {
@@ -817,7 +818,7 @@ class AdController {
       }
 
       // Create tracking row in database media log table only after all validations succeed
-      const mediaLog = new MediaLog({
+      mediaLog = new MediaLog({
         originalFilename: filenameHeader,
         status: 'processing'
       });
@@ -867,9 +868,11 @@ class AdController {
       console.error('uploadVideo Staging Error:', error.message);
       try { await fs.promises.unlink(tempPath); } catch (err) {}
       if (mediaLog) {
-        mediaLog.status = 'failed';
-        mediaLog.errorMessage = error.message;
-        await mediaLog.save();
+        try {
+          mediaLog.status = 'failed';
+          mediaLog.errorMessage = error.message;
+          await mediaLog.save();
+        } catch (e) {}
       }
       if (error.isCapacityError) {
         res.header('Retry-After', '300');

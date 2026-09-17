@@ -134,7 +134,10 @@ class ReleaseController {
 
       const filePath = path.join(RELEASES_DIR, release.fileName);
 
-      if (!fs.existsSync(filePath)) {
+      try {
+        const st = await fs.promises.stat(filePath);
+        if (!st.isFile() || st.size === 0) throw new Error('missing');
+      } catch (_) {
         return reply.code(404).send({ success: false, error: 'APK file missing on server' });
       }
 

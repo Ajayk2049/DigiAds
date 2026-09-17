@@ -2239,6 +2239,12 @@ class HostController {
 
             if (!tempFileExists) {
               console.warn(`[streamHostPromos] Temp file does not exist or is empty: ${resolvedTemp}`);
+              // Raw copy from uploadHostPromoMedia is already live — don't leave promo stuck in 'pending'
+              try {
+                savedPromo.transcodeStatus = 'completed';
+                savedPromo.isStreaming = true;
+                await savedPromo.save();
+              } catch (_) {}
               continue;
             }
 
@@ -2256,6 +2262,26 @@ class HostController {
               });
             } catch (queueErr) {
               try { await fs.promises.unlink(resolvedTemp); } catch (_) {}
+              // Quota was deducted upfront but transcode never queued — refund it
+              // and mark raw copy live so promo isn't stuck in 'pending'
+              try {
+                const refund = {};
+                if (slotType === 'video') refund.dailyVideoChangesRemaining = 1;
+                else if (slotType === 'screen_video') refund.dailyScreenVideoChangesRemaining = 1;
+                else if (slotType === 'screen_image') refund.dailyScreenImageChangesRemaining = 1;
+                else if (slotType === 'screen') refund.dailyScreenChangesRemaining = 1;
+                else refund.dailyImageChangesRemaining = 1;
+                await HostApplication.findOneAndUpdate(
+                  { _id: hostApp._id },
+                  { $inc: refund }
+                );
+                for (const [k, v] of Object.entries(refund)) {
+                  if (typeof hostApp[k] === 'number') hostApp[k] += v;
+                }
+                savedPromo.transcodeStatus = 'completed';
+                savedPromo.isStreaming = true;
+                await savedPromo.save();
+              } catch (_) {}
               throw queueErr;
             }
           }
@@ -2637,13 +2663,11 @@ class HostController {
       const prevUrl = hostApp.billConfig ? hostApp.billConfig[imageType] : '';
       if (prevUrl && prevUrl.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, '..', prevUrl);
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-            console.log(`[BillConfig] Deleted ${imageType} image from disk:`, filePath);
-          } catch (e) {
-            console.error(`[BillConfig] Failed to delete file ${filePath}:`, e.message);
-          }
+        try {
+          await fs.promises.unlink(filePath);
+          console.log(`[BillConfig] Deleted ${imageType} image from disk:`, filePath);
+        } catch (e) {
+          if (e.code !== 'ENOENT') console.error(`[BillConfig] Failed to delete file ${filePath}:`, e.message);
         }
       }
 
@@ -2695,9 +2719,7 @@ class HostController {
     }
 
     const uploadDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'bills');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    await fs.promises.mkdir(uploadDir, { recursive: true });
 
     // 5 MB max payload size check (fast early rejection)
     const contentLength = parseInt(req.headers['content-length'] || '0', 10);
@@ -2735,9 +2757,7 @@ class HostController {
       });
     } catch (error) {
       console.error('uploadBillImage Error:', error.message);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) {}
-      }
+      try { await fs.promises.unlink(filePath); } catch (e) {}
       return res.status(500).send({ success: false, message: 'Failed to upload bill image: ' + error.message });
     }
   }

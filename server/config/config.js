@@ -17,7 +17,7 @@ dotenv.config({ path: envPath });
 
 const config = {
   env: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT, 10) || 5000,
+  port: parseInt(process.env.PORT, 10) || 4000,
   grpcPort: parseInt(process.env.GRPC_PORT, 10) || 50051,
   mongoUri: process.env.MONGO_URI,
   redisHost: process.env.REDIS_HOST || 'localhost',
@@ -39,7 +39,7 @@ const config = {
     webhookPassword: process.env.PHONEPE_WEBHOOK_PASSWORD || 'webhook_secure_pass_123',
     webhookStrict: process.env.PHONEPE_WEBHOOK_STRICT !== undefined ? process.env.PHONEPE_WEBHOOK_STRICT === 'true' : (process.env.NODE_ENV === 'production')
   },
-  merchantRedirectUrl: process.env.MERCHANT_REDIRECT_URL || 'http://localhost:3001/merchant/orders',
+  merchantRedirectUrl: process.env.MERCHANT_REDIRECT_URL || 'http://localhost:4200/merchant/orders',
   maxVideoDurationSeconds: parseInt(process.env.MAX_VIDEO_DURATION_SECONDS, 10) || 60,
   logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
   clientOrigins: (() => {

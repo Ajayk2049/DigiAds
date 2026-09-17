@@ -47,10 +47,10 @@ export NODE_OPTIONS="--max-old-space-size=1024"
 
 # 1. Resolve configurations
 if [ "$MODE" = "production" ]; then
-  ENV_FILE="config/.env.prod"
+  ENV_FILE="server/config/.env.prod"
   NODE_ENV="production"
 else
-  ENV_FILE="config/.env.dev"
+  ENV_FILE="server/config/.env.dev"
   NODE_ENV="development"
 fi
 
@@ -81,6 +81,20 @@ done
 # 4. Frontend Compilations (Production Build)
 if [ "$MODE" = "production" ]; then
   echo "[3/4] Compiling frontends for production..."
+  # Pause resident frontends so the 1 vCPU / 3.8GB VPS dedicates RAM to the build.
+  # Auto-restores them if any build fails (parity with deployment.md Section 9).
+  STOPPED_FRONTENDS=false
+  if command -v pm2 &> /dev/null; then
+    pm2 stop digiads-landing digiads-user digiads-admin || true
+    STOPPED_FRONTENDS=true
+  fi
+  restore_frontends() {
+    if [ "$STOPPED_FRONTENDS" = true ]; then
+      echo "Build failed! Restoring frontends..."
+      pm2 start ecosystem.config.js || true
+    fi
+  }
+  trap restore_frontends ERR
   FRONTENDS=("landing-page" "user-portal" "admin-portal")
   for fe in "${FRONTENDS[@]}"; do
     echo "   Building frontend: $fe..."
@@ -88,6 +102,7 @@ if [ "$MODE" = "production" ]; then
     npm run build
     cd ..
   done
+  trap - ERR
 else
   echo "[3/4] Skipping production frontend compilation (Development Mode)..."
 fi
