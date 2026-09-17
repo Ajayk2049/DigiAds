@@ -5,21 +5,20 @@ const config = require('../config/config');
  * Middleware to authenticate requests via JWT
  */
 function authenticate(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).send({ success: false, message: 'Authorization token missing or malformed' });
-    }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send({ success: false, message: 'Authorization token missing or malformed' });
+  }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwtSecret);
-    
+  const token = authHeader.split(' ')[1];
+  jwt.verify(token, config.jwtSecret, (error, decoded) => {
+    if (error) {
+      console.error('JWT Verification Error:', error.message);
+      return res.status(401).send({ success: false, message: 'Invalid or expired authorization token' });
+    }
     req.user = decoded; // Contains { uid, phone, role, isDemo }
     next();
-  } catch (error) {
-    console.error('JWT Verification Error:', error.message);
-    return res.status(401).send({ success: false, message: 'Invalid or expired authorization token' });
-  }
+  });
 }
 
 /**

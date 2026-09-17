@@ -70,5 +70,7 @@ VenuePromoSchema.pre('save', function (next) {
 // High-performance compound indexes for device promo loading and live streaming
 VenuePromoSchema.index({ hostApplicationId: 1, slotType: 1, slotIndex: 1 });
 VenuePromoSchema.index({ hostApplicationId: 1, isStreaming: 1 });
+// Auto TTL index: automatically purges abandoned pending promos after 24 hours
+VenuePromoSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400, partialFilterExpression: { transcodeStatus: 'pending' } });
 
 module.exports = mongoose.model('VenuePromo', VenuePromoSchema);

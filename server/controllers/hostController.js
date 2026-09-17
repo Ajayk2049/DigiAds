@@ -396,10 +396,10 @@ class HostController {
 
       // Notify connected tablet devices via WebSocket to update venue & menu details live
       if (global.deviceSockets) {
-        const devices = await Device.find({ hostApplicationId: applicationId });
+        const devices = await Device.find({ hostApplicationId: applicationId }).select('deviceId').limit(500).lean();
         for (const device of devices) {
           const socket = global.deviceSockets.get(device.deviceId);
-          if (socket) {
+          if (socket && socket.readyState === 1) {
             socket.send(JSON.stringify({ event: 'reload_menu' }));
             console.log(`[WS] Sent reload_menu signal to Device ${device.deviceId} for updated application details`);
           }
@@ -1187,11 +1187,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       // Enforce forward-only order status progression
       if (order.orderStatus === 'served' && orderStatus !== 'served') {
@@ -1237,11 +1234,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       order.orderStatus = 'confirmed';
       order.confirmedAt = new Date();
@@ -1265,10 +1259,10 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
+      const app = await HostApplication.findById(order.hostApplicationId);
       if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
@@ -1352,11 +1346,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       order.tableStatus = 'completed';
       order.paymentStatus = 'completed';
@@ -1476,11 +1467,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isGstExempt !== undefined ? Boolean(isGstExempt) : Boolean(removeGst);
       order.isGstExempt = isExempt;
@@ -1491,7 +1479,7 @@ class HostController {
       }
       order.subtotalAmount = subtotalPaise;
 
-      const billConfig = order.billConfigSnapshot || app.billConfig || {};
+      const billConfig = order.billConfigSnapshot || {};
       const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
       const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
       const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
@@ -1542,11 +1530,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isServiceTaxExempt !== undefined ? Boolean(isServiceTaxExempt) : Boolean(removeServiceTax);
       order.isServiceTaxExempt = isExempt;
@@ -1557,7 +1542,7 @@ class HostController {
       }
       order.subtotalAmount = subtotalPaise;
 
-      const billConfig = order.billConfigSnapshot || app.billConfig || {};
+      const billConfig = order.billConfigSnapshot || {};
       const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
       const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
       const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
@@ -1608,11 +1593,8 @@ class HostController {
     }
 
     try {
-      const order = await Order.findOne({ orderId });
+      const order = await Order.findOne({ orderId, merchantId: req.user.uid });
       if (!order) return res.status(404).send({ success: false, message: 'Session/Order not found' });
-
-      const app = await HostApplication.findOne({ _id: order.hostApplicationId, userId: req.user.uid });
-      if (!app) return res.status(404).send({ success: false, message: 'Session/Order not found' });
 
       order.waiterCallStatus = 'serviced';
       await order.save();
@@ -1620,7 +1602,7 @@ class HostController {
 
       // Broadcast update to merchant WebSocket
       if (global.sendToMerchant) {
-        global.sendToMerchant(app.userId, {
+        global.sendToMerchant(req.user.uid, {
           event: 'waiter_serviced',
           data: {
             orderId: order.orderId,

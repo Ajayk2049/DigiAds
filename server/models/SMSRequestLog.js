@@ -18,4 +18,7 @@ const SMSRequestLogSchema = new mongoose.Schema({
   }
 });
 
+SMSRequestLogSchema.index({ phone: 1, requestedAt: -1 });
+SMSRequestLogSchema.index({ ip: 1, requestedAt: -1 });
+
 module.exports = mongoose.model('SMSRequestLog', SMSRequestLogSchema);

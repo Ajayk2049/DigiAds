@@ -19,7 +19,7 @@ const redisConnection = new IORedis({
   maxRetriesPerRequest: null,
   enableOfflineQueue: true,
   lazyConnect: false,
-  retryStrategy: (times) => Math.min(times * 200, 3000)
+  retryStrategy: (times) => (times > 20 ? null : Math.min(times * 200, 3000))
 });
 
 class VideoQueueService {

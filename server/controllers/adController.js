@@ -26,20 +26,23 @@ const deleteMediaFile = async (mediaUrl) => {
   if (!mediaUrl) return;
   const fs = require('fs');
   const path = require('path');
-  const urlParts = mediaUrl.split('/uploads/');
-  if (urlParts.length > 1) {
-    const relativePath = urlParts[1];
-    const uploadsDir = path.resolve(__dirname, '..', 'uploads');
-    const localFilePath = path.resolve(uploadsDir, relativePath);
+  const uploadsDir = path.resolve(__dirname, '..', 'uploads');
+  const urlList = mediaUrl.split(',').map(s => s.trim()).filter(Boolean);
 
-    // Prevent path traversal attacks
-    if (!localFilePath.startsWith(uploadsDir)) {
-      console.warn(`[Security Warning] Blocked attempt to delete path outside uploads directory: ${localFilePath}`);
-      return;
+  for (const singleUrl of urlList) {
+    const urlParts = singleUrl.split('/uploads/');
+    if (urlParts.length > 1) {
+      const relativePath = urlParts[1];
+      const localFilePath = path.resolve(uploadsDir, relativePath);
+
+      // Prevent path traversal attacks
+      if (localFilePath.startsWith(uploadsDir)) {
+        await fs.promises.unlink(localFilePath).catch(() => {});
+        console.log(`[Media Cleanup] Successfully deleted failed payment media: ${localFilePath}`);
+      } else {
+        console.warn(`[Security Warning] Blocked attempt to delete path outside uploads directory: ${localFilePath}`);
+      }
     }
-
-    await fs.promises.unlink(localFilePath).catch(() => {});
-    console.log(`[Media Cleanup] Successfully deleted failed payment media: ${localFilePath}`);
   }
 };
 
@@ -187,14 +190,27 @@ const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => 
 /**
  * Transaction Reconciler: Resumes polling for pending transactions created within the last 2 hours
  */
+let isReconciling = false;
 const reconcilePendingTransactions = async () => {
+  if (isReconciling) return;
+  isReconciling = true;
   try {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const pendingBookings = await AdBooking.find({
+    const filter = {
       paymentStatus: 'pending',
       transactionId: { $exists: true, $ne: null },
       createdAt: { $gte: twoHoursAgo }
-    }).select('bookingId transactionId').limit(50);
+    };
+
+    const totalPending = await AdBooking.countDocuments(filter);
+    if (totalPending > 50) {
+      console.warn(`[Reconciler] Total pending bookings (${totalPending}) exceeds batch limit 50. Processing top 50 newest.`);
+    }
+
+    const pendingBookings = await AdBooking.find(filter)
+      .select('bookingId transactionId')
+      .sort({ createdAt: -1 })
+      .limit(50);
 
     if (pendingBookings.length > 0) {
       console.log(`[Reconciler] Reconciling ${pendingBookings.length} pending booking(s)...`);
@@ -206,6 +222,8 @@ const reconcilePendingTransactions = async () => {
     }
   } catch (err) {
     console.warn('[Reconciler] Error reconciling pending transactions:', err.message);
+  } finally {
+    isReconciling = false;
   }
 };
 
@@ -735,19 +753,6 @@ class AdController {
       return res.status(400).send({ success: false, message: 'Unsupported file type. Only MP4 and WEBM are allowed.' });
     }
 
-    // Create an initial tracking row in the database media log table
-    let mediaLog;
-    try {
-      mediaLog = new MediaLog({
-        originalFilename: filenameHeader,
-        status: 'processing'
-      });
-      await mediaLog.save();
-    } catch (dbErr) {
-      console.error('Failed to create MediaLog:', dbErr.message);
-      return res.status(500).send({ success: false, message: 'Failed to initialize upload tracking' });
-    }
-
     // Route to tablet or screen subfolder under ads/
     const deviceType = req.query.deviceType;
     if (!deviceType || !['tablet', 'screen'].includes(deviceType)) {
@@ -776,11 +781,6 @@ class AdController {
 
     const canAccept = await videoQueueService.canAcceptJob();
     if (!canAccept) {
-      if (mediaLog) {
-        mediaLog.status = 'failed';
-        mediaLog.errorMessage = 'Transcoding queue at maximum capacity';
-        await mediaLog.save();
-      }
       res.header('Retry-After', '300');
       return res.status(429).send({
         success: false,
@@ -802,8 +802,6 @@ class AdController {
         // Allow 0.5s tolerance for encoding container overhead
         if (durationSeconds > allowedMaxDuration + 0.5) {
           try { await fs.promises.unlink(tempPath); } catch (e) {}
-          mediaLog.status = 'failed';
-          await mediaLog.save();
           
           const userFriendlyError = allowedMaxDuration === 30
             ? `Uploaded video duration (${Math.round(durationSeconds)}s) exceeds your paid 30-second plan limit. Please upload a video under 30s or select the 60s plan.`
@@ -817,6 +815,13 @@ class AdController {
       } catch (probeErr) {
         console.warn('ffprobe duration check warning:', probeErr.message);
       }
+
+      // Create tracking row in database media log table only after all validations succeed
+      const mediaLog = new MediaLog({
+        originalFilename: filenameHeader,
+        status: 'processing'
+      });
+      await mediaLog.save();
 
       // Enqueue job for background sequential CPU-throttled transcoding
       await videoQueueService.enqueueJob({
@@ -1171,6 +1176,14 @@ class AdController {
         return res.status(400).send({ success: false, message: 'Cannot cancel a paid booking. Please contact support.' });
       }
 
+      // Stop active background status polling timer
+      stopTransactionPolling(booking.bookingId);
+
+      // Clean up uploaded media files if present
+      if (booking.mediaUrl) {
+        deleteMediaFile(booking.mediaUrl);
+      }
+
       // Delete pending booking
       await AdBooking.deleteOne({ _id: booking._id });
       // Delete associated pending transaction if exists
@@ -1212,6 +1225,9 @@ class AdController {
         return res.status(400).send({ success: false, message: 'This booking has already been paid.' });
       }
 
+      // Stop previous background status polling timer before initiating retry
+      stopTransactionPolling(booking.bookingId);
+
       // Generate new transaction ID and ensure orderId
       const newTransactionId = await generateUniqueCustomId(PhonePeTransaction, 'transactionId', 'AD_PAY_');
       const resolvedOrderId = booking.orderId || `ORD_AD_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
@@ -1219,19 +1235,7 @@ class AdController {
       booking.orderId = resolvedOrderId;
       await booking.save();
 
-      const userRedirectUrl = redirectUrl || `${config.merchantRedirectUrl.replace('/merchant/orders', '/advertiser')}`;
-      const finalRedirectUrl = userRedirectUrl.includes('?')
-        ? `${userRedirectUrl}&verifyBookingId=${booking.bookingId}`
-        : `${userRedirectUrl}?verifyBookingId=${booking.bookingId}`;
-
-      const initiateResult = await phonePeService.initiatePayment({
-        transactionId: newTransactionId,
-        userId: req.user.uid,
-        amount: booking.amount,
-        redirectUrl: finalRedirectUrl,
-        phone: req.user.phone
-      });
-
+      // Persist pending PhonePe transaction record BEFORE calling payment gateway
       const phonePeTxn = new PhonePeTransaction({
         transactionId: newTransactionId,
         orderId: resolvedOrderId,
@@ -1242,6 +1246,25 @@ class AdController {
         rawCallbackPayload: { bookingId: booking.bookingId, retry: true }
       });
       await phonePeTxn.save();
+
+      const userRedirectUrl = redirectUrl || `${config.merchantRedirectUrl.replace('/merchant/orders', '/advertiser')}`;
+      const finalRedirectUrl = userRedirectUrl.includes('?')
+        ? `${userRedirectUrl}&verifyBookingId=${booking.bookingId}`
+        : `${userRedirectUrl}?verifyBookingId=${booking.bookingId}`;
+
+      let initiateResult;
+      try {
+        initiateResult = await phonePeService.initiatePayment({
+          transactionId: newTransactionId,
+          userId: req.user.uid,
+          amount: booking.amount,
+          redirectUrl: finalRedirectUrl,
+          phone: req.user.phone
+        });
+      } catch (gatewayErr) {
+        await PhonePeTransaction.deleteOne({ transactionId: newTransactionId });
+        throw gatewayErr;
+      }
 
       // Poll background status
       pollTransactionStatus(booking.bookingId, newTransactionId);

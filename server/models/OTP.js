@@ -25,4 +25,6 @@ const OTPSchema = new mongoose.Schema({
   }
 });
 
+OTPSchema.index({ phone: 1, createdAt: -1 });
+
 module.exports = mongoose.model('OTP', OTPSchema);

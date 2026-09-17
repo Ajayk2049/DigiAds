@@ -55,4 +55,6 @@ AdsRatesSchema.pre('save', function (next) {
   next();
 });
 
+AdsRatesSchema.index({ deviceType: 1, mediaType: 1, durationDays: 1 });
+
 module.exports = mongoose.model('AdsRates', AdsRatesSchema);

@@ -234,5 +234,6 @@ HostApplicationSchema.pre('save', function (next) {
 HostApplicationSchema.index({ userId: 1, status: 1 });
 HostApplicationSchema.index({ userId: 1, createdAt: -1 });
 HostApplicationSchema.index({ status: 1, allowOpenAds: 1, city: 1 });
+HostApplicationSchema.index({ status: 1, allowOpenAds: 1, state: 1 });
 
 module.exports = mongoose.model('HostApplication', HostApplicationSchema);

@@ -54,6 +54,50 @@ global.deviceSockets = new Map();
 global.adminSockets = new Map();
 global.pendingDeviceCommands = new Map();
 
+// WebSocket connection capacity guards (protects Node process from socket descriptor exhaustion)
+const MAX_TOTAL_WS_CONNS = 2000;
+const MAX_WS_PER_IP = 30;
+const ipWsConnectionCounts = new Map();
+
+function canAcceptWebSocket(ip) {
+  let totalConns = (global.deviceSockets ? global.deviceSockets.size : 0) + (global.adminSockets ? global.adminSockets.size : 0);
+  if (global.merchantSockets) {
+    for (const set of global.merchantSockets.values()) {
+      totalConns += set instanceof Set ? set.size : 1;
+    }
+  }
+  if (totalConns >= MAX_TOTAL_WS_CONNS) return false;
+  const ipCount = ipWsConnectionCounts.get(ip) || 0;
+  if (ipCount >= MAX_WS_PER_IP) return false;
+  return true;
+}
+
+function registerWsConnection(ip) {
+  ipWsConnectionCounts.set(ip, (ipWsConnectionCounts.get(ip) || 0) + 1);
+}
+
+function unregisterWsConnection(ip) {
+  const current = ipWsConnectionCounts.get(ip) || 0;
+  if (current <= 1) {
+    ipWsConnectionCounts.delete(ip);
+  } else {
+    ipWsConnectionCounts.set(ip, current - 1);
+  }
+}
+
+// Global message flood limiter across all device websockets (max 500 msgs/second)
+let globalWsMessageCount = 0;
+let globalWsWindowStart = Date.now();
+function checkGlobalWsFlood() {
+  const now = Date.now();
+  if (now - globalWsWindowStart > 1000) {
+    globalWsWindowStart = now;
+    globalWsMessageCount = 0;
+  }
+  globalWsMessageCount++;
+  return globalWsMessageCount <= 500;
+}
+
 // In-memory throttling map to prevent hammering MongoDB with updateOne on every WebSocket ping / gRPC call
 const deviceLastDbTouch = new Map();
 
@@ -338,7 +382,7 @@ async function startFastify() {
   // Gracefully quit rateLimit Redis client on Fastify server shutdown
   fastify.addHook('onClose', async () => {
     if (rateLimitRedis) {
-      try { await rateLimitRedis.quit(); } catch (_) {}
+      try { await rateLimitRedis.quit(); } catch (_) { }
     }
   });
 
@@ -346,9 +390,17 @@ async function startFastify() {
   // WebSocket routes for Merchant & Device
   fastify.register(async function (fastifyInstance) {
     fastifyInstance.get('/ws/orders', { websocket: true }, (connection, req) => {
-      const token = req.query.token;
+      const clientIp = req.ip || req.raw?.socket?.remoteAddress || 'unknown';
       const socket = connection.socket || connection;
+      if (!canAcceptWebSocket(clientIp)) {
+        try { socket.close(1008, 'Connection limit exceeded'); } catch (_) {}
+        return;
+      }
+      registerWsConnection(clientIp);
+
+      const token = req.query.token;
       if (!token) {
+        unregisterWsConnection(clientIp);
         socket.send(JSON.stringify({ error: 'Authentication token is required' }));
         socket.close();
         return;
@@ -357,6 +409,7 @@ async function startFastify() {
       try {
         const decoded = jwt.verify(token, config.jwtSecret);
         if (decoded.role !== 'merchant') {
+          unregisterWsConnection(clientIp);
           socket.send(JSON.stringify({ error: 'Access denied: Merchant role required' }));
           socket.close();
           return;
@@ -378,6 +431,7 @@ async function startFastify() {
         socket.send(JSON.stringify({ event: 'connected', message: 'Connected to live order feed' }));
 
         socket.on('close', () => {
+          unregisterWsConnection(clientIp);
           if (merchantId) {
             const sockets = merchantSockets.get(merchantId);
             if (sockets) {
@@ -395,6 +449,7 @@ async function startFastify() {
         });
 
       } catch (err) {
+        unregisterWsConnection(clientIp);
         console.error('[WS] Error in connection handler:', err);
         if (socket) {
           try {
@@ -412,9 +467,17 @@ async function startFastify() {
     });
 
     fastifyInstance.get('/ws/device', { websocket: true }, async (connection, req) => {
-      const token = req.query.token;
+      const clientIp = req.ip || req.raw?.socket?.remoteAddress || 'unknown';
       const socket = connection.socket || connection;
+      if (!canAcceptWebSocket(clientIp)) {
+        try { socket.close(1008, 'Connection limit exceeded'); } catch (_) {}
+        return;
+      }
+      registerWsConnection(clientIp);
+
+      const token = req.query.token;
       if (!token) {
+        unregisterWsConnection(clientIp);
         socket.send(JSON.stringify({ error: 'Authentication token is required' }));
         socket.close();
         return;
@@ -424,6 +487,7 @@ async function startFastify() {
         const decoded = jwt.verify(token, config.jwtSecret);
         const { deviceId } = decoded;
         if (!deviceId) {
+          unregisterWsConnection(clientIp);
           socket.send(JSON.stringify({ error: 'Invalid token: deviceId required' }));
           socket.close();
           return;
@@ -432,6 +496,7 @@ async function startFastify() {
         // Check if device exists in MongoDB (fast lean projection)
         const existingDoc = await Device.findOne({ deviceId }).select('_id status lastHeartbeat hostApplicationId').lean();
         if (!existingDoc) {
+          unregisterWsConnection(clientIp);
           console.log(`[WS] Device connection rejected: ${deviceId} (Device not found in database / revoked)`);
           socket.send(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Device registration revoked or not found' }));
           socket.close(4001, 'Device Revoked');
@@ -450,7 +515,9 @@ async function startFastify() {
             if (typeof existingSocket.terminate === 'function') {
               existingSocket.terminate();
             }
-          } catch (_) {}
+          } catch (closeErr) {
+            console.error(`[WS] Error closing old socket for ${deviceId}:`, closeErr.message);
+          }
           clearSocketMeta(existingSocket);
           if (typeof existingSocket.removeAllListeners === 'function') {
             existingSocket.removeAllListeners();
@@ -461,38 +528,30 @@ async function startFastify() {
         if (typeof socket.on === 'function') {
           socket.on('pong', () => { setSocketAlive(socket, true); });
         }
-
         global.deviceSockets.set(deviceId, socket);
-        console.log(`[WS] Device connected: ${deviceId}`);
+        console.log(`[WS] Device connected: ${deviceId} (Total active devices: ${global.deviceSockets.size})`);
 
-        // Send connected greeting immediately to minimize handshake latency
+        // Send connection confirmation & push initial status
         socket.send(JSON.stringify({
           event: 'connected',
-          message: 'Connected to device update feed',
-          deviceId: deviceId,
-          config: {
-            fallbackPollingMinutes: 15,
-            heartbeatIntervalSeconds: 30
-          }
+          deviceId,
+          serverTime: Date.now(),
+          message: 'Connected to DigiAds Real-time Stream'
         }));
 
-        // Run MongoDB status touch, merchant broadcast, and table session sync asynchronously
+        // Execute non-blocking background initialization on connect
         setImmediate(async () => {
           try {
-            const isFreshBoot = existingDoc.status === 'offline' || (Date.now() - new Date(existingDoc.lastHeartbeat || 0).getTime()) > 35000;
-            const updateFields = { status: 'online', lastHeartbeat: new Date() };
-            if (isFreshBoot) {
-              updateFields.sessionStart = new Date();
-            }
-
-            const updatedDevice = await Device.findOneAndUpdate(
+            // Update device status in MongoDB with lean touch
+            const updated = await Device.findOneAndUpdate(
               { deviceId },
-              { $set: updateFields },
+              { $set: { status: 'online', lastHeartbeat: new Date() } },
               { new: true }
-            );
-            if (updatedDevice && updatedDevice.hostApplicationId) {
+            ).select('hostApplicationId').lean();
+
+            if (updated && updated.hostApplicationId) {
               const HostApplication = require('./models/HostApplication');
-              const app = await HostApplication.findById(updatedDevice.hostApplicationId).select('userId').lean();
+              const app = await HostApplication.findById(updated.hostApplicationId).select('userId').lean();
               if (app && app.userId) {
                 global.sendToMerchant(app.userId, {
                   event: 'device_status_changed',
@@ -528,6 +587,11 @@ async function startFastify() {
             // Guard: 64KB max payload check against memory exhaustion attacks
             if (!msg || msg.length > 65536) {
               console.warn(`[WS Warning] Dropped oversized frame (${msg ? msg.length : 0} bytes) from device ${deviceId}`);
+              return;
+            }
+
+            // Global flood cap across all connected devices
+            if (!checkGlobalWsFlood()) {
               return;
             }
 
@@ -570,6 +634,7 @@ async function startFastify() {
         });
 
         socket.on('close', async () => {
+          unregisterWsConnection(clientIp);
           global.deviceSockets.delete(deviceId);
           clearSocketMeta(socket);
           if (typeof socket.removeAllListeners === 'function') {
@@ -581,10 +646,10 @@ async function startFastify() {
               { deviceId },
               { $set: { status: 'offline', lastHeartbeat: new Date() } },
               { new: true }
-            );
+            ).select('hostApplicationId').lean();
             if (updatedDevice && updatedDevice.hostApplicationId) {
               const HostApplication = require('./models/HostApplication');
-              const app = await HostApplication.findById(updatedDevice.hostApplicationId);
+              const app = await HostApplication.findById(updatedDevice.hostApplicationId).select('userId').lean();
               if (app && app.userId) {
                 global.sendToMerchant(app.userId, {
                   event: 'device_status_changed',
@@ -598,6 +663,7 @@ async function startFastify() {
         });
 
       } catch (err) {
+        unregisterWsConnection(clientIp);
         console.error('[WS] Device connection error:', err);
         if (socket) {
           try {
@@ -614,9 +680,17 @@ async function startFastify() {
       }
     });
     fastifyInstance.get('/ws/admin', { websocket: true }, (connection, req) => {
-      const token = req.query.token;
+      const clientIp = req.ip || req.raw?.socket?.remoteAddress || 'unknown';
       const socket = connection.socket || connection;
+      if (!canAcceptWebSocket(clientIp)) {
+        try { socket.close(1008, 'Connection limit exceeded'); } catch (_) {}
+        return;
+      }
+      registerWsConnection(clientIp);
+
+      const token = req.query.token;
       if (!token) {
+        unregisterWsConnection(clientIp);
         socket.send(JSON.stringify({ error: 'Authentication token is required' }));
         socket.close();
         return;
@@ -625,6 +699,7 @@ async function startFastify() {
       try {
         const decoded = jwt.verify(token, config.jwtSecret);
         if (decoded.role !== 'admin') {
+          unregisterWsConnection(clientIp);
           socket.send(JSON.stringify({ error: 'Access denied: Admin role required' }));
           socket.close();
           return;
@@ -636,7 +711,7 @@ async function startFastify() {
           try {
             existingSocket.close(4000, 'Replaced by new connection');
             if (typeof existingSocket.terminate === 'function') existingSocket.terminate();
-          } catch (_) {}
+          } catch (_) { }
           clearSocketMeta(existingSocket);
           if (typeof existingSocket.removeAllListeners === 'function') existingSocket.removeAllListeners();
         }
@@ -651,6 +726,7 @@ async function startFastify() {
         socket.send(JSON.stringify({ event: 'connected', message: 'Connected to Admin Live Feed' }));
 
         socket.on('close', () => {
+          unregisterWsConnection(clientIp);
           global.adminSockets.delete(adminId);
           clearSocketMeta(socket);
           if (typeof socket.removeAllListeners === 'function') {
@@ -660,6 +736,7 @@ async function startFastify() {
         });
 
       } catch (err) {
+        unregisterWsConnection(clientIp);
         console.error('[WS] Admin connection error:', err);
         if (socket) {
           try {
@@ -684,7 +761,9 @@ async function startFastify() {
     console.log(`[WS] Broadcasting ${event} to ${global.adminSockets.size} admin(s)`);
     for (const [adminId, socket] of global.adminSockets.entries()) {
       try {
-        socket.send(payload);
+        if (socket && socket.readyState === 1) {
+          socket.send(payload);
+        }
       } catch (err) {
         console.error(`[WS] Failed to send broadcast to admin ${adminId}:`, err.message);
         global.adminSockets.delete(adminId);
@@ -880,10 +959,10 @@ async function startFastify() {
                 }
                 await fs.unlink(filePath);
                 count++;
-              } catch (_) {}
+              } catch (_) { }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (count > 0) {
@@ -896,11 +975,11 @@ async function startFastify() {
 
   // 1. Run safe cleanup on boot: only prune stale orphaned scratch files older than 6 hours
   // NEVER wipe all files on boot so active queue inputs from PM2 restarts are preserved!
-  cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => {});
+  cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => { });
 
   // 2. Periodic background sweeper every 60 minutes: prunes scratch files older than 6 hours (unref'd)
   const tempSweeperTimer = setInterval(() => {
-    cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => {});
+    cleanupOrphanedTempFiles(6 * 60 * 60 * 1000).catch(() => { });
   }, 60 * 60 * 1000);
   if (typeof tempSweeperTimer.unref === 'function') {
     tempSweeperTimer.unref();
@@ -960,7 +1039,9 @@ async function verifyGrpcToken(call) {
   }
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, config.jwtSecret);
+    const decoded = await new Promise((resolve, reject) => {
+      jwt.verify(token, config.jwtSecret, (err, res) => err ? reject(err) : resolve(res));
+    });
     if (!decoded || !decoded.deviceId) {
       throw { code: grpc.status.UNAUTHENTICATED, message: 'Invalid device credentials in token' };
     }
@@ -1434,12 +1515,12 @@ const menuServiceHandlers = {
       const rawCategories = menu?.categories;
       const categories = (Array.isArray(rawCategories) && rawCategories.length > 0)
         ? rawCategories.map(cat => {
-            if (typeof cat === 'string') return { name: cat.trim(), icon: '' };
-            if (cat && typeof cat === 'object') {
-              return { name: (cat.name || '').trim(), icon: (cat.icon || '').trim() };
-            }
-            return { name: String(cat).trim(), icon: '' };
-          }).filter(c => c.name.length > 0)
+          if (typeof cat === 'string') return { name: cat.trim(), icon: '' };
+          if (cat && typeof cat === 'object') {
+            return { name: (cat.name || '').trim(), icon: (cat.icon || '').trim() };
+          }
+          return { name: String(cat).trim(), icon: '' };
+        }).filter(c => c.name.length > 0)
         : [];
 
       const responsePayload = {
@@ -1473,7 +1554,7 @@ const deviceOrderLocks = new Map();
 
 async function withDeviceOrderLock(deviceId, fn) {
   while (deviceOrderLocks.has(deviceId)) {
-    try { await deviceOrderLocks.get(deviceId); } catch (_) {}
+    try { await deviceOrderLocks.get(deviceId); } catch (_) { }
   }
   let resolveLock;
   const lockPromise = new Promise(resolve => { resolveLock = resolve; });
@@ -1775,7 +1856,7 @@ function startHeartbeatMonitor() {
           const isAlive = getSocketMeta(sock).isAlive;
           if (isAlive === false) {
             console.log(`[WS] Terminating unresponsive zombie socket for Device: ${devId}`);
-            try { sock.terminate(); } catch (_) {}
+            try { sock.terminate(); } catch (_) { }
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1786,7 +1867,7 @@ function startHeartbeatMonitor() {
             if (typeof sock.ping === 'function') sock.ping();
             else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping', timestamp: Date.now() }));
           } catch (_) {
-            try { sock.terminate(); } catch (_) {}
+            try { sock.terminate(); } catch (_) { }
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1807,7 +1888,7 @@ function startHeartbeatMonitor() {
               }
               const isAlive = getSocketMeta(sock).isAlive;
               if (isAlive === false) {
-                try { sock.terminate(); } catch (_) {}
+                try { sock.terminate(); } catch (_) { }
                 sockSet.delete(sock);
                 clearSocketMeta(sock);
                 if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1818,7 +1899,7 @@ function startHeartbeatMonitor() {
                 if (typeof sock.ping === 'function') sock.ping();
                 else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
               } catch (_) {
-                try { sock.terminate(); } catch (_) {}
+                try { sock.terminate(); } catch (_) { }
                 sockSet.delete(sock);
                 clearSocketMeta(sock);
                 if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1842,7 +1923,7 @@ function startHeartbeatMonitor() {
           }
           const isAlive = getSocketMeta(sock).isAlive;
           if (isAlive === false) {
-            try { sock.terminate(); } catch (_) {}
+            try { sock.terminate(); } catch (_) { }
             global.adminSockets.delete(adminId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1853,7 +1934,7 @@ function startHeartbeatMonitor() {
             if (typeof sock.ping === 'function') sock.ping();
             else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
           } catch (_) {
-            try { sock.terminate(); } catch (_) {}
+            try { sock.terminate(); } catch (_) { }
             global.adminSockets.delete(adminId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -1900,7 +1981,10 @@ function startOtaDiskCleanupTask() {
 // Start both servers
 async function main() {
   try {
-    await ensureRedisRunning(config.redisPort || 6379, config.redisHost || '127.0.0.1');
+    const redisRunning = await ensureRedisRunning(config.redisPort || 6379, config.redisHost || '127.0.0.1');
+    if (!redisRunning) {
+      logger.warn('[Redis Warning] Redis is unavailable. Video processing queue will operate in in-memory fallback mode.');
+    }
     await startFastify();
     startGrpc();
     startHeartbeatMonitor();
