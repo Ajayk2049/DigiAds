@@ -27,7 +27,11 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: AppConfig.serverHost);
+    String host = AppConfig.serverHost;
+    if (host.endsWith(':4000')) {
+      host = host.replaceAll(':4000', '');
+    }
+    _controller = TextEditingController(text: host);
   }
 
   @override
@@ -49,7 +53,7 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Server host set to $newHost. Reconnected.')),
+          SnackBar(content: Text('Server host set to ${AppConfig.serverHost}. Reconnected.')),
         );
         widget.onReconnected?.call();
       }
@@ -73,15 +77,16 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Enter the backend server IP and port on your local Wi-Fi network (e.g. 192.168.0.100:4000 or 127.0.0.1:4000):',
+            'Enter the backend server IP address on your local Wi-Fi network (e.g. 192.168.0.100 or 127.0.0.1):',
             style: TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
             decoration: const InputDecoration(
-              labelText: 'Server Host & Port',
-              hintText: '192.168.0.100:4000',
+              labelText: 'Server IP / Host',
+              hintText: '192.168.0.100',
+              helperText: 'Default port: 4000 (auto-applied for IPs)',
               prefixIcon: Icon(Icons.wifi, size: 16),
             ),
             onSubmitted: (_) => _handleSave(),

@@ -21,7 +21,15 @@ class AppConfig {
       if (savedHost != null && savedHost.trim().isNotEmpty) {
         final trimmed = savedHost.trim();
         _isExplicitHttps = trimmed.startsWith('https://');
-        _activeHost = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
+        String cleaned = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
+        if (!cleaned.contains(':')) {
+          final isIpOrLocal = cleaned == 'localhost' ||
+              RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(cleaned);
+          if (isIpOrLocal) {
+            cleaned = '$cleaned:4000';
+          }
+        }
+        _activeHost = cleaned;
       }
     } catch (_) {}
   }
@@ -30,10 +38,21 @@ class AppConfig {
   static Future<void> setServerHost(String host) async {
     final trimmed = host.trim();
     _isExplicitHttps = trimmed.startsWith('https://');
-    _activeHost = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
+    String cleaned = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
+
+    // If host has no port and is an IP or localhost, automatically default to port 4000
+    if (!cleaned.contains(':')) {
+      final isIpOrLocal = cleaned == 'localhost' ||
+          RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(cleaned);
+      if (isIpOrLocal) {
+        cleaned = '$cleaned:4000';
+      }
+    }
+
+    _activeHost = cleaned;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('custom_server_host', trimmed);
+      await prefs.setString('custom_server_host', cleaned);
     } catch (_) {}
   }
 
@@ -42,7 +61,10 @@ class AppConfig {
       if (_activeHost.startsWith('http://') || _activeHost.startsWith('https://')) {
         return _activeHost;
       }
-      final scheme = _isExplicitHttps || (!_activeHost.contains(':') && _activeHost.contains('.')) ? 'https' : 'http';
+      final isDomain = !_activeHost.contains(':') &&
+          _activeHost.contains('.') &&
+          !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(_activeHost);
+      final scheme = (_isExplicitHttps || isDomain) ? 'https' : 'http';
       return '$scheme://$_activeHost';
     }
     return 'http://$devApiHost';

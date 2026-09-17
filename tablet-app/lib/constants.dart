@@ -84,11 +84,7 @@ String buildServerUrl(String serverHost, {int defaultPort = 4000, String path = 
 
   // If host is a standard domain name without a port (e.g. test-api.digiads.space)
   if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
-    if (defaultPort == 443 || isHttps) {
-      return 'https://$host$cleanPath';
-    } else if (defaultPort == 80) {
-      return 'http://$host$cleanPath';
-    }
+    return 'https://$host$cleanPath';
   }
 
   final scheme = isHttps ? 'https' : 'http';
@@ -111,11 +107,7 @@ String buildWsUrl(String serverHost, {int defaultPort = 4000, String path = ''})
   }
 
   if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
-    if (defaultPort == 443 || isWss) {
-      return 'wss://$host$cleanPath';
-    } else if (defaultPort == 80) {
-      return 'ws://$host$cleanPath';
-    }
+    return 'wss://$host$cleanPath';
   }
 
   final scheme = isWss ? 'wss' : 'ws';

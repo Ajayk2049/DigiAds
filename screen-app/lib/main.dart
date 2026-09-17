@@ -40,11 +40,7 @@ String buildServerUrl(String serverHost,
   }
 
   if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
-    if (defaultPort == 443 || isHttps) {
-      return 'https://$host$cleanPath';
-    } else if (defaultPort == 80) {
-      return 'http://$host$cleanPath';
-    }
+    return 'https://$host$cleanPath';
   }
 
   final scheme = isHttps ? 'https' : 'http';
@@ -245,7 +241,6 @@ class ScreenSetupScreen extends StatefulWidget {
 
 class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   late final TextEditingController _serverHostController;
-  late final TextEditingController _serverPortController;
   late final TextEditingController _deviceIdController;
   String _error = '';
   bool _loading = false;
@@ -254,16 +249,10 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   void initState() {
     super.initState();
     String rawHost = widget.initialServerHost ?? '';
-    String defaultPort = '4000';
-    if (rawHost.contains(':')) {
-      final parts = rawHost.split(':');
-      rawHost = parts[0];
-      if (parts.length > 1 && parts[1].isNotEmpty) {
-        defaultPort = parts[1];
-      }
+    if (rawHost.endsWith(':4000')) {
+      rawHost = rawHost.replaceAll(':4000', '');
     }
     _serverHostController = TextEditingController(text: rawHost);
-    _serverPortController = TextEditingController(text: defaultPort);
     _deviceIdController =
         TextEditingController(text: widget.initialDeviceId ?? '');
   }
@@ -271,7 +260,6 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
   @override
   void dispose() {
     _serverHostController.dispose();
-    _serverPortController.dispose();
     _deviceIdController.dispose();
     super.dispose();
   }
@@ -283,11 +271,9 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
     });
 
     final host = _serverHostController.text.trim();
-    final portStr = _serverPortController.text.trim();
-    final port = int.tryParse(portStr) ?? 4000;
     final serverHost = host.contains(':')
         ? host
-        : (port == 80 || port == 443 ? host : '$host:$port');
+        : (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host) ? host : '$host:4000');
     final deviceId = _deviceIdController.text.trim();
 
     if (host.isEmpty || deviceId.isEmpty) {
@@ -307,8 +293,7 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
         await prefs.setString('hardware_id', hardwareId);
       }
 
-      final url = Uri.parse(buildServerUrl(serverHost,
-          defaultPort: port, path: '/api/v1/auth/device/activate'));
+      final url = Uri.parse(buildServerUrl(serverHost, path: '/api/v1/auth/device/activate'));
       final response = await http
           .post(
             url,
@@ -419,48 +404,22 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 7,
-                      child: TextField(
-                        controller: _serverHostController,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: "Server Host / IP Address",
-                          hintText: "e.g. 192.168.1.100 or api.digiads.space",
-                          hintStyle: const TextStyle(
-                              color: Colors.white24, fontSize: 13),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          prefixIcon: const Icon(Icons.dns_rounded,
-                              color: Colors.indigoAccent),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: _serverPortController,
-                        keyboardType: TextInputType.number,
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: "Port",
-                          hintText: "4000",
-                          hintStyle: const TextStyle(
-                              color: Colors.white24, fontSize: 13),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                          prefixIcon: const Icon(Icons.numbers_rounded,
-                              color: Colors.indigoAccent),
-                        ),
-                      ),
-                    ),
-                  ],
+                TextField(
+                  controller: _serverHostController,
+                  style:
+                      const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: "Server Host / IP Address",
+                    hintText: "e.g. 192.168.1.100 or test-api.digiads.space",
+                    helperText: "Enter server IP address or domain (Default port: 4000)",
+                    helperStyle: const TextStyle(color: Colors.white38, fontSize: 11),
+                    hintStyle: const TextStyle(
+                        color: Colors.white24, fontSize: 13),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    prefixIcon: const Icon(Icons.dns_rounded,
+                        color: Colors.indigoAccent),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(

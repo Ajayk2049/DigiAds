@@ -62,6 +62,8 @@ import {
 } from 'lucide-react';
 import useModalDismiss from '@/hooks/useModalDismiss';
 import { config } from '@/config';
+import UsersTab from '@/components/UsersTab';
+import UserDetailsModal from '@/components/UserDetailsModal';
 
 const API_BASE = config.apiUrl;
 const AD_CATEGORIES = ['Electronics', 'RealEstate', 'Automotive', 'Beverages', 'Fashion', 'Finance', 'Entertainment', 'Other'];
@@ -434,6 +436,7 @@ export default function AdminPortal() {
   useModalDismiss(Boolean(deletingPlatformAdId), () => setDeletingPlatformAdId(''), 'delete-platform-ad-modal');
   useModalDismiss(Boolean(editingUser), () => setEditingUser(null), 'edit-user-modal');
   useModalDismiss(Boolean(deletingUser), () => setDeletingUser(null), 'delete-user-modal');
+  useModalDismiss(Boolean(selectedUser), () => setSelectedUser(null), 'user-details-modal');
   useModalDismiss(Boolean(platformAdResolutionWarning), () => setPlatformAdResolutionWarning(null), 'resolution-advisory-modal');
   useModalDismiss(isQuotaModalOpen, () => setIsQuotaModalOpen(false), 'quota-modal');
   useModalDismiss(isPromoDurationsModalOpen, () => setIsPromoDurationsModalOpen(false), 'promo-durations-modal');
@@ -1680,18 +1683,6 @@ export default function AdminPortal() {
     );
   });
 
-  const filteredUsers = users.filter(u => {
-    const isRoleMatch = u.roles ? u.roles.includes(userSubTab) : u.role === userSubTab;
-    if (!isRoleMatch) return false;
-    if (!searchQuery) return true;
-    const query = searchQuery.trim().toLowerCase();
-    return (
-      u._id.toLowerCase().includes(query) ||
-      (u.name || '').toLowerCase().includes(query) ||
-      u.phone.includes(query) ||
-      (u.email || '').toLowerCase().includes(query)
-    );
-  });
 
   const filteredHosts = hosts.filter(h => {
     const isFilterMatch = hostFilter === 'all' || h.status === hostFilter;
@@ -3515,139 +3506,29 @@ export default function AdminPortal() {
 
             {/* 7. USERS & ROLES TAB */}
             {activeTab === 'users' && (
-              <motion.div
-                key="users-tab"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                className="space-y-6"
-              >
-                <div className="border-b border-border/50 pb-6 flex justify-between items-center">
-                  <div className="bg-muted p-1 rounded-xl flex space-x-1 border border-border">
-                    <button
-                      onClick={() => {
-                        setUserSubTab('merchant');
-                        setSelectedUser(null);
-                      }}
-                      className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${userSubTab === 'merchant' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                      Venue Hosts
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUserSubTab('advertiser');
-                        setSelectedUser(null);
-                      }}
-                      className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${userSubTab === 'advertiser' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                      Advertisers
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mx-1 overflow-x-auto animate-fade-in">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider bg-card/10">
-                        <th className="p-4 pl-6">Name / User ID</th>
-                        <th className="p-4">Contact Phone</th>
-                        <th className="p-4">{userSubTab === 'merchant' ? 'Applications' : 'Ad campaigns'}</th>
-                        {userSubTab === 'merchant' && <th className="p-4">Deployed Devices</th>}
-                        <th className="p-4">Created Date</th>
-                        <th className="p-4 text-right pr-6">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60">
-                      {filteredUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="p-8 text-center text-muted-foreground font-medium">
-                            No registered {userSubTab} accounts yet.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredUsers.map((user) => (
-                          <tr key={user._id} className={`hover:bg-card/20 transition-colors duration-200 ${selectedUser?._id === user._id ? 'bg-primary/5' : ''}`}>
-                            <td className="p-4 pl-6 font-bold tracking-tight text-foreground">
-                              <div>{user.name || 'N/A'}</div>
-                              <div className="text-[10px] text-muted-foreground font-mono font-medium">{user._id}</div>
-                            </td>
-                            <td className="p-4 text-foreground font-bold">{user.phone}</td>
-                            <td className="p-4 text-foreground font-extrabold">
-                              {userSubTab === 'merchant' ? user.stats?.merchant?.applicationsCount || 0 : user.stats?.advertiser?.bookingsCount || 0}
-                            </td>
-                            {userSubTab === 'merchant' && (
-                              <td className="p-4 text-foreground font-extrabold">{user.stats?.merchant?.devicesCount || 0}</td>
-                            )}
-                            <td className="p-4 text-muted-foreground font-medium">
-                              {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
-                            </td>
-                            <td className="p-4 text-right pr-6">
-                              <div className="flex items-center justify-end space-x-2">
-                                {userSubTab === 'merchant' && (() => {
-                                  const merchantVenues = hosts.filter(h => (h.userId?._id || h.userId)?.toString() === user._id?.toString() && h.status === 'approved');
-                                  if (merchantVenues.length === 0) return null;
-                                  return (
-                                    <button
-                                      onClick={() => {
-                                        if (merchantVenues.length === 1) {
-                                          openQuotaModal(merchantVenues[0]);
-                                        } else {
-                                          setSelectedUser(user);
-                                        }
-                                      }}
-                                      className="px-2.5 py-1 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
-                                      title="Edit Custom Quotas for this Merchant Venue"
-                                      aria-label="Edit quotas"
-                                    >
-                                      <Settings className="w-3 h-3" />
-                                      <span>Edit Quotas</span>
-                                    </button>
-                                  );
-                                })()}
-                                <button
-                                  onClick={() => setSelectedUser(user)}
-                                  className="p-1.5 bg-muted hover:bg-primary hover:text-primary-foreground border border-border rounded-lg text-muted-foreground transition-colors duration-200 cursor-pointer"
-                                  title="Inspect User Details"
-                                  aria-label="Inspect user"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingUser(user);
-                                    setUserForm({
-                                      name: user.name || '',
-                                      phone: user.phone || '',
-                                      email: user.email || '',
-                                      roles: user.roles || [user.role]
-                                    });
-                                  }}
-                                  className="p-1.5 bg-muted hover:bg-amber-500 hover:text-white border border-border rounded-lg text-muted-foreground transition-colors duration-200 cursor-pointer"
-                                  title="Edit User Properties"
-                                  aria-label="Edit user"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setDeletingUser(user);
-                                    setAdminDeletePassword('');
-                                  }}
-                                  className="p-1.5 bg-muted hover:bg-destructive hover:text-white border border-border rounded-lg text-muted-foreground transition-colors duration-200 cursor-pointer"
-                                  title="Delete User"
-                                  aria-label="Delete user"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </motion.div>
+              <UsersTab
+                users={users}
+                hosts={hosts}
+                userSubTab={userSubTab}
+                setUserSubTab={setUserSubTab}
+                searchQuery={searchQuery}
+                selectedUser={selectedUser}
+                setSelectedUser={setSelectedUser}
+                onEditUser={(user) => {
+                  setEditingUser(user);
+                  setUserForm({
+                    name: user.name || '',
+                    phone: user.phone || '',
+                    email: user.email || '',
+                    roles: user.roles || [user.role]
+                  });
+                }}
+                onDeleteUser={(user) => {
+                  setDeletingUser(user);
+                  setAdminDeletePassword('');
+                }}
+                onOpenQuotaModal={openQuotaModal}
+              />
             )}
 
             {/* 7. AD RATES TAB */}
@@ -5499,6 +5380,31 @@ export default function AdminPortal() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* User Details Inspection Modal */}
+      {selectedUser && (
+        <UserDetailsModal
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          onEdit={(user) => {
+            setSelectedUser(null);
+            setEditingUser(user);
+            setUserForm({
+              name: user.name || '',
+              phone: user.phone || '',
+              email: user.email || '',
+              roles: user.roles || [user.role]
+            });
+          }}
+          onEditQuotas={(venue) => {
+            setSelectedUser(null);
+            openQuotaModal(venue);
+          }}
+          merchantVenues={hosts.filter(
+            (h) => (h.userId?._id || h.userId)?.toString() === selectedUser._id?.toString() && h.status === 'approved'
+          )}
+        />
       )}
 
       {/* Edit User Modal */}

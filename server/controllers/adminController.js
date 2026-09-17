@@ -661,22 +661,32 @@ class AdminController {
    */
   async getUsers(req, res) {
     try {
-      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
-      const skip = (page - 1) * limit;
+      const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : null;
+      const limit = req.query.limit ? Math.min(1000, Math.max(1, parseInt(req.query.limit, 10))) : (page ? 50 : 1000);
+      const skip = page ? (page - 1) * limit : 0;
 
-      const users = await User.find({ role: { $ne: 'admin' } })
+      const query = {};
+      if (req.query.role && req.query.role !== 'all') {
+        query.$or = [
+          { roles: req.query.role },
+          { role: req.query.role }
+        ];
+      }
+
+      const usersQuery = User.find(query)
         .select('-password')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
+
+      const users = await usersQuery;
       
       // Get supplementary count information
       const enrichedUsers = await Promise.all(users.map(async (u) => {
         let stats = {};
         let userRoles = u.roles || [];
-        if (userRoles.length === 0) {
+        if (userRoles.length === 0 && u.role) {
           userRoles = [u.role];
         }
 
@@ -696,7 +706,7 @@ class AdminController {
           };
         }
         return {
-          ...u.toObject(),
+          ...u,
           roles: userRoles,
           stats
         };
@@ -722,7 +732,7 @@ class AdminController {
       return res.status(400).send({ success: false, message: 'Name, phone, and roles are required' });
     }
 
-    const validRoles = ['merchant', 'advertiser'];
+    const validRoles = ['merchant', 'advertiser', 'admin'];
     for (const r of roles) {
       if (!validRoles.includes(r)) {
         return res.status(400).send({ success: false, message: `Invalid role: ${r}` });

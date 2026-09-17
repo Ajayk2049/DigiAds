@@ -38,7 +38,6 @@ class DeviceSetupScreen extends StatefulWidget {
 
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   late final TextEditingController _serverHostController;
-  late final TextEditingController _serverPortController;
   late final TextEditingController _deviceIdController;
   late final TextEditingController _passwordController;
   late final TextEditingController _confirmPasswordController;
@@ -106,16 +105,10 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   void initState() {
     super.initState();
     String rawHost = widget.isReRun ? (widget.initialServerHost ?? '') : '';
-    String defaultPort = '4000';
-    if (rawHost.contains(':')) {
-      final parts = rawHost.split(':');
-      rawHost = parts[0];
-      if (parts.length > 1 && parts[1].isNotEmpty) {
-        defaultPort = parts[1];
-      }
+    if (rawHost.endsWith(':4000')) {
+      rawHost = rawHost.replaceAll(':4000', '');
     }
     _serverHostController = TextEditingController(text: rawHost);
-    _serverPortController = TextEditingController(text: defaultPort);
     _deviceIdController = TextEditingController(
       text: widget.isReRun ? (widget.initialDeviceId ?? '') : '',
     );
@@ -133,7 +126,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
   @override
   void dispose() {
     _serverHostController.dispose();
-    _serverPortController.dispose();
     _deviceIdController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -143,8 +135,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
 
   Future<void> _testConnection() async {
     final host = _serverHostController.text.trim();
-    final portStr = _serverPortController.text.trim();
-    final port = int.tryParse(portStr) ?? 4000;
     if (host.isEmpty) {
       setState(() {
         _connStatus = _ConnStatus.fail;
@@ -152,13 +142,15 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
       });
       return;
     }
-    final effectiveHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
+    final effectiveHost = host.contains(':')
+        ? host
+        : (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host) ? host : '$host:4000');
     setState(() {
       _connStatus = _ConnStatus.testing;
       _connMessage = 'Testing connection to $effectiveHost ...';
     });
     try {
-      final url = Uri.parse(buildServerUrl(effectiveHost, defaultPort: port, path: '/api/v1/health'));
+      final url = Uri.parse(buildServerUrl(effectiveHost, path: '/api/v1/health'));
       final resp = await http.get(url).timeout(const Duration(seconds: 5));
       if (!mounted) return;
       if (resp.statusCode == 200) {
@@ -204,9 +196,9 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
     });
 
     final host = _serverHostController.text.trim();
-    final portStr = _serverPortController.text.trim();
-    final port = int.tryParse(portStr) ?? 4000;
-    final serverHost = host.contains(':') ? host : (port == 80 || port == 443 ? host : '$host:$port');
+    final serverHost = host.contains(':')
+        ? host
+        : (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host) ? host : '$host:4000');
     final deviceId = _deviceIdController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
@@ -245,7 +237,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
         await prefs.setString('hardware_id', hardwareId);
       }
 
-      final url = Uri.parse(buildServerUrl(serverHost, defaultPort: port, path: '/api/v1/auth/device/activate'));
+      final url = Uri.parse(buildServerUrl(serverHost, path: '/api/v1/auth/device/activate'));
       final response = await http
           .post(url,
               headers: {'Content-Type': 'application/json'},
@@ -373,54 +365,23 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 7,
-                        child: TextField(
-                          controller: _serverHostController,
-                          decoration: InputDecoration(
-                            labelText: "Server Host / IP",
-                            hintText: "e.g. 192.168.1.100 or api.digiads.space",
-                            helperText: "Enter server IP address or domain",
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            prefixIcon: const Icon(Icons.lan_outlined),
-                          ),
-                          onChanged: (_) {
-                            if (_connStatus != _ConnStatus.idle) {
-                              setState(() {
-                                _connStatus = _ConnStatus.idle;
-                                _connMessage = '';
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: _serverPortController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Port",
-                            hintText: "4000",
-                            helperText: "Default 4000",
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            prefixIcon: const Icon(Icons.numbers_outlined),
-                          ),
-                          onChanged: (_) {
-                            if (_connStatus != _ConnStatus.idle) {
-                              setState(() {
-                                _connStatus = _ConnStatus.idle;
-                                _connMessage = '';
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ],
+                  TextField(
+                    controller: _serverHostController,
+                    decoration: InputDecoration(
+                      labelText: "Server Host / IP",
+                      hintText: "e.g. 192.168.1.100 or test-api.digiads.space",
+                      helperText: "Enter server IP address or domain (Default port: 4000)",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.lan_outlined),
+                    ),
+                    onChanged: (_) {
+                      if (_connStatus != _ConnStatus.idle) {
+                        setState(() {
+                          _connStatus = _ConnStatus.idle;
+                          _connMessage = '';
+                        });
+                      }
+                    },
                   ),
                   const SizedBox(height: 8),
                   Row(
