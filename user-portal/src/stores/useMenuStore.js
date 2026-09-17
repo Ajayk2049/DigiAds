@@ -367,10 +367,11 @@ export const useMenuStore = create((set, get) => ({
         }
 
         const response = await axios.post(`${API_BASE}/host/menu/upload-image`, arrayBuffer, {
-          headers
+          headers,
+          timeout: 30000
         });
 
-        if (response.data.success && response.data.data.url) {
+        if (response.data.success && response.data.data?.url) {
           set(state => ({ modalForm: { ...state.modalForm, imageUrl: response.data.data.url } }));
           showToast('Image uploaded successfully!', 'success');
         } else {
@@ -378,7 +379,12 @@ export const useMenuStore = create((set, get) => ({
         }
       } catch (err) {
         console.error(err);
-        showToast(err.response?.data?.message || 'Failed to upload image.', 'error');
+        if (err.response?.status === 429) {
+          const retryAfter = err.response.headers['retry-after'] || 30;
+          showToast(`Upload rate limit reached. Please wait ${retryAfter}s.`, 'error');
+        } else {
+          showToast(err.response?.data?.message || 'Failed to upload image.', 'error');
+        }
       } finally {
         if (fileOrEvent?.target) fileOrEvent.target.value = '';
       }

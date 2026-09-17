@@ -5,12 +5,22 @@ import 'api_service.dart';
 class AuthService {
   final ApiService _api = ApiService();
 
-  Future<bool> sendOtp(String phone) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
-    final formattedPhone = cleanPhone.startsWith('91') && cleanPhone.length == 12
-        ? '+$cleanPhone'
-        : (cleanPhone.length == 10 ? '+91$cleanPhone' : '+$cleanPhone');
+  String _formatPhone(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('+')) {
+      return '+${trimmed.replaceAll(RegExp(r'\D'), '')}';
+    }
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 10) {
+      return '+91$digits';
+    } else if (digits.length == 12 && digits.startsWith('91')) {
+      return '+$digits';
+    }
+    return '+$digits';
+  }
 
+  Future<bool> sendOtp(String phone) async {
+    final formattedPhone = _formatPhone(phone);
     final response = await _api.post('/auth/send-otp', data: {
       'phone': formattedPhone,
     });
@@ -18,11 +28,7 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
-    final formattedPhone = cleanPhone.startsWith('91') && cleanPhone.length == 12
-        ? '+$cleanPhone'
-        : (cleanPhone.length == 10 ? '+91$cleanPhone' : '+$cleanPhone');
-
+    final formattedPhone = _formatPhone(phone);
     final response = await _api.post('/auth/verify-otp', data: {
       'phone': formattedPhone,
       'otp': otp,
@@ -39,8 +45,12 @@ class AuthService {
 
   Future<Map<String, dynamic>> loginWithPassword(String identifier, String password) async {
     final clean = identifier.trim();
-    final isPhone = RegExp(r'^\d{10}$').hasMatch(clean);
-    final formattedIdentifier = isPhone ? '+91$clean' : clean;
+    String formattedIdentifier = clean;
+    if (clean.startsWith('+')) {
+      formattedIdentifier = '+${clean.replaceAll(RegExp(r'\D'), '')}';
+    } else if (RegExp(r'^\d{10}$').hasMatch(clean)) {
+      formattedIdentifier = '+91$clean';
+    }
 
     final response = await _api.post('/auth/login', data: {
       'identifier': formattedIdentifier,

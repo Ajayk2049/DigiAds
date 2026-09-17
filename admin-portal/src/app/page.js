@@ -2501,23 +2501,29 @@ export default function AdminPortal() {
                                   </div>
                                 </td>
                                 <td className="p-4 text-center">
-                                  <button
-                                    onClick={() => {
-                                      setSelectedCampaign(booking);
-                                      setActiveVideoUrl(booking.mediaUrl);
-                                      setShowVideoModal(true);
-                                      setWatchedVideos(prev => new Set(prev).add(booking.bookingId));
-                                    }}
-                                    className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-xl transition-colors duration-200 cursor-pointer border border-blue-500/20 inline-flex items-center justify-center shadow-sm"
-                                    title="Preview media attachment"
-                                    aria-label="Preview attachment"
-                                  >
-                                    {(booking.mediaUrl || '').includes('.mp4') || (booking.mediaUrl || '').includes('.webm') ? (
-                                      <Video className="w-4 h-4" />
-                                    ) : (
-                                      <Upload className="w-4 h-4" />
-                                    )}
-                                  </button>
+                                  {booking.mediaUrl && booking.mediaUrl.trim() !== '' ? (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedCampaign(booking);
+                                        setActiveVideoUrl(booking.mediaUrl);
+                                        setShowVideoModal(true);
+                                        setWatchedVideos(prev => new Set(prev).add(booking.bookingId));
+                                      }}
+                                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 rounded-xl transition-colors duration-200 cursor-pointer border border-blue-500/20 inline-flex items-center justify-center shadow-sm"
+                                      title="Preview media attachment"
+                                      aria-label="Preview attachment"
+                                    >
+                                      {(booking.mediaUrl || '').includes('.mp4') || (booking.mediaUrl || '').includes('.webm') ? (
+                                        <Video className="w-4 h-4" />
+                                      ) : (
+                                        <Upload className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 whitespace-nowrap">
+                                      Awaiting Media
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-4 text-center">
                                   <button
@@ -2533,31 +2539,46 @@ export default function AdminPortal() {
                                 <td className="p-4">
                                   <div className="flex items-center justify-center space-x-2">
                                     {booking.approvalStatus === 'pending' ? (
-                                      <>
-                                        <button
-                                          onClick={() => handleReviewCampaign(booking.bookingId, 'approve')}
-                                          disabled={!watchedVideos.has(booking.bookingId)}
-                                          title={!watchedVideos.has(booking.bookingId) ? 'You must view/watch the media creative before approving' : 'Approve this campaign'}
-                                          className={`px-3 py-1.5 border font-bold rounded-lg transition-colors duration-200 flex items-center space-x-1 ${watchedVideos.has(booking.bookingId)
-                                            ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border-emerald-500/20 hover:border-emerald-500 cursor-pointer'
-                                            : 'bg-muted/50 text-muted-foreground border-border cursor-not-allowed opacity-50'
-                                            }`}
-                                        >
-                                          <Check className="w-3.5 h-3.5" />
-                                          <span>{watchedVideos.has(booking.bookingId) ? 'Approve' : 'View First'}</span>
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setSelectedCampaign(booking);
-                                            setDenyReasonText('');
-                                            setShowDenyModal(true);
-                                          }}
-                                          className="px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 hover:border-destructive font-bold rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-1"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                          <span>Deny</span>
-                                        </button>
-                                      </>
+                                      !booking.mediaUrl || !booking.mediaUrl.trim() ? (
+                                        <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full border border-border whitespace-nowrap">
+                                          Awaiting Upload
+                                        </span>
+                                      ) : booking.transcodeStatus === 'processing' ? (
+                                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20 flex items-center space-x-1 whitespace-nowrap animate-pulse">
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                          <span>Optimizing</span>
+                                        </span>
+                                      ) : booking.transcodeStatus === 'failed' ? (
+                                        <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20 whitespace-nowrap">
+                                          Transcode Failed
+                                        </span>
+                                      ) : (
+                                        <>
+                                          <button
+                                            onClick={() => handleReviewCampaign(booking.bookingId, 'approve')}
+                                            disabled={!watchedVideos.has(booking.bookingId)}
+                                            title={!watchedVideos.has(booking.bookingId) ? 'You must view/watch the media creative before approving' : 'Approve this campaign'}
+                                            className={`px-3 py-1.5 border font-bold rounded-lg transition-colors duration-200 flex items-center space-x-1 ${watchedVideos.has(booking.bookingId)
+                                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border-emerald-500/20 hover:border-emerald-500 cursor-pointer'
+                                              : 'bg-muted/50 text-muted-foreground border-border cursor-not-allowed opacity-50'
+                                              }`}
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>{watchedVideos.has(booking.bookingId) ? 'Approve' : 'View First'}</span>
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setSelectedCampaign(booking);
+                                              setDenyReasonText('');
+                                              setShowDenyModal(true);
+                                            }}
+                                            className="px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 hover:border-destructive font-bold rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-1"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                            <span>Deny</span>
+                                          </button>
+                                        </>
+                                      )
                                     ) : booking.approvalStatus === 'approved' ? (
                                       <button
                                         onClick={() => {
@@ -5086,13 +5107,19 @@ export default function AdminPortal() {
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => {
+                    if (!selectedCampaign.mediaUrl) return;
                     setActiveVideoUrl(selectedCampaign.mediaUrl);
                     setShowVideoModal(true);
                   }}
-                  className="px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20 font-bold rounded-xl transition-colors cursor-pointer text-xs flex items-center space-x-1.5"
+                  disabled={!selectedCampaign.mediaUrl}
+                  className={`px-4 py-2.5 rounded-xl transition-colors text-xs flex items-center space-x-1.5 ${
+                    selectedCampaign.mediaUrl
+                      ? 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/20 font-bold cursor-pointer'
+                      : 'bg-muted/40 text-muted-foreground border border-border/40 cursor-not-allowed opacity-50 font-semibold'
+                  }`}
                 >
                   <Video className="w-4 h-4" />
-                  <span>Preview Creative</span>
+                  <span>{selectedCampaign.mediaUrl ? 'Preview Creative' : 'No Media Uploaded'}</span>
                 </button>
 
                 {selectedCampaign.paymentStatus === 'completed' && selectedCampaign.approvalStatus === 'approved' && (

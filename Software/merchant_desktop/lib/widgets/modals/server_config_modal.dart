@@ -73,7 +73,7 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Enter the backend server IP and port on your local Wi-Fi network (e.g. 192.168.0.100:4200 or 127.0.0.1:4200):',
+            'Enter the backend server IP and port on your local Wi-Fi network (e.g. 192.168.0.100:4000 or 127.0.0.1:4000):',
             style: TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 12),
@@ -81,7 +81,7 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
             controller: _controller,
             decoration: const InputDecoration(
               labelText: 'Server Host & Port',
-              hintText: '192.168.0.100:4200',
+              hintText: '192.168.0.100:4000',
               prefixIcon: Icon(Icons.wifi, size: 16),
             ),
             onSubmitted: (_) => _handleSave(),

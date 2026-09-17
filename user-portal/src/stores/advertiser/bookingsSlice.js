@@ -33,7 +33,14 @@ export const createBookingsSlice = (set, get) => ({
       const pendingUpload = list.find(b => b.paymentStatus === 'completed' && b.approvalStatus === 'pending' && (!b.mediaUrl || b.mediaUrl.trim() === ''));
       if (pendingUpload) {
         if (!get().activeUploadBookingDismissed) {
-          set({ activeUploadBooking: pendingUpload });
+          const current = get().activeUploadBooking;
+          const currentId = current?._id || current?.bookingId;
+          const pendingId = pendingUpload._id || pendingUpload.bookingId;
+          if (!current || currentId !== pendingId) {
+            set({ activeUploadBooking: pendingUpload });
+          } else if (!current.deviceType || !current.mediaType) {
+            set({ activeUploadBooking: { ...pendingUpload, ...current } });
+          }
         }
       } else if (!get().activeUploadBooking?.mediaUrl) {
         set({ activeUploadBooking: null });
@@ -54,9 +61,13 @@ export const createBookingsSlice = (set, get) => ({
 
       if (paymentStatus === 'completed') {
         get().showToast('success', 'Payment verified successfully! Please upload your campaign ad creative below.');
-        get().fetchBookings(activeToken);
-        if (res.data.data) {
-          set({ activeUploadBooking: res.data.data, activeUploadBookingDismissed: false, activeTab: 'new-booking' });
+        await get().fetchBookings(activeToken);
+        const verifiedBooking = res.data.data;
+        if (verifiedBooking && (verifiedBooking._id || verifiedBooking.bookingId)) {
+          set({ activeUploadBooking: verifiedBooking, activeUploadBookingDismissed: false, activeTab: 'new-booking' });
+          localStorage.setItem('advertiserActiveTab', 'new-booking');
+        } else {
+          set({ activeUploadBookingDismissed: false, activeTab: 'new-booking' });
           localStorage.setItem('advertiserActiveTab', 'new-booking');
         }
       } else if (paymentStatus === 'failed') {
@@ -82,8 +93,12 @@ export const createBookingsSlice = (set, get) => ({
     set({ retryingBookingId: bookingId });
     try {
       const redirectUrl = `${config.userPortalUrl}/advertiser`;
+      const idempotencyKey = `retry_${bookingId}_${Date.now()}`;
       const res = await axios.post(`${API_BASE}/ads/retry-payment/${bookingId}`, { redirectUrl }, {
-        headers: { Authorization: `Bearer ${get().token}` }
+        headers: {
+          Authorization: `Bearer ${get().token}`,
+          'Idempotency-Key': idempotencyKey
+        }
       });
       if (res.data.success && res.data.data?.paymentUrl) {
         get().showToast('info', 'Redirecting to payment gateway...');
@@ -93,7 +108,12 @@ export const createBookingsSlice = (set, get) => ({
         set({ retryingBookingId: null });
       }
     } catch (err) {
-      get().showToast('error', err.response?.data?.message || 'Failed to initiate payment retry.');
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.headers['retry-after'] || 30;
+        get().showToast('error', `Payment retry rate limited. Please wait ${retryAfter} seconds.`);
+      } else {
+        get().showToast('error', err.response?.data?.message || 'Failed to initiate payment retry.');
+      }
       set({ retryingBookingId: null });
     }
   },

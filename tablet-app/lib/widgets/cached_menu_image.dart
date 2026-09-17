@@ -35,7 +35,7 @@ class CachedMenuImage extends StatefulWidget {
     required this.itemId,
     required this.imageUrl,
     required this.serverHost,
-    this.httpPort = 4200,
+    this.httpPort = 4000,
     this.fit = BoxFit.cover,
     this.fallback,
   });

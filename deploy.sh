@@ -1,6 +1,8 @@
 #!/bin/bash
-# Shell Deployment Script (implementing Rule #10)
+# Shell Deployment Script
 # Usage: ./deploy.sh -m production (or -M production, -m development, etc.)
+
+set -euo pipefail
 
 MODE="development"
 
@@ -41,6 +43,8 @@ echo "CMS Platform Deployment Script"
 echo "Target Mode: $MODE"
 echo "=================================================="
 
+export NODE_OPTIONS="--max-old-space-size=1024"
+
 # 1. Resolve configurations
 if [ "$MODE" = "production" ]; then
   ENV_FILE="config/.env.prod"
@@ -50,11 +54,14 @@ else
   NODE_ENV="development"
 fi
 
-# 2. Spin up local database and cache (via Docker)
-echo "[1/4] Checking local MongoDB & Redis containers..."
-docker compose up -d
-if [ $? -ne 0 ]; then
-  echo "Warning: Docker compose failed. Make sure Docker is running if you want local DB services."
+# 2. Spin up local database and cache via Docker ONLY in development mode
+if [ "$MODE" = "development" ]; then
+  echo "[1/4] Checking local MongoDB & Redis containers..."
+  if command -v docker &> /dev/null; then
+    docker compose up -d || echo "Warning: Docker compose failed. Make sure Docker is running if you want local DB services."
+  fi
+else
+  echo "[1/4] Production mode: Skipping Docker (using native systemd MongoDB & Redis)..."
 fi
 
 # 3. Resolve & Install Dependencies
@@ -62,11 +69,11 @@ echo "[2/4] Installing dependencies across components..."
 DIRS=("server" "landing-page" "user-portal" "admin-portal")
 for dir in "${DIRS[@]}"; do
   echo "   Installing dependencies in: $dir..."
-  cd "$dir" || exit 1
-  npm install
-  if [ $? -ne 0 ]; then
-    echo "Error: npm install failed in $dir"
-    exit 1
+  cd "$dir"
+  if [ "$MODE" = "production" ] && [ "$dir" = "server" ]; then
+    npm install --omit=dev --no-audit
+  else
+    npm install --no-audit
   fi
   cd ..
 done
@@ -77,24 +84,26 @@ if [ "$MODE" = "production" ]; then
   FRONTENDS=("landing-page" "user-portal" "admin-portal")
   for fe in "${FRONTENDS[@]}"; do
     echo "   Building frontend: $fe..."
-    cd "$fe" || exit 1
+    cd "$fe"
     npm run build
-    if [ $? -ne 0 ]; then
-      echo "Error: Build failed in $fe"
-      exit 1
-    fi
     cd ..
   done
 else
   echo "[3/4] Skipping production frontend compilation (Development Mode)..."
 fi
 
-# 5. Starting Services
+# 5. Starting / Reloading Services
 echo "[4/4] Setup complete!"
 if [ "$MODE" = "production" ]; then
-  echo "To run the production environment:"
-  echo "  Backend: cd server && npm run prod"
-  echo "  Frontends: Run 'npm run start' inside landing-page, user-portal, and admin-portal"
+  if command -v pm2 &> /dev/null; then
+    echo "Reloading services via PM2..."
+    pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+    pm2 save
+  else
+    echo "PM2 not found in PATH. To run manually:"
+    echo "  Backend: cd server && npm run prod"
+    echo "  Frontends: Run 'npm run start' inside landing-page, user-portal, and admin-portal"
+  fi
 else
   echo "To run the development environment:"
   echo "  Backend: cd server && npm run dev"

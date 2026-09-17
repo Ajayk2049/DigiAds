@@ -155,8 +155,8 @@ class VenueProvider extends ChangeNotifier {
           },
         ),
       );
-      if (res.data != null && res.data['url'] != null) {
-        return res.data['url'] as String;
+      if (res.data != null) {
+        return (res.data['data']?['url'] ?? res.data['url']) as String?;
       }
     } catch (e) {
       // error

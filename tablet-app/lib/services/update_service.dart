@@ -41,6 +41,12 @@ class UpdateService {
       final url = Uri.parse(buildServerUrl(serverHost, path: '/api/v1/releases/latest?appType=TABLET_APP'));
       final res = await http.get(url).timeout(const Duration(seconds: 10));
 
+      if (res.statusCode == 429) {
+        final retryAfter = res.headers['retry-after'];
+        debugPrint('[OTA] 429 Rate limited checking for update. Retry-After: $retryAfter');
+        return;
+      }
+
       if (res.statusCode != 200) {
         debugPrint('[OTA] No update available or server returned ${res.statusCode}');
         return;
@@ -76,8 +82,6 @@ class UpdateService {
         if (localSha == expectedSha256) {
           isDownloadedAndVerified = true;
           debugPrint('[OTA] Verified pending update APK already cached locally.');
-        } else {
-          await pendingApk.delete();
         }
       }
 
@@ -88,28 +92,52 @@ class UpdateService {
         
         final client = http.Client();
         final request = http.Request('GET', downloadUrl);
+        
+        int existingLength = 0;
+        if (await pendingApk.exists()) {
+          existingLength = await pendingApk.length();
+          if (existingLength > 0) {
+            request.headers['Range'] = 'bytes=$existingLength-';
+            debugPrint('[OTA] Attempting resume from byte $existingLength');
+          }
+        }
+
         final streamedResponse = await client.send(request);
 
-        if (streamedResponse.statusCode == 200) {
-          final sink = pendingApk.openWrite();
+        if (streamedResponse.statusCode == 429) {
+          client.close();
+          _isDownloading = false;
+          debugPrint('[OTA] 429 Rate limited during APK download.');
+          return;
+        }
+
+        if (streamedResponse.statusCode == 206) {
+          // Server accepted Range request - append stream to existing file
+          final sink = pendingApk.openWrite(mode: FileMode.append);
           await streamedResponse.stream.pipe(sink);
           await sink.close();
           client.close();
-
-          final downloadedSha = await compute(_calculateFileSha256, pendingApk.path);
-          if (downloadedSha != expectedSha256) {
-            debugPrint('[OTA] SHA-256 mismatch! Expected $expectedSha256, got $downloadedSha');
-            if (await pendingApk.exists()) await pendingApk.delete();
-            _isDownloading = false;
-            return;
-          }
-          debugPrint('[OTA] APK downloaded and verified successfully.');
+        } else if (streamedResponse.statusCode == 200) {
+          // Server sent full file from byte 0 - overwrite
+          final sink = pendingApk.openWrite(mode: FileMode.write);
+          await streamedResponse.stream.pipe(sink);
+          await sink.close();
+          client.close();
         } else {
           client.close();
           debugPrint('[OTA] Failed to download APK: ${streamedResponse.statusCode}');
           _isDownloading = false;
           return;
         }
+
+        final downloadedSha = await compute(_calculateFileSha256, pendingApk.path);
+        if (downloadedSha != expectedSha256) {
+          debugPrint('[OTA] SHA-256 mismatch! Expected $expectedSha256, got $downloadedSha');
+          if (await pendingApk.exists()) await pendingApk.delete();
+          _isDownloading = false;
+          return;
+        }
+        debugPrint('[OTA] APK downloaded and verified successfully.');
         _isDownloading = false;
       }
 

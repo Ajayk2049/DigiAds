@@ -94,6 +94,8 @@ export const createMediaUploadSlice = (set, get) => ({
     } else {
       showToast('info', 'Video selected! Preview your video below and click "Upload Ad" to proceed.');
     }
+
+    if (e.target) e.target.value = '';
   },
 
   handleFileUpload: async () => {

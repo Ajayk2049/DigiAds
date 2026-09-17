@@ -253,6 +253,11 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
       port: 4201,
       options: ChannelOptions(
         credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+        keepAlive: const ClientKeepAliveOptions(
+          pingInterval: Duration(seconds: 30),
+          timeout: Duration(seconds: 10),
+          permitWithoutCalls: true,
+        ),
       ),
     );
     _deviceClient = DeviceServiceClient(_channel!);
@@ -474,7 +479,13 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     });
   }
 
+  int _grpcRegisterAttempts = 0;
+  Timer? _grpcRegisterRetryTimer;
+
   Future<void> _registerAndStartHeartbeat() async {
+    _grpcRegisterRetryTimer?.cancel();
+    if (_deviceClient == null) return;
+
     try {
       final req = RegisterDeviceRequest()
         ..deviceId = widget.deviceId
@@ -482,9 +493,51 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         ..hostApplicationId = widget.hostApplicationId;
       await _deviceClient!.registerDevice(req, options: _callOptions);
       debugPrint('gRPC Device registered successfully');
+      _grpcRegisterAttempts = 0;
       _markOnline();
+      _startHeartbeatLoop();
     } catch (e) {
       debugPrint('gRPC Device registration failed: $e');
+      _grpcRegisterAttempts++;
+      // Exponential backoff: 2s, 4s, 8s, up to 30s
+      final delaySeconds = math.min(30, math.pow(2, _grpcRegisterAttempts).toInt());
+      debugPrint('Retrying gRPC registration in ${delaySeconds}s (attempt $_grpcRegisterAttempts)...');
+      _grpcRegisterRetryTimer = Timer(Duration(seconds: delaySeconds), () {
+        if (mounted) _registerAndStartHeartbeat();
+      });
+    }
+  }
+
+  void _startHeartbeatLoop() {
+    _heartbeatTimer?.cancel();
+    // Stagger initial heartbeat with random jitter (0 to 3s)
+    final initialDelay = math.Random().nextInt(3000);
+    Future.delayed(Duration(milliseconds: initialDelay), () {
+      if (!mounted) return;
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) => _sendPeriodicHeartbeat());
+    });
+  }
+
+  Future<void> _sendPeriodicHeartbeat() async {
+    if (_deviceClient == null || !mounted) return;
+    try {
+      final req = HeartbeatRequest()
+        ..deviceId = widget.deviceId
+        ..tableNumber = _tableNumber;
+      final res = await _deviceClient!.sendHeartbeat(req, options: _callOptions);
+      _markOnline();
+
+      if (res.hasCommand()) {
+        final cmd = res.command.toLowerCase();
+        debugPrint('[gRPC Heartbeat] Received server command: $cmd');
+        if (cmd == 'refresh' || cmd == 'sync' || cmd == 'reload_ads') {
+          _adSync.syncNow();
+        } else if (cmd == 'reload_menu') {
+          _fetchMenu();
+        }
+      }
+    } catch (e) {
+      debugPrint('[gRPC Heartbeat] Heartbeat tick failed: $e');
     }
   }
 
@@ -1381,6 +1434,7 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     _otaCheckTimer?.cancel();
     _wsReconnectTimer?.cancel();
     _heartbeatTimer?.cancel();
+    _grpcRegisterRetryTimer?.cancel();
     _inactivityTimer?.cancel();
     _backOnlineTimer?.cancel();
     _waiterVanishTimer?.cancel();

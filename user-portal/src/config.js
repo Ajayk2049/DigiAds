@@ -10,10 +10,10 @@ const getApiUrl = () => {
       if (host.includes('digiads.space')) {
         return `${protocol}//test-api.digiads.space/api/v1`;
       }
-      return `${protocol}//${host}:4200/api/v1`;
+      return `${protocol}//${host}:4000/api/v1`;
     }
   }
-  return 'http://localhost:4200/api/v1';
+  return 'http://localhost:4000/api/v1';
 };
 
 const getWsUrl = () => {
@@ -27,23 +27,18 @@ const getWsUrl = () => {
       if (host.includes('digiads.space')) {
         return `${wsProto}//test-api.digiads.space`;
       }
-      return `${wsProto}//${host}:4200`;
+      return `${wsProto}//${host}:4000`;
     }
   }
-  return 'ws://localhost:4200';
+  return 'ws://localhost:4000';
 };
 
 const getUserPortalUrl = () => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
   if (process.env.NEXT_PUBLIC_USER_PORTAL_URL) {
     return process.env.NEXT_PUBLIC_USER_PORTAL_URL.trim().replace(/\/$/, '');
-  }
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    const port = window.location.port ? `:${window.location.port}` : '';
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `${protocol}//${host}${port}`;
-    }
   }
   return 'http://localhost:3001';
 };

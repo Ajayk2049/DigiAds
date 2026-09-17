@@ -1,4 +1,4 @@
-# PowerShell Deployment Script (implementing Rule #10)
+# PowerShell Deployment Script
 # Usage: .\deploy.ps1 -Mode production (or -M production, -m development, etc.)
 
 param (
@@ -17,6 +17,8 @@ Write-Host "CMS Platform Deployment Script" -ForegroundColor Cyan
 Write-Host "Target Mode: $Mode" -ForegroundColor Yellow
 Write-Host "==================================================" -ForegroundColor Cyan
 
+$env:NODE_OPTIONS = "--max-old-space-size=1024"
+
 # 1. Resolve configurations
 $EnvFile = ""
 if ($Mode -eq "production") {
@@ -27,11 +29,17 @@ if ($Mode -eq "production") {
     $NodeEnv = "development"
 }
 
-# 2. Spin up infrastructure services if needed (via Docker)
-Write-Host "[1/4] Checking local MongoDB & Redis containers..." -ForegroundColor Green
-docker compose up -d
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Warning: Docker compose failed. Make sure Docker is running if you want local DB services." -ForegroundColor Yellow
+# 2. Spin up local database and cache via Docker ONLY in development mode
+if ($Mode -eq "development") {
+    Write-Host "[1/4] Checking local MongoDB & Redis containers..." -ForegroundColor Green
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        docker compose up -d
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: Docker compose failed. Make sure Docker is running if you want local DB services." -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host "[1/4] Production mode: Skipping Docker..." -ForegroundColor Green
 }
 
 # 3. Resolve & Install Dependencies
@@ -41,7 +49,11 @@ $Directories = @("server", "landing-page", "user-portal", "admin-portal")
 foreach ($Dir in $Directories) {
     Write-Host "   Installing dependencies in: $Dir..." -ForegroundColor DarkCyan
     Push-Location $Dir
-    npm install
+    if ($Mode -eq "production" -and $Dir -eq "server") {
+        npm install --omit=dev --no-audit
+    } else {
+        npm install --no-audit
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: npm install failed in $Dir" -ForegroundColor Red
         Pop-Location

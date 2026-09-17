@@ -66,7 +66,7 @@ const int kMinValidFileSize = 1000;
 // ───────────────────────── Dynamic Server URL Builders ─────────────────────────
 
 /// Builds a clean HTTP/HTTPS URL from a serverHost string and optional default port.
-String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+String buildServerUrl(String serverHost, {int defaultPort = 4000, String path = ''}) {
   String host = serverHost.trim();
   if (host.isEmpty) return '';
 
@@ -96,7 +96,7 @@ String buildServerUrl(String serverHost, {int defaultPort = 4200, String path = 
 }
 
 /// Builds a clean WS/WSS URL from a serverHost string and optional default port.
-String buildWsUrl(String serverHost, {int defaultPort = 4200, String path = ''}) {
+String buildWsUrl(String serverHost, {int defaultPort = 4000, String path = ''}) {
   String host = serverHost.trim();
   if (host.isEmpty) return '';
 

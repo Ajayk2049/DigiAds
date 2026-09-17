@@ -467,6 +467,9 @@ class VideoQueueService {
             transcodeStatus: 'completed'
           }
         );
+        if (global.broadcastToAdmins) {
+          global.broadcastToAdmins('new_campaign', { bookingId: recordIdStr });
+        }
       }
 
       if (mediaLogId) {
@@ -530,6 +533,26 @@ class VideoQueueService {
       this.isFallbackProcessing = false;
       setImmediate(() => this.processNextFallback());
     }
+  }
+
+  /**
+   * Returns a Set of resolved file paths currently pending or active in BullMQ or fallbackQueue
+   * @returns {Promise<Set<string>>}
+   */
+  async getActiveOrQueuedTempPaths() {
+    const paths = new Set();
+    for (const job of this.fallbackQueue) {
+      if (job?.tempPath) paths.add(path.resolve(job.tempPath));
+    }
+    if (this.queue && this.isRedisAvailable) {
+      try {
+        const jobs = await this.queue.getJobs(['waiting', 'active', 'delayed']);
+        for (const j of jobs) {
+          if (j?.data?.tempPath) paths.add(path.resolve(j.data.tempPath));
+        }
+      } catch (_) {}
+    }
+    return paths;
   }
 }
 

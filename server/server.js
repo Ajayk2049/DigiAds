@@ -312,7 +312,8 @@ async function startFastify() {
       return cb(new Error('Not allowed by CORS'), false);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Filename', 'x-filename', 'x-ad-category', 'X-Ad-Category', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'idempotency-key', 'X-Filename', 'x-filename', 'x-ad-category', 'X-Ad-Category', 'x-ad-type', 'X-Ad-Type', 'x-media-type', 'X-Media-Type', 'x-host-application-id', 'X-Host-Application-Id', 'x-device-id', 'X-Device-Id', 'x-app-type', 'X-App-Type', 'x-version-name', 'X-Version-Name', 'x-version-code', 'X-Version-Code', 'x-release-notes', 'X-Release-Notes', 'x-is-mandatory', 'X-Is-Mandatory', 'x-requested-with', 'Accept', 'Origin', 'Range', 'range', 'Cache-Control'],
+    exposedHeaders: ['Retry-After', 'retry-after', 'Content-Range', 'content-range', 'ETag', 'Idempotency-Key'],
     credentials: true
   });
 
@@ -872,6 +873,28 @@ async function startFastify() {
   // REST API Routes
   await fastify.register(apiRoutes, { prefix: '/api/v1' });
 
+  // Safety redirect: If payment gateway or client redirects to backend server for /advertiser or /merchant,
+  // forward user to frontend user portal with all query parameters preserved.
+  fastify.get('/advertiser', async (req, reply) => {
+    const rawUrl = req.raw.url || '';
+    const queryIndex = rawUrl.indexOf('?');
+    const query = queryIndex !== -1 ? rawUrl.substring(queryIndex) : '';
+    const userPortalBase = (Array.isArray(config.clientOrigins)
+      ? config.clientOrigins.find(o => o.includes('user') || o.includes('3001') || o.includes('4200'))
+      : null) || 'http://localhost:3001';
+    return reply.redirect(`${userPortalBase}/advertiser${query}`, 302);
+  });
+
+  fastify.get('/merchant', async (req, reply) => {
+    const rawUrl = req.raw.url || '';
+    const queryIndex = rawUrl.indexOf('?');
+    const query = queryIndex !== -1 ? rawUrl.substring(queryIndex) : '';
+    const userPortalBase = (Array.isArray(config.clientOrigins)
+      ? config.clientOrigins.find(o => o.includes('user') || o.includes('3001') || o.includes('4200'))
+      : null) || 'http://localhost:3001';
+    return reply.redirect(`${userPortalBase}/merchant${query}`, 302);
+  });
+
   // DB Connection & Seeding Admin with tuned connection pool bounds (optimizes 1 vCPU RAM & Atlas limits)
   await mongoose.connect(config.mongoUri, {
     maxPoolSize: 10,
@@ -939,6 +962,13 @@ async function startFastify() {
       const now = Date.now();
       let count = 0;
 
+      // Queue-aware exclusion: gather all temp paths currently pending or active in BullMQ or fallbackQueue
+      let excludedPaths = new Set();
+      try {
+        const videoQueueService = require('./services/videoQueueService');
+        excludedPaths = await videoQueueService.getActiveOrQueuedTempPaths();
+      } catch (_) { }
+
       // Scan directories holding transient upload fragments
       const targets = [
         { dir: os.tmpdir(), isMatch: (f) => f.startsWith('tmp-ad-upload-') || f.startsWith('tmp-host-promo-') || f.startsWith('tmp-pad-') || f.startsWith('staging_') },
@@ -952,6 +982,11 @@ async function startFastify() {
           for (const file of files) {
             if (target.isMatch(file)) {
               const filePath = path.join(target.dir, file);
+              const resolvedPath = path.resolve(filePath);
+
+              // 1. Never delete any file currently active or pending in the transcode queue
+              if (excludedPaths.has(resolvedPath)) continue;
+
               try {
                 if (maxAgeMs > 0) {
                   const stat = await fs.stat(filePath);

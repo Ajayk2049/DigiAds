@@ -104,6 +104,11 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen> {
       port: 4201,
       options: ChannelOptions(
         credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+        keepAlive: const ClientKeepAliveOptions(
+          pingInterval: Duration(seconds: 30),
+          timeout: Duration(seconds: 10),
+          permitWithoutCalls: true,
+        ),
       ),
     );
     _menuClient = MenuServiceClient(_channel!);

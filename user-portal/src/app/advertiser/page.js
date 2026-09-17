@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
@@ -19,6 +19,7 @@ const VideoResolutionModal = dynamic(() => import("@/components/advertiser/modal
 function AdvertiserContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const verifiedRef = useRef(new Set());
   const {
     activeTab,
     token,
@@ -61,13 +62,13 @@ function AdvertiserContent() {
     fetchRates();
 
     const verifyBookingId = searchParams.get("verifyBookingId");
-    if (verifyBookingId) {
+    if (verifyBookingId && !verifiedRef.current.has(verifyBookingId)) {
+      verifiedRef.current.add(verifyBookingId);
       handleVerifyPayment(verifyBookingId, token, true);
-      // Clear verifyBookingId query parameter from URL
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, "", newUrl);
+      // Cleanly clear verifyBookingId query parameter from URL
+      router.replace(window.location.pathname, { scroll: false });
     }
-  }, [token, searchParams, fetchBookings, fetchStates, fetchRates, handleVerifyPayment]);
+  }, [token, searchParams, fetchBookings, fetchStates, fetchRates, handleVerifyPayment, router]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans transition-colors duration-300">

@@ -42,7 +42,7 @@ class MenuImageCache extends ChangeNotifier {
   bool get isPriming => _priming != null;
   Future<int>? _priming;
 
-  MenuImageCache({required this.serverHost, this.httpPort = 4200})
+  MenuImageCache({required this.serverHost, this.httpPort = 4000})
       : _client = http.Client();
 
   /// Short 8-character MD5 hash of an imageUrl to detect photo updates.
@@ -200,6 +200,13 @@ class MenuImageCache extends ChangeNotifier {
       if (await target.exists()) await target.delete();
 
       final resp = await _client.get(Uri.parse(url));
+      if (resp.statusCode == 429) {
+        final retryAfterHeader = resp.headers['retry-after'];
+        final retrySeconds = int.tryParse(retryAfterHeader ?? '') ?? 5;
+        debugPrint('[MENU_IMG] 429 Too Many Requests. Backing off for ${retrySeconds}s');
+        await Future<void>.delayed(Duration(seconds: retrySeconds.clamp(1, 30)));
+        return false;
+      }
       if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) return false;
       await target.writeAsBytes(resp.bodyBytes, flush: true);
 

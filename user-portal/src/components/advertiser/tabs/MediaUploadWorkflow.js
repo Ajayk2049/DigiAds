@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   CheckCircle,
   AlertCircle,
@@ -36,32 +36,50 @@ export default function MediaUploadWorkflow() {
     dismissActiveUploadBooking
   } = useAdvertiserStore();
 
+  const lastBookingIdRef = useRef(null);
+
   const isUploadCategoryValid = Boolean(
     uploadAdCategory && (uploadAdCategory !== 'Other' || customAdCategory.trim().length > 0)
   );
 
   useEffect(() => {
-    if (activeUploadBooking) {
-      if (activeUploadBooking.mediaType === 'image') {
-        setMediaTypeTab('images');
-      } else if (activeUploadBooking.mediaType === 'video') {
-        setMediaTypeTab('videos');
-      }
+    if (!activeUploadBooking) return;
 
-      const standardCategories = ['Electronics', 'RealEstate', 'Automotive', 'Beverages', 'Fashion', 'Finance', 'Entertainment'];
-      const cat = activeUploadBooking.adCategory?.trim() || '';
+    const currentBookingId = activeUploadBooking._id || activeUploadBooking.bookingId;
+    const isNewBooking = currentBookingId && currentBookingId !== lastBookingIdRef.current;
+
+    if (activeUploadBooking.mediaType === 'image') {
+      setMediaTypeTab('images');
+    } else if (activeUploadBooking.mediaType === 'video') {
+      setMediaTypeTab('videos');
+    }
+
+    const standardCategories = ['Electronics', 'RealEstate', 'Automotive', 'Beverages', 'Fashion', 'Finance', 'Entertainment'];
+    const cat = activeUploadBooking.adCategory?.trim() || '';
+
+    if (isNewBooking) {
+      lastBookingIdRef.current = currentBookingId;
       if (cat && standardCategories.includes(cat)) {
         setUploadAdCategory(cat);
         setCustomAdCategory('');
       } else if (cat && cat !== 'Other') {
         setUploadAdCategory('Other');
         setCustomAdCategory(cat);
-      } else {
+      } else if (!uploadAdCategory) {
+        // Only reset to empty if user hasn't already chosen a category
         setUploadAdCategory('');
         setCustomAdCategory('');
       }
+    } else if (cat && !uploadAdCategory) {
+      if (standardCategories.includes(cat)) {
+        setUploadAdCategory(cat);
+        setCustomAdCategory('');
+      } else if (cat !== 'Other') {
+        setUploadAdCategory('Other');
+        setCustomAdCategory(cat);
+      }
     }
-  }, [activeUploadBooking, setMediaTypeTab, setUploadAdCategory, setCustomAdCategory]);
+  }, [activeUploadBooking, setMediaTypeTab, setUploadAdCategory, setCustomAdCategory, uploadAdCategory]);
 
   if (!activeUploadBooking) return null;
 

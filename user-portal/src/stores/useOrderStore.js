@@ -8,6 +8,7 @@ const getWsBase = () => config.wsUrl;
 
 let ws = null;
 let reconnectTimer = null;
+let pingTimer = null;
 let reconnectAttempts = 0;
 let isExplicitlyDisconnected = false;
 
@@ -103,11 +104,26 @@ export const useOrderStore = create((set, get) => ({
       ws.onopen = () => {
         reconnectAttempts = 0;
         set({ wsConnected: true });
+        if (pingTimer) clearInterval(pingTimer);
+        pingTimer = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            try { ws.send(JSON.stringify({ event: 'ping' })); } catch (_) {}
+          }
+        }, 25000);
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+
+          if (data.event === 'pong') return;
+
+          if (data.error === 'UNAUTHORIZED' || data.code === 401 || (data.message && data.message.toLowerCase().includes('unauthorized'))) {
+            console.warn('[WS] 401 Unauthorized received. Disconnecting WebSocket.');
+            get().disconnectWebSocket();
+            return;
+          }
+
           if (
             data.event === 'new_order' ||
             data.event === 'order_update' ||
@@ -133,6 +149,10 @@ export const useOrderStore = create((set, get) => ({
 
       ws.onclose = () => {
         set({ wsConnected: false });
+        if (pingTimer) {
+          clearInterval(pingTimer);
+          pingTimer = null;
+        }
         if (isExplicitlyDisconnected) return;
         reconnectAttempts++;
         const baseDelay = Math.min(30000, 2000 * Math.pow(1.5, Math.min(reconnectAttempts, 6)));
@@ -150,6 +170,10 @@ export const useOrderStore = create((set, get) => ({
         // Clean error suppression to avoid terminal log pollution
       };
     } catch (err) {
+      if (pingTimer) {
+        clearInterval(pingTimer);
+        pingTimer = null;
+      }
       reconnectAttempts++;
       const delay = Math.min(30000, 3000 * Math.pow(1.5, Math.min(reconnectAttempts, 6)));
       reconnectTimer = setTimeout(() => {
@@ -162,6 +186,10 @@ export const useOrderStore = create((set, get) => ({
 
   disconnectWebSocket: () => {
     isExplicitlyDisconnected = true;
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

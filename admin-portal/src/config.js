@@ -10,10 +10,10 @@ const getApiUrl = () => {
       if (host.includes('digiads.space')) {
         return `${protocol}//test-api.digiads.space/api/v1`;
       }
-      return `${protocol}//${host}:4200/api/v1`;
+      return `${protocol}//${host}:4000/api/v1`;
     }
   }
-  return 'http://localhost:4200/api/v1';
+  return 'http://localhost:4000/api/v1';
 };
 
 const getWsUrl = () => {
@@ -27,14 +27,18 @@ const getWsUrl = () => {
       if (host.includes('digiads.space')) {
         return `${wsProto}//test-api.digiads.space`;
       }
-      return `${wsProto}//${host}:4200`;
+      return `${wsProto}//${host}:4000`;
     }
   }
-  return 'ws://localhost:4200';
+  return 'ws://localhost:4000';
 };
 
 export const config = {
-  apiUrl: getApiUrl(),
-  wsUrl: getWsUrl(),
+  get apiUrl() {
+    return getApiUrl();
+  },
+  get wsUrl() {
+    return getWsUrl();
+  },
 };
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -217,6 +218,14 @@ class AdSyncService {
       headers: {'Authorization': 'Bearer $token'},
     ).timeout(kHttpTimeout);
 
+    if (response.statusCode == 429) {
+      final retryAfterHeader = response.headers['retry-after'];
+      final retrySeconds = int.tryParse(retryAfterHeader ?? '') ?? 30;
+      debugPrint('[SYNC] 429 Too Many Requests. Retry-After: ${retrySeconds}s');
+      _scheduleRetrySync(overrideDelaySeconds: retrySeconds);
+      return null;
+    }
+
     if (response.statusCode == 200) {
       final data = await parseJsonInBackground(response.body);
       if (data['success'] == true) {
@@ -406,12 +415,15 @@ class AdSyncService {
     }
   }
 
-  void _scheduleRetrySync() {
+  void _scheduleRetrySync({int? overrideDelaySeconds}) {
     if (_disposed) return;
     _syncTimer?.cancel();
     _syncRetryCount++;
-    debugPrint('[SYNC] Scheduling retry in ${kSyncRetryDelay.inSeconds}s (attempt #$_syncRetryCount)');
-    _syncTimer = Timer(kSyncRetryDelay, () {
+    final baseSeconds = overrideDelaySeconds ?? math.min(120, 10 * math.pow(2, math.min(_syncRetryCount - 1, 4)).toInt());
+    final jitter = math.Random().nextInt(5);
+    final delaySeconds = baseSeconds + jitter;
+    debugPrint('[SYNC] Scheduling retry in ${delaySeconds}s (attempt #$_syncRetryCount)');
+    _syncTimer = Timer(Duration(seconds: delaySeconds), () {
       if (!_disposed) _attemptSync();
     });
   }
@@ -441,6 +453,14 @@ class AdSyncService {
         debugPrint('[DOWNLOAD] Attempt $attempt: $url');
         final request = http.Request('GET', Uri.parse(url));
         final response = await client.send(request).timeout(kDownloadTimeout);
+
+        if (response.statusCode == 429) {
+          final retryAfterHeader = response.headers['retry-after'];
+          final retrySeconds = int.tryParse(retryAfterHeader ?? '') ?? 15;
+          debugPrint('[DOWNLOAD] 429 Rate limited. Backing off for ${retrySeconds}s before attempt $attempt');
+          await Future.delayed(Duration(seconds: retrySeconds.clamp(5, 60)));
+          continue;
+        }
 
         if (response.statusCode == 200) {
           final totalBytes = response.contentLength ?? 0;

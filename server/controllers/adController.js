@@ -1079,7 +1079,7 @@ class AdController {
         return res.status(200).send({ 
           success: true, 
           message: 'Payment already completed', 
-          data: { paymentStatus: 'completed', approvalStatus: booking.approvalStatus } 
+          data: booking 
         });
       }
 
@@ -1117,10 +1117,14 @@ class AdController {
         booking.paymentId = paymentId;
         await booking.save();
 
+        if (global.broadcastToAdmins) {
+          global.broadcastToAdmins('new_campaign', { bookingId: booking.bookingId });
+        }
+
         return res.status(200).send({
           success: true,
           message: 'Payment verified successfully and marked as completed.',
-          data: { paymentStatus: 'completed', approvalStatus: 'pending' }
+          data: booking
         });
       } else if (mappedStatus === 'FAILED') {
         await PhonePeTransaction.updateOne(

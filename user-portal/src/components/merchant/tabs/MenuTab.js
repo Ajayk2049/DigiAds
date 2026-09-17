@@ -203,6 +203,9 @@ export default function MenuTab(props) {
                   {/* Items in this category */}
                   {items.map((item) => {
                     const originalIndex = menuItems.findIndex(i => i.itemId === item.itemId);
+                    const hasCustomizations = Array.isArray(item.customizations) &&
+                      item.customizations.length > 0 &&
+                      item.customizations.some(g => Array.isArray(g.options) && g.options.length > 0);
                     return (
                       <div
                         key={item.itemId}
@@ -252,6 +255,11 @@ export default function MenuTab(props) {
                               <div className="absolute top-2 left-2 z-10 bg-amber-500/90 backdrop-blur-sm text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex items-center space-x-1 shadow-md">
                                 <Star className="w-3 h-3 fill-white" />
                                 <span>POPULAR</span>
+                              </div>
+                            )}
+                            {hasCustomizations && (
+                              <div className="absolute bottom-2 right-2 z-10 bg-black/80 backdrop-blur-xs text-amber-400 border border-amber-500/30 text-[8px] font-black tracking-wider uppercase px-2 py-0.5 rounded-md shadow-sm">
+                                CUSTOMISABLE
                               </div>
                             )}
                             {item.imageUrl ? (

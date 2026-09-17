@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:grpc/grpc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'generated/device.pbgrpc.dart';
 
@@ -21,7 +22,7 @@ import 'generated/device.pbgrpc.dart';
 enum PlayerState { booting, waiting, playing }
 
 String buildServerUrl(String serverHost,
-    {int defaultPort = 4200, String path = ''}) {
+    {int defaultPort = 4000, String path = ''}) {
   String host = serverHost.trim();
   if (host.isEmpty) return '';
 
@@ -67,7 +68,11 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('token') ?? '';
-  final serverHost = prefs.getString('serverHost') ?? '';
+  String serverHost = prefs.getString('serverHost') ?? '';
+  if (serverHost.contains(':4200')) {
+    serverHost = serverHost.replaceAll(':4200', ':4000');
+    await prefs.setString('serverHost', serverHost);
+  }
   final deviceId = prefs.getString('deviceId') ?? '';
   final hostApplicationId = prefs.getString('hostApplicationId') ?? '';
 
@@ -671,22 +676,47 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
 
   Future<void> _ensureStorageReady() async {
     if (Platform.isAndroid) {
-      final manageStatus = await Permission.manageExternalStorage.status;
-      if (!manageStatus.isGranted) {
-        await Permission.manageExternalStorage.request();
-      }
-      final storageStatus = await Permission.storage.status;
-      if (!storageStatus.isGranted) {
-        await Permission.storage.request();
+      try {
+        final manageStatus = await Permission.manageExternalStorage.status;
+        if (!manageStatus.isGranted) {
+          await Permission.manageExternalStorage.request();
+        }
+        final storageStatus = await Permission.storage.status;
+        if (!storageStatus.isGranted) {
+          await Permission.storage.request();
+        }
+      } catch (e) {
+        print('[STORAGE] Permission request exception: $e');
       }
     }
 
-    final baseDir = Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
-    if (!baseDir.existsSync()) {
-      baseDir.createSync(recursive: true);
+    try {
+      final baseDir = Directory('/storage/emulated/0/Download/DigiAds/ScreenAds');
+      if (!baseDir.existsSync()) {
+        baseDir.createSync(recursive: true);
+      }
+      _adsDirectory = baseDir.path;
+      print('[BOOT] Primary ads directory ready: $_adsDirectory');
+    } catch (e) {
+      print('[BOOT] Primary /storage/emulated/0/ inaccessible ($e), falling back to app storage...');
+      try {
+        final extDir = await getExternalStorageDirectory();
+        final fallbackDir = Directory('${extDir?.path ?? (await getApplicationDocumentsDirectory()).path}/ScreenAds');
+        if (!fallbackDir.existsSync()) {
+          fallbackDir.createSync(recursive: true);
+        }
+        _adsDirectory = fallbackDir.path;
+        print('[BOOT] Fallback ads directory ready: $_adsDirectory');
+      } catch (fallbackErr) {
+        final appDir = await getApplicationDocumentsDirectory();
+        final fallbackDir = Directory('${appDir.path}/ScreenAds');
+        if (!fallbackDir.existsSync()) {
+          fallbackDir.createSync(recursive: true);
+        }
+        _adsDirectory = fallbackDir.path;
+        print('[BOOT] ApplicationDocumentsDirectory ads directory ready: $_adsDirectory');
+      }
     }
-    _adsDirectory = baseDir.path;
-    print('[BOOT] Ads directory ready: $_adsDirectory');
   }
 
   Future<void> _loadCachedPlaylist({bool startPlayback = true}) async {
@@ -695,8 +725,15 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
 
     if (cached != null && cached.isNotEmpty) {
       final valid = cached.where((path) {
-        if (path.startsWith('static__') || path.startsWith('img__'))
-          return true;
+        if (path.startsWith('static__')) return true;
+        if (path.startsWith('img__')) {
+          final parts = path.split('__');
+          if (parts.length >= 3) {
+            final f = File(parts.last);
+            return f.existsSync() && f.lengthSync() > 500;
+          }
+          return false;
+        }
         final file = File(path);
         return file.existsSync() && file.lengthSync() > 1000;
       }).toList();
@@ -765,6 +802,11 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
       port: 4201,
       options: ChannelOptions(
         credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+        keepAlive: const ClientKeepAliveOptions(
+          pingInterval: Duration(seconds: 30),
+          timeout: Duration(seconds: 10),
+          permitWithoutCalls: true,
+        ),
       ),
     );
 
@@ -774,6 +816,8 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
       timeout: const Duration(seconds: 10),
     );
   }
+
+  int _consecutiveHeartbeatFailures = 0;
 
   void _startHeartbeat() async {
     _heartbeatTimer?.cancel();
@@ -790,17 +834,33 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
         final res =
             await _deviceClient.sendHeartbeat(req, options: _callOptions);
 
+        _consecutiveHeartbeatFailures = 0;
+        if (mounted && _offline) setState(() => _offline = false);
+
         if (res.hasCommand()) {
           final cmd = res.command.toLowerCase();
           if (cmd == 'refresh' || cmd == 'sync' || cmd == 'reload_ads') {
             print('[HEARTBEAT] Server requested ad refresh: $cmd');
             _attemptSync();
           } else if (cmd == 'reboot') {
-            print('[HEARTBEAT] Server requested reboot.');
+            print('[HEARTBEAT] Server requested reboot. Restarting application process...');
+            try {
+              if (Platform.isAndroid) {
+                SystemNavigator.pop();
+              } else {
+                exit(0);
+              }
+            } catch (err) {
+              print('[HEARTBEAT] Reboot trigger error: $err');
+            }
           }
         }
       } catch (e) {
-        print('[HEARTBEAT] Heartbeat failed: $e');
+        _consecutiveHeartbeatFailures++;
+        print('[HEARTBEAT] Heartbeat failed (consecutive: $_consecutiveHeartbeatFailures): $e');
+        if (_consecutiveHeartbeatFailures >= 3 && mounted && !_offline) {
+          setState(() => _offline = true);
+        }
       }
     });
   }
@@ -820,6 +880,13 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
         url,
         headers: {'Authorization': 'Bearer ${widget.token}'},
       ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 429) {
+        final retryAfter = int.tryParse(response.headers['retry-after'] ?? '') ?? 30;
+        print('[SYNC] 429 Rate limited. Waiting ${retryAfter}s');
+        _scheduleRetrySync(overrideSeconds: retryAfter.toDouble());
+        return;
+      }
 
       final data = jsonDecode(response.body);
       if (response.statusCode == 200 && data['success'] == true) {
@@ -855,12 +922,12 @@ class _AdPlayerScreenState extends State<AdPlayerScreen>
     _scheduleRetrySync();
   }
 
-  void _scheduleRetrySync() {
+  void _scheduleRetrySync({double? overrideSeconds}) {
     _syncTimer?.cancel();
     _syncRetryCount++;
 
-    // Exponential backoff: 3s, 4.5s, 6.75s, 10s... up to max 60s
-    final expSeconds = (3.0 * math.pow(1.5, math.min(_syncRetryCount, 6))).clamp(3.0, 60.0);
+    // Exponential backoff: 3s, 4.5s, 6.75s, 10s... up to max 60s, or server-specified Retry-After
+    final expSeconds = overrideSeconds ?? (3.0 * math.pow(1.5, math.min(_syncRetryCount, 6))).clamp(3.0, 60.0);
     // Randomized jitter (0 to 2000ms) to desynchronize simultaneous screen sync requests
     final jitterMs = math.Random().nextInt(2000);
     final delay = Duration(milliseconds: (expSeconds * 1000).toInt() + jitterMs);

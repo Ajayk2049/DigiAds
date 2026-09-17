@@ -84,6 +84,21 @@ class WebSocketService {
       final parsed = jsonDecode(message.toString()) as Map<String, dynamic>;
       final event = parsed['event'] ?? parsed['type'] ?? 'message';
 
+      if (event == 'pong') {
+        return;
+      }
+
+      final err = parsed['error'] as String? ?? '';
+      final code = parsed['code'];
+      if (err == 'UNAUTHORIZED' || code == 401 || (parsed['message'] as String? ?? '').toLowerCase().contains('unauthorized')) {
+        if (kDebugMode) print('[WS] 401 Unauthorized received. Disconnecting and clearing saved token.');
+        disconnect();
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.remove('auth_token');
+        });
+        return;
+      }
+
       if (event == 'connected') {
         _isConnected = true;
         _hasEverConnected = true;
@@ -114,7 +129,7 @@ class WebSocketService {
     _pingTimer = Timer.periodic(const Duration(seconds: 25), (timer) {
       if (_isConnected && _channel != null) {
         try {
-          _channel!.sink.add(jsonEncode({'type': 'ping', 'timestamp': DateTime.now().millisecondsSinceEpoch}));
+          _channel!.sink.add(jsonEncode({'event': 'ping', 'timestamp': DateTime.now().millisecondsSinceEpoch}));
         } catch (_) {}
       }
     });

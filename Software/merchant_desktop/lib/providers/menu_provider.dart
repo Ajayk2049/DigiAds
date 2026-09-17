@@ -164,6 +164,14 @@ class MenuProvider extends ChangeNotifier {
   Future<String?> uploadImage(String filePath, String hostApplicationId) async {
     try {
       final file = File(filePath);
+      if (!await file.exists()) return null;
+
+      final size = await file.length();
+      if (size > 10 * 1024 * 1024) {
+        debugPrint('[MENU] File too large (>10MB): $filePath');
+        return null;
+      }
+
       final filename = file.path.split(Platform.pathSeparator).last;
       final bytes = await file.readAsBytes();
       final ext = filename.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
@@ -180,8 +188,8 @@ class MenuProvider extends ChangeNotifier {
         ),
       );
 
-      if (res.data['success'] == true && res.data['data'] != null) {
-        return res.data['data']['url'];
+      if (res.data != null) {
+        return (res.data['data']?['url'] ?? res.data['url']) as String?;
       }
       return null;
     } catch (e) {

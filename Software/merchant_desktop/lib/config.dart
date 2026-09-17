@@ -5,10 +5,11 @@ class AppConfig {
   static const bool isProduction = bool.fromEnvironment('dart.vm.product');
 
   // Default Host
-  static const String devApiHost = '127.0.0.1:4200';
-  static const String prodApiHost = 'https://api.digiads.app';
+  static const String devApiHost = '127.0.0.1:4000';
+  static const String prodApiHost = 'https://test-api.digiads.space';
 
   static String _activeHost = devApiHost;
+  static bool _isExplicitHttps = false;
 
   static String get serverHost => _activeHost;
 
@@ -18,17 +19,21 @@ class AppConfig {
       final prefs = await SharedPreferences.getInstance();
       final savedHost = prefs.getString('custom_server_host');
       if (savedHost != null && savedHost.trim().isNotEmpty) {
-        _activeHost = savedHost.trim();
+        final trimmed = savedHost.trim();
+        _isExplicitHttps = trimmed.startsWith('https://');
+        _activeHost = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
       }
     } catch (_) {}
   }
 
   /// Update active server host and persist
   static Future<void> setServerHost(String host) async {
-    _activeHost = host.trim().replaceFirst('http://', '').replaceFirst('https://', '');
+    final trimmed = host.trim();
+    _isExplicitHttps = trimmed.startsWith('https://');
+    _activeHost = trimmed.replaceFirst(RegExp(r'^https?:\/\/'), '');
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('custom_server_host', _activeHost);
+      await prefs.setString('custom_server_host', trimmed);
     } catch (_) {}
   }
 
@@ -37,7 +42,8 @@ class AppConfig {
       if (_activeHost.startsWith('http://') || _activeHost.startsWith('https://')) {
         return _activeHost;
       }
-      return 'http://$_activeHost';
+      final scheme = _isExplicitHttps || (!_activeHost.contains(':') && _activeHost.contains('.')) ? 'https' : 'http';
+      return '$scheme://$_activeHost';
     }
     return 'http://$devApiHost';
   }
@@ -64,9 +70,6 @@ class AppConfig {
       subpath = '/uploads/${url.split('/uploads/')[1]}';
     } else if (!url.startsWith('/')) {
       subpath = '/$url';
-    }
-    if (subpath.contains('/uploads/ads/')) {
-      subpath = subpath.replaceFirst('/uploads/ads/', '/uploads/creative/');
     }
     return '$serverRootUrl$subpath';
   }

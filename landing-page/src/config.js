@@ -3,9 +3,9 @@ const getApiUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:4200/api/v1`;
+    return `http://${window.location.hostname}:4000/api/v1`;
   }
-  return 'http://localhost:4200/api/v1';
+  return 'http://localhost:4000/api/v1';
 };
 
 const getUserPortalUrl = () => {
@@ -13,12 +13,16 @@ const getUserPortalUrl = () => {
     return process.env.NEXT_PUBLIC_USER_PORTAL_URL;
   }
   if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3001`;
+    return `http://${window.location.hostname}:4200`;
   }
-  return 'http://localhost:3001';
+  return 'http://localhost:4200';
 };
 
 export const config = {
-  apiUrl: getApiUrl(),
-  userPortalUrl: getUserPortalUrl(),
+  get apiUrl() {
+    return getApiUrl();
+  },
+  get userPortalUrl() {
+    return getUserPortalUrl();
+  },
 };

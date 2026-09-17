@@ -144,6 +144,7 @@ export const createWizardSlice = (set, get) => ({
     set({ submittingBooking: true });
     try {
       const redirectUrl = `${config.userPortalUrl}/advertiser`;
+      const idempotencyKey = `book_${selectedOutlet._id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const response = await axios.post(
         `${API_BASE}/ads/book`,
         {
@@ -159,7 +160,10 @@ export const createWizardSlice = (set, get) => ({
           redirectUrl
         },
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Idempotency-Key': idempotencyKey
+          }
         }
       );
 
@@ -170,7 +174,12 @@ export const createWizardSlice = (set, get) => ({
         set({ submittingBooking: false });
       }
     } catch (err) {
-      showToast('error', err.response?.data?.message || 'Failed to initiate campaign booking.');
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.headers['retry-after'] || 30;
+        showToast('error', `Booking rate limit reached. Please wait ${retryAfter} seconds.`);
+      } else {
+        showToast('error', err.response?.data?.message || 'Failed to initiate campaign booking.');
+      }
       set({ submittingBooking: false });
     }
   }

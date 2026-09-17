@@ -252,19 +252,26 @@ class AdminController {
 
   /**
    * Get all ad bookings for platform admin review & management
-   * Strictly filters for paid campaigns where media creative has been uploaded and transcoded/optimized
+   * Returns all booked campaigns; allows filtering by paymentStatus, approvalStatus, or hasMedia
    */
   async getAdBookings(req, res) {
-    const { paymentStatus, approvalStatus } = req.query || {};
-    const query = {
-      // 1. Strict Payment Check: Only completed paid campaigns
-      paymentStatus: paymentStatus || 'completed',
-      // 2. Strict Media Check: Media must be uploaded
-      mediaUrl: { $exists: true, $ne: '' },
-      // 3. Strict Transcode Check: Background media optimization queue must be finished
-      transcodeStatus: { $in: ['completed', null] }
-    };
-    if (approvalStatus) query.approvalStatus = approvalStatus;
+    const { paymentStatus, approvalStatus, hasMedia } = req.query || {};
+    const query = {};
+
+    if (paymentStatus && paymentStatus !== 'all') {
+      query.paymentStatus = paymentStatus;
+    } else if (!paymentStatus) {
+      query.paymentStatus = 'completed';
+    }
+
+    if (approvalStatus && approvalStatus !== 'all') {
+      query.approvalStatus = approvalStatus;
+    }
+
+    if (hasMedia === 'true') {
+      query.mediaUrl = { $exists: true, $ne: '' };
+      query.transcodeStatus = { $in: ['completed', null] };
+    }
 
     try {
       const page = Math.max(1, parseInt(req.query.page, 10) || 1);

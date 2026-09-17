@@ -127,9 +127,9 @@ digiads/
 │   ├── services/              # SMS, Payment Gateway, and Video Transcoding queues
 │   └── server.js              # Main backend bootstrap entry point
 │
-├── landing-page/              # Public marketing website (Port 3000)
-├── user-portal/               # Merchant & Advertiser portal (Port 3002)
-├── admin-portal/              # Platform Admin management dashboard (Port 3001)
+├── landing-page/              # Public marketing website (Port 4100)
+├── user-portal/               # Merchant & Advertiser portal (Port 4200)
+├── admin-portal/              # Platform Admin management dashboard (Port 4300)
 │
 ├── tablet-app/                # Flutter Android Tabletop Ordering Kiosk
 └── screen-app/                # Flutter Android Wall Display Advertising Engine
@@ -141,11 +141,11 @@ digiads/
 
 | Service | Protocol | Default Port | Description |
 | :--- | :--- | :--- | :--- |
-| **Landing Page** | HTTP | `3000` | Public marketing website |
-| **Admin Portal** | HTTP | `3001` | Platform administrator console |
-| **User Portal** | HTTP | `3002` | Merchant & Advertiser portal |
-| **Backend API & WS** | HTTP / WS | `4200` | REST endpoints & live WebSocket |
-| **Backend gRPC** | HTTP/2 | `50051` | Tablet & Screen telemetry streams |
+| **Landing Page** | HTTP | `4100` | Public marketing website |
+| **User Portal** | HTTP | `4200` | Merchant & Advertiser portal |
+| **Admin Portal** | HTTP | `4300` | Platform administrator console |
+| **Backend API & WS** | HTTP / WS | `4000` | REST endpoints & live WebSocket |
+| **Backend gRPC** | HTTP/2 | `4201` | Tablet & Screen telemetry streams |
 | **Redis** | TCP | `6379` | Background BullMQ transcode queue |
 
 ---
@@ -171,14 +171,14 @@ digiads/
 
 2. **Start the Web Portals** (in separate terminals):
    ```bash
-   # Landing Page (Port 3000)
+   # Landing Page (Port 4100)
    cd landing-page && npm install && npm run dev
 
-   # Admin Console (Port 3001)
-   cd admin-portal && npm install && npm run dev
-
-   # User & Merchant Portal (Port 3002)
+   # User & Merchant Portal (Port 4200)
    cd user-portal && npm install && npm run dev
+
+   # Admin Console (Port 4300)
+   cd admin-portal && npm install && npm run dev
    ```
 
 3. **Build the Tablet App (APK)**:
@@ -195,20 +195,20 @@ digiads/
 # 1. Start Backend Server
 cd server
 npm install --omit=dev
-pm2 start server.js --name "digiads-server" -- --env-file=config/.env.prod
+pm2 start server.js --name "digiads-backend" -- --env-file=config/.env.prod
 
 # 2. Build and Start Web Portals
-cd ../admin-portal
+cd ../landing-page
 npm install && npm run build
-pm2 start npm --name "digiads-admin" -- start -- -p 3001
+pm2 start npm --name "digiads-landing" -- start -- -p 4100
 
 cd ../user-portal
 npm install && npm run build
-pm2 start npm --name "digiads-user" -- start -- -p 3002
+pm2 start npm --name "digiads-user" -- start -- -p 4200
 
-cd ../landing-page
+cd ../admin-portal
 npm install && npm run build
-pm2 start npm --name "digiads-landing" -- start -- -p 3000
+pm2 start npm --name "digiads-admin" -- start -- -p 4300
 
 # 3. Persist Process List across Reboots
 pm2 save

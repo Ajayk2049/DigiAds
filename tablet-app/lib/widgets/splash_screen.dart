@@ -29,7 +29,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
-    final serverHost = prefs.getString('serverHost') ?? '';
+    String serverHost = prefs.getString('serverHost') ?? '';
+    if (serverHost.contains(':4200')) {
+      serverHost = serverHost.replaceAll(':4200', ':4000');
+      await prefs.setString('serverHost', serverHost);
+    }
     final deviceId = prefs.getString('deviceId') ?? '';
     final hostApplicationId = prefs.getString('hostApplicationId') ?? '';
     final bypassPassword = prefs.getString('bypassPassword') ?? '';

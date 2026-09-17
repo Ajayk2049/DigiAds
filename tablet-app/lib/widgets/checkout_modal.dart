@@ -113,6 +113,17 @@ class _OrderCheckoutModalState extends State<OrderCheckoutModal> {
           });
         }
       }
+    } on GrpcError catch (ge) {
+      if (mounted) {
+        String msg = ge.message ?? 'Order placement failed.';
+        if (ge.code == StatusCode.resourceExhausted || msg.contains('429')) {
+          msg = 'Order queue is currently busy. Please wait a few seconds and try again.';
+        }
+        setState(() {
+          _error = msg;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         String cleanMsg = e.toString();
