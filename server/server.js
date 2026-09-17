@@ -18,6 +18,14 @@ const phonePeService = require('./services/phonePeService');
 const { ensureRedisRunning } = require('./utils/redisRunner');
 const { v4: uuidv4 } = require('uuid');
 
+// Cap libvips thread pool + disable file cache for 1 vCPU / 3.8GB VPS.
+// Same output pixels — prevents thread explosion when concurrent image uploads hit sharp.
+try {
+  const sharp = require('sharp');
+  sharp.concurrency(1);
+  sharp.cache(false);
+} catch (_) {}
+
 // Ensure required upload and log directories exist on server boot (for fresh VPS deployments)
 const requiredDirs = [
   path.join(__dirname, 'uploads'),

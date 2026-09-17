@@ -826,7 +826,7 @@ class HostController {
 
     try {
       // Optimize and resize image using sharp
-      const sharpStream = sharp()
+      const sharpStream = sharp({ limitInputPixels: 25000000 })
         .resize(800, 800, {
           fit: 'inside',
           withoutEnlargement: true
@@ -905,7 +905,7 @@ class HostController {
       // 1. Single-pass normalized pipeline: resize to 450x450 (cuts pixel scan footprint by ~44%), grayscale & contrast normalize
       let code = null;
       try {
-        const { data, info } = await sharp(buffer)
+        const { data, info } = await sharp(buffer, { limitInputPixels: 25000000 })
           .resize(450, 450, { fit: 'inside', withoutEnlargement: true })
           .grayscale()
           .ensureAlpha()
@@ -920,7 +920,7 @@ class HostController {
       // 2. Fallback pass with linear contrast stretch only if first pass failed (e.g. faint/shadowed camera photo)
       if (!code || !code.data) {
         try {
-          const enhanced = await sharp(buffer)
+          const enhanced = await sharp(buffer, { limitInputPixels: 25000000 })
             .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
             .grayscale()
             .linear(1.3, -20)
@@ -1946,7 +1946,7 @@ class HostController {
         const uniqueFilename = `promo_img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
         const filePath = path.join(uploadsDir, uniqueFilename);
 
-        const sharpStream = sharp().resize(1920, 1080, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 });
+        const sharpStream = sharp({ limitInputPixels: 25000000 }).resize(1920, 1080, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 85 });
         await pipeline(req.body, sharpStream, fs.createWriteStream(filePath));
 
         return res.status(200).send({
@@ -2732,14 +2732,14 @@ class HostController {
 
     try {
       const sharp = require('sharp');
-      const transformer = sharp()
+      const transformer = sharp({ limitInputPixels: 25000000 })
         .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 85 });
 
       if (req.body && typeof req.body.pipe === 'function') {
         await pipeline(req.body, transformer, fs.createWriteStream(filePath));
       } else if (Buffer.isBuffer(req.body)) {
-        await sharp(req.body)
+        await sharp(req.body, { limitInputPixels: 25000000 })
           .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
           .webp({ quality: 85 })
           .toFile(filePath);

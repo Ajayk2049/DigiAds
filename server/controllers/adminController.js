@@ -1303,7 +1303,7 @@ class AdminController {
         const uniqueFilename = `pad_img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
         const filePath = path.join(uploadsDir, uniqueFilename);
 
-        const sharpStream = sharp()
+        const sharpStream = sharp({ limitInputPixels: 25000000 })
           .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
           .webp({ quality: 85 });
 

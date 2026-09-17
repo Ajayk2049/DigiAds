@@ -363,12 +363,8 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF0C243B) : AppColors.primaryLight,
+                                  color: AppColors.primary,
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: AppColors.primary.withValues(alpha: isDark ? 0.4 : 0.25),
-                                    width: 1,
-                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -376,7 +372,7 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                     Icon(
                                       getDesktopCategoryIcon(category, menuProv.getCategoryIcon(category)),
                                       size: 14,
-                                      color: AppColors.primary,
+                                      color: Colors.white,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
@@ -385,14 +381,14 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                         fontWeight: FontWeight.w900,
                                         fontSize: 12,
                                         letterSpacing: 1.1,
-                                        color: AppColors.primary,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        color: Colors.white.withValues(alpha: 0.25),
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Text(
@@ -400,7 +396,7 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                         style: const TextStyle(
                                           fontSize: 10,
                                           fontWeight: FontWeight.bold,
-                                          color: AppColors.primary,
+                                          color: Colors.white,
                                         ),
                                       ),
                                     ),

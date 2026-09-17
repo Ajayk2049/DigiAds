@@ -180,25 +180,47 @@ class ReleaseController {
 
   // Admin POST /api/v1/admin/releases/upload
   async uploadRelease(req, reply) {
+    let targetPath = null;
     try {
-      const appType = req.headers['x-app-type'] || req.query.appType || 'TABLET_APP';
-      const versionName = req.headers['x-version-name'] || req.query.versionName || '1.0.1';
-      const versionCode = req.headers['x-version-code'] || req.query.versionCode || '2';
+      const rawAppType = req.headers['x-app-type'] || req.query.appType || 'TABLET_APP';
+      const rawVersionName = req.headers['x-version-name'] || req.query.versionName || '1.0.1';
+      const rawVersionCode = req.headers['x-version-code'] || req.query.versionCode || '2';
       const releaseNotes = req.headers['x-release-notes'] ? decodeURIComponent(req.headers['x-release-notes']) : (req.query.releaseNotes || '');
       const isMandatory = (req.headers['x-is-mandatory'] || req.query.isMandatory) === 'true';
 
-      if (!appType || !versionName || !versionCode) {
-        return reply.code(400).send({ success: false, error: 'Missing required release metadata headers (x-app-type, x-version-name, x-version-code)' });
+      // Validate + sanitize metadata before touching disk or DB (matches AppRelease enums,
+      // prevents path traversal via versionName and zero-active outage via invalid versionCode)
+      const appType = String(rawAppType).toUpperCase();
+      if (!['TABLET_APP', 'SCREEN_APP'].includes(appType)) {
+        return reply.code(400).send({ success: false, error: 'Invalid x-app-type. Must be TABLET_APP or SCREEN_APP.' });
+      }
+      const versionName = String(rawVersionName).replace(/[^0-9a-zA-Z._-]/g, '').slice(0, 32);
+      if (!versionName) {
+        return reply.code(400).send({ success: false, error: 'Invalid x-version-name.' });
+      }
+      const versionCode = parseInt(rawVersionCode, 10);
+      if (!Number.isInteger(versionCode) || versionCode < 0) {
+        return reply.code(400).send({ success: false, error: 'Invalid x-version-code. Must be a non-negative integer.' });
       }
 
       await fs.promises.mkdir(RELEASES_DIR, { recursive: true });
 
       const safeFileName = `${appType.toLowerCase()}_v${versionName}_${Date.now()}.apk`;
-      const targetPath = path.join(RELEASES_DIR, safeFileName);
+      targetPath = path.join(RELEASES_DIR, safeFileName);
 
-      // Stream raw binary body directly to disk to handle large APKs (>60MB) cleanly
+      // Stream raw binary body directly to disk with a 100MB byte-count guard
+      const MAX_APK_BYTES = 104857600;
+      let bytesWritten = 0;
       await new Promise((resolve, reject) => {
         const fileStream = fs.createWriteStream(targetPath);
+        req.raw.on('data', (chunk) => {
+          bytesWritten += chunk.length;
+          if (bytesWritten > MAX_APK_BYTES) {
+            try { req.raw.unpipe(fileStream); } catch (_) {}
+            try { req.raw.destroy(); } catch (_) {}
+            fileStream.destroy(new Error('APK file size exceeds maximum limit of 100MB'));
+          }
+        });
         req.raw.pipe(fileStream);
         req.raw.on('end', resolve);
         req.raw.on('error', reject);
@@ -214,16 +236,11 @@ class ReleaseController {
         stream.on('error', reject);
       });
 
-      // Deactivate any prior active releases for this appType so only the newly uploaded release is active
-      await AppRelease.updateMany(
-        { appType, status: 'active' },
-        { status: 'inactive' }
-      );
-
+      // Create first, then deactivate predecessors (never leaves zero active on validation failure)
       const newRelease = await AppRelease.create({
         appType,
         versionName,
-        versionCode: parseInt(versionCode, 10),
+        versionCode,
         sha256,
         fileName: safeFileName,
         downloadPath: `/api/v1/releases/download/placeholder`,
@@ -231,6 +248,11 @@ class ReleaseController {
         releaseNotes,
         status: 'active',
       });
+
+      await AppRelease.updateMany(
+        { appType, status: 'active', _id: { $ne: newRelease._id } },
+        { status: 'inactive' }
+      );
 
       newRelease.downloadPath = `/api/v1/releases/download/${newRelease._id}`;
       await newRelease.save();
@@ -247,6 +269,10 @@ class ReleaseController {
       return reply.send({ success: true, release: newRelease });
     } catch (err) {
       req.log.error(err);
+      // Never leave partial/failed APK bytes on the small VPS disk
+      if (targetPath) {
+        try { await fs.promises.unlink(targetPath); } catch (_) {}
+      }
       return reply.code(500).send({ success: false, error: err.message });
     }
   }

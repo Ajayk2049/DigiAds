@@ -978,7 +978,7 @@ class AdController {
     const filePath = path.join(uploadsDir, uniqueFilename);
 
     try {
-      const transformer = sharp()
+      const transformer = sharp({ limitInputPixels: 25000000 })
         .resize(targetDim.width, targetDim.height, {
           fit: 'inside',
           withoutEnlargement: false
@@ -988,7 +988,7 @@ class AdController {
       if (req.body && typeof req.body.pipe === 'function') {
         await pipeline(req.body, transformer, fs.createWriteStream(filePath));
       } else if (Buffer.isBuffer(req.body)) {
-        await sharp(req.body)
+        await sharp(req.body, { limitInputPixels: 25000000 })
           .resize(targetDim.width, targetDim.height, { fit: 'inside', withoutEnlargement: false })
           .webp({ quality: 85 })
           .toFile(filePath);
