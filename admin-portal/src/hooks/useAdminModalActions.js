@@ -40,6 +40,12 @@ export default function useAdminModalActions({
   setShowCreatePlatformAdModal,
   setUploadingPlatformAd,
   setUploadProgress,
+  editingPlatformAd,
+  setEditingPlatformAd,
+  editPlatformAdForm,
+  setEditPlatformAdForm,
+  isSavingPlatformAd,
+  setIsSavingPlatformAd,
   editingUser,
   setEditingUser,
   userForm,
@@ -288,10 +294,24 @@ export default function useAdminModalActions({
     }
   };
 
-  const handleTogglePlatformAdActive = async (ad) => {
+  const handleTogglePlatformAdActive = async (adOrId, maybeStatus) => {
     try {
-      const newStatus = !ad.isActive;
-      const res = await adminService.togglePlatformAdStatus(token, ad._id, newStatus);
+      let adId;
+      let newStatus;
+      if (typeof adOrId === 'object' && adOrId !== null) {
+        adId = adOrId._id || adOrId.id;
+        newStatus = maybeStatus !== undefined ? maybeStatus : !adOrId.isActive;
+      } else {
+        adId = adOrId;
+        newStatus = maybeStatus !== undefined ? maybeStatus : true;
+      }
+
+      if (!adId) {
+        console.error('[PlatformAd] Missing adId in handleTogglePlatformAdActive:', { adOrId, maybeStatus });
+        return;
+      }
+
+      const res = await adminService.togglePlatformAdStatus(token, adId, newStatus);
       if (res.data.success) {
         showNotification(`Ad status updated to ${newStatus ? 'Active' : 'Inactive'}`, 'success');
         fetchDashboardData(token);
@@ -301,7 +321,9 @@ export default function useAdminModalActions({
     }
   };
 
-  const handleDeletePlatformAd = async (adId) => {
+  const handleDeletePlatformAd = async (adOrId) => {
+    const adId = typeof adOrId === 'object' && adOrId !== null ? (adOrId._id || adOrId.id) : adOrId;
+    if (!adId) return;
     if (!confirm('Are you sure you want to delete this ad? Media will be wiped.')) return;
     try {
       const res = await adminService.deletePlatformAd(token, adId);
@@ -311,6 +333,36 @@ export default function useAdminModalActions({
       }
     } catch (err) {
       showNotification(err.response?.data?.message || 'Failed to delete ad', 'error');
+    }
+  };
+
+  const handleOpenEditPlatformAd = (ad) => {
+    if (!ad) return;
+    setEditingPlatformAd(ad);
+    setEditPlatformAdForm({
+      title: ad.title || '',
+      targetDeviceType: ad.targetDeviceType || 'all',
+      targetVenueIds: ad.targetVenueIds || [],
+      durationSeconds: ad.durationSeconds || 10,
+      isActive: ad.isActive !== false
+    });
+  };
+
+  const handleSaveEditPlatformAd = async (e) => {
+    e?.preventDefault?.();
+    if (!editingPlatformAd) return;
+    setIsSavingPlatformAd?.(true);
+    try {
+      const res = await adminService.updatePlatformAd(token, editingPlatformAd._id, editPlatformAdForm);
+      if (res.data.success) {
+        showNotification('Platform ad updated successfully!', 'success');
+        setEditingPlatformAd(null);
+        fetchDashboardData(token);
+      }
+    } catch (err) {
+      showNotification(err.response?.data?.message || 'Failed to update platform ad', 'error');
+    } finally {
+      setIsSavingPlatformAd?.(false);
     }
   };
 
@@ -416,6 +468,8 @@ export default function useAdminModalActions({
     handleCreatePlatformAd,
     handleTogglePlatformAdActive,
     handleDeletePlatformAd,
+    handleOpenEditPlatformAd,
+    handleSaveEditPlatformAd,
     handleUserSave,
     handleUserDelete,
     handleSavePromoDurations,

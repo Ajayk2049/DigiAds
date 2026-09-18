@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import useModalDismiss from './useModalDismiss';
 import useAdminModalActions from './useAdminModalActions';
+import useAdminRates from './useAdminRates';
 
 export default function useAdminModals(token, fetchDashboardData, showNotification) {
   // Venue Modal States
@@ -99,6 +100,15 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
   const [uploadingPlatformAd, setUploadingPlatformAd] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [previewPlatformAd, setPreviewPlatformAd] = useState(null);
+  const [editingPlatformAd, setEditingPlatformAd] = useState(null);
+  const [editPlatformAdForm, setEditPlatformAdForm] = useState({
+    title: '',
+    targetDeviceType: 'all',
+    targetVenueIds: [],
+    durationSeconds: 10,
+    isActive: true
+  });
+  const [isSavingPlatformAd, setIsSavingPlatformAd] = useState(false);
   const [platformAdResolutionWarning, setPlatformAdResolutionWarning] = useState(null);
 
   // Advertiser Ads
@@ -132,6 +142,7 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
   useModalDismiss(showReleaseModal, () => setShowReleaseModal(false), 'release-upload-modal');
   useModalDismiss(showCreatePlatformAdModal, () => setShowCreatePlatformAdModal(false), 'create-platform-ad-modal');
   useModalDismiss(Boolean(previewPlatformAd), () => setPreviewPlatformAd(null), 'preview-platform-ad-modal');
+  useModalDismiss(Boolean(editingPlatformAd), () => setEditingPlatformAd(null), 'edit-platform-ad-modal');
   useModalDismiss(Boolean(platformAdResolutionWarning), () => setPlatformAdResolutionWarning(null), 'resolution-warning-modal');
   useModalDismiss(showAdvertiserAdsModal, () => setShowAdvertiserAdsModal(false), 'advertiser-ads-modal');
 
@@ -215,6 +226,12 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
     setShowCreatePlatformAdModal,
     setUploadingPlatformAd,
     setUploadProgress,
+    editingPlatformAd,
+    setEditingPlatformAd,
+    editPlatformAdForm,
+    setEditPlatformAdForm,
+    isSavingPlatformAd,
+    setIsSavingPlatformAd,
     editingUser,
     setEditingUser,
     userForm,
@@ -235,8 +252,11 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
     setCooldownRemaining
   });
 
+  const ratesActions = useAdminRates(token, fetchDashboardData, showNotification);
+
   return {
     ...modalActions,
+    ...ratesActions,
 
     // Venue states
     selectedHostApp,
@@ -343,6 +363,12 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
     uploadProgress,
     previewPlatformAd,
     setPreviewPlatformAd,
+    editingPlatformAd,
+    setEditingPlatformAd,
+    editPlatformAdForm,
+    setEditPlatformAdForm,
+    isSavingPlatformAd,
+    setIsSavingPlatformAd,
     platformAdResolutionWarning,
     setPlatformAdResolutionWarning,
 

@@ -35,7 +35,7 @@ function RegisterForm() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('merchant');
+  const [role, setRole] = useState(roleParam === 'merchant' || roleParam === 'advertiser' ? roleParam : '');
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -204,6 +204,10 @@ function RegisterForm() {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    if (!role) {
+      showNotification('error', 'Please choose your account type (Merchant Host or Advertiser)');
+      return;
+    }
     if (!name.trim()) {
       showNotification('error', 'Name (Outlet/Company/venture) is required');
       return;
@@ -257,6 +261,11 @@ function RegisterForm() {
     setError('');
     setPasswordInvalid(false);
 
+    if (!role) {
+      setError('Please choose your account type (Merchant Host or Advertiser)');
+      return;
+    }
+
     if (!name.trim()) {
       setError('Name (Outlet/Company/venture) is required');
       return;
@@ -307,7 +316,8 @@ function RegisterForm() {
   };
 
   const isMerchant = role === 'merchant';
-  const displayRoleTitle = isMerchant ? 'Host Merchant' : 'Advertiser';
+  const isAdvertiser = role === 'advertiser';
+  const displayRoleTitle = isMerchant ? 'Host Merchant' : isAdvertiser ? 'Advertiser' : 'Account';
 
   if (isCheckingAuth) {
     return (
@@ -340,15 +350,17 @@ function RegisterForm() {
         <div className="md:col-span-5 space-y-6 text-foreground p-4">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
-              {displayRoleTitle} Account
+              {role ? `${displayRoleTitle} Account` : 'Join DigiAds'}
             </span>
             <h2 className="font-outfit text-3xl font-extrabold tracking-tight mt-4 text-foreground">
-              {isMerchant ? 'Earn with DigiAds' : 'Grow with DigiAds'}
+              {isMerchant ? 'Earn with DigiAds' : isAdvertiser ? 'Grow with DigiAds' : 'Welcome to DigiAds'}
             </h2>
             <p className="text-muted-foreground text-xs font-semibold mt-2 leading-relaxed">
               {isMerchant
                 ? 'Join our network of premium restaurants hosting smart tabletop ordering kiosks.'
-                : 'Launch high-ROI campaigns directly onto tablets at customer dining tables.'
+                : isAdvertiser
+                ? 'Launch high-ROI campaigns directly onto tablets at customer dining tables.'
+                : 'Choose whether you want to host tabletop kiosks as a merchant or run targeted ad campaigns as an advertiser.'
               }
             </p>
           </div>
@@ -372,7 +384,7 @@ function RegisterForm() {
                     <span>Process all customer checkout payments via PhonePe.</span>
                   </li>
                 </>
-              ) : (
+              ) : isAdvertiser ? (
                 <>
                   <li className="flex items-start">
                     <Check className="w-4 h-4 text-primary mr-2 shrink-0 mt-0.5" />
@@ -385,6 +397,21 @@ function RegisterForm() {
                   <li className="flex items-start">
                     <Check className="w-4 h-4 text-primary mr-2 shrink-0 mt-0.5" />
                     <span>Highly visual full-screen loop layouts to engage diners.</span>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li className="flex items-start">
+                    <Check className="w-4 h-4 text-primary mr-2 shrink-0 mt-0.5" />
+                    <span>Host tabletop kiosks & wall screens to collect device payouts.</span>
+                  </li>
+                  <li className="flex items-start">
+                    <Check className="w-4 h-4 text-primary mr-2 shrink-0 mt-0.5" />
+                    <span>Launch high-ROI campaigns targeted state → city → outlet level.</span>
+                  </li>
+                  <li className="flex items-start">
+                    <Check className="w-4 h-4 text-primary mr-2 shrink-0 mt-0.5" />
+                    <span>Real-time telemetry, live order tracking, and instant UPI settlements.</span>
                   </li>
                 </>
               )}
@@ -420,10 +447,11 @@ function RegisterForm() {
               <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-10 h-10 object-contain shrink-0" />
               <div className="text-left">
                 <h2 className="font-outfit text-lg font-bold tracking-tight brandLogo">
-                  Digi<span className="text-primary">Ads</span> {isMerchant ? 'Host Portal' : 'Advertiser Portal'}
+                  Digi<span className="text-primary">Ads</span>{' '}
+                  {isMerchant ? 'Host Portal' : isAdvertiser ? 'Advertiser Portal' : 'Registration'}
                 </h2>
                 <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold">
-                  Setup your account credentials
+                  {role ? 'Setup your account credentials' : 'Choose your account type to proceed'}
                 </p>
               </div>
             </div>
@@ -448,13 +476,16 @@ function RegisterForm() {
               {/* Dynamic selector ONLY shown if role is NOT locked in URL */}
               {!(roleParam === 'merchant' || roleParam === 'advertiser') && (
                 <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Choose Account Type *
+                  </label>
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       type="button"
                       onClick={() => setRole('merchant')}
                       className={`flex items-center justify-center space-x-2 py-3 rounded-xl border transition-all cursor-pointer ${role === 'merchant'
-                        ? 'border-primary bg-primary/10 text-primary font-bold'
-                        : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground'
+                        ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm'
+                        : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-primary/40'
                         }`}
                     >
                       <UtensilsCrossed className="w-4 h-4" />
@@ -464,8 +495,8 @@ function RegisterForm() {
                       type="button"
                       onClick={() => setRole('advertiser')}
                       className={`flex items-center justify-center space-x-2 py-3 rounded-xl border transition-all cursor-pointer ${role === 'advertiser'
-                        ? 'border-primary bg-primary/10 text-primary font-bold'
-                        : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground'
+                        ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm'
+                        : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-primary/40'
                         }`}
                     >
                       <Tablet className="w-4 h-4" />

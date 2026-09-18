@@ -35,12 +35,14 @@ android {
     applicationVariants.all {
         val variant = this
         variant.outputs
-            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+            .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
             .forEach { output ->
                 val outputFileName = output.outputFileName
                 if (outputFileName.startsWith("app-")) {
                     output.outputFileName = outputFileName.replace("app-", "digiads-screen-")
                 }
+                // Lock versionCode across all split APKs to the exact build number from pubspec.yaml
+                output.versionCodeOverride = flutter.versionCode
             }
     }
 }

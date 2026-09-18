@@ -209,6 +209,7 @@ export default function AdminPortal() {
                 onPreviewAd={(ad) => modals.setPreviewPlatformAd(ad)}
                 onToggleStatus={modals.handleTogglePlatformAdActive}
                 onDeleteAd={modals.handleDeletePlatformAd}
+                onEditAd={modals.handleOpenEditPlatformAd}
               />
             )}
 
@@ -245,6 +246,8 @@ export default function AdminPortal() {
 
             {activeTab === 'rates' && (
               <RatesTab
+                onSaveRate={modals.handleSaveRate}
+                onDeleteRate={modals.handleDeleteRate}
                 onOpenCommercialImageDurationModal={() => modals.setIsCommercialImageDurationModalOpen(true)}
               />
             )}

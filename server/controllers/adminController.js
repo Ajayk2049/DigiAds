@@ -596,7 +596,22 @@ class AdminController {
         .skip(skip)
         .limit(limit)
         .lean();
-      return res.status(200).send({ success: true, data: devices, page, limit });
+
+      // Ensure never-used/unpaired devices do not return fake dummy versions or timestamps
+      const sanitized = devices.map(d => {
+        if (!d.isActivated && !d.hardwareId) {
+          return {
+            ...d,
+            lastHeartbeat: null,
+            lastKnownAppVersion: null,
+            lastKnownVersionCode: null,
+            status: 'never_used'
+          };
+        }
+        return d;
+      });
+
+      return res.status(200).send({ success: true, data: sanitized, page, limit });
     } catch (error) {
       console.error('getDevices Error:', error.message);
       return res.status(500).send({ success: false, message: 'Failed to fetch devices' });
@@ -1487,6 +1502,9 @@ class AdminController {
    */
   async updatePlatformAd(req, res) {
     const { id } = req.params;
+    if (!id || !mongoose.isValidObjectId(id)) {
+      return res.status(400).send({ success: false, message: 'Invalid platform ad ID' });
+    }
     const {
       title,
       targetDeviceType,
@@ -1542,6 +1560,9 @@ class AdminController {
    */
   async deletePlatformAd(req, res) {
     const { id } = req.params;
+    if (!id || !mongoose.isValidObjectId(id)) {
+      return res.status(400).send({ success: false, message: 'Invalid platform ad ID' });
+    }
     const fs = require('fs');
     const path = require('path');
 

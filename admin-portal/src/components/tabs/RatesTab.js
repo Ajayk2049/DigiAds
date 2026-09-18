@@ -25,6 +25,7 @@ export default function RatesTab({
   const [form, setForm] = useState({
     deviceType: 'tablet',
     mediaType: 'video',
+    maxVideoLengthSeconds: '30',
     durationDays: '7',
     frequency: 'hourly',
     amount: '',
@@ -38,6 +39,13 @@ export default function RatesTab({
     if (onOpenCommercialImageDurationModal) onOpenCommercialImageDurationModal();
     else if (onOpenDurationModal) onOpenDurationModal();
     else setIsCommercialImageDurationModalOpen(true);
+  };
+
+  const handleTabChange = (tab) => {
+    setRateSubTab(tab);
+    if (!editingRateId) {
+      setForm((prev) => ({ ...prev, deviceType: tab }));
+    }
   };
 
   const getFrequencyLabel = (freq) => {
@@ -67,6 +75,7 @@ export default function RatesTab({
     setForm({
       deviceType: rateSubTab,
       mediaType: 'video',
+      maxVideoLengthSeconds: '30',
       durationDays: '7',
       frequency: 'hourly',
       amount: '',
@@ -88,6 +97,7 @@ export default function RatesTab({
     setForm({
       deviceType: rate.deviceType || 'tablet',
       mediaType: rate.mediaType || 'video',
+      maxVideoLengthSeconds: String(rate.maxVideoLengthSeconds || '30'),
       durationDays: String(rate.durationDays || '7'),
       frequency: rate.frequency || 'hourly',
       amount: String(rate.amount / 100 || ''),
@@ -139,6 +149,20 @@ export default function RatesTab({
                 </select>
               </div>
             </div>
+
+            {form.mediaType === 'video' && (
+              <div>
+                <label className="block text-[10px] uppercase text-muted-foreground mb-1">Max Video Length</label>
+                <select
+                  value={form.maxVideoLengthSeconds || '30'}
+                  onChange={(e) => setForm({ ...form, maxVideoLengthSeconds: e.target.value })}
+                  className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none"
+                >
+                  <option value="30">30 Seconds Maximum</option>
+                  <option value="60">60 Seconds Maximum</option>
+                </select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -216,6 +240,7 @@ export default function RatesTab({
                   setForm({
                     deviceType: rateSubTab,
                     mediaType: 'video',
+                    maxVideoLengthSeconds: '30',
                     durationDays: '7',
                     frequency: 'hourly',
                     amount: '',
@@ -242,7 +267,7 @@ export default function RatesTab({
             <div className="bg-muted p-1 rounded-xl flex space-x-1 border border-border w-fit">
               <button
                 type="button"
-                onClick={() => setRateSubTab('tablet')}
+                onClick={() => handleTabChange('tablet')}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${
                   rateSubTab === 'tablet'
                     ? 'bg-background text-foreground shadow-sm'
@@ -253,7 +278,7 @@ export default function RatesTab({
               </button>
               <button
                 type="button"
-                onClick={() => setRateSubTab('screen')}
+                onClick={() => handleTabChange('screen')}
                 className={`px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors duration-200 ${
                   rateSubTab === 'screen'
                     ? 'bg-background text-foreground shadow-sm'

@@ -39,19 +39,19 @@ const DeviceSchema = new mongoose.Schema({
   },
   lastHeartbeat: {
     type: Date,
-    default: Date.now
+    default: null
   },
   sessionStart: {
     type: Date,
-    default: Date.now
+    default: null
   },
   lastKnownAppVersion: {
     type: String,
-    default: '1.0.0'
+    default: null
   },
   lastKnownVersionCode: {
     type: Number,
-    default: 1
+    default: null
   },
   updateStatus: {
     type: String,

@@ -109,6 +109,10 @@ export const adminService = {
     return axios.post(`${API_BASE}/admin/platform-ads`, adPayload, getHeaders(token));
   },
 
+  updatePlatformAd: async (token, adId, payload) => {
+    return axios.patch(`${API_BASE}/admin/platform-ads/${adId}`, payload, getHeaders(token));
+  },
+
   togglePlatformAdStatus: async (token, adId, isActive) => {
     return axios.patch(`${API_BASE}/admin/platform-ads/${adId}`, { isActive }, getHeaders(token));
   },

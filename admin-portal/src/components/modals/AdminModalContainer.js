@@ -18,6 +18,7 @@ import PromoDurationsModal from './PromoDurationsModal';
 import CommercialImageDurationModal from './CommercialImageDurationModal';
 import ReleaseUploadModal from './ReleaseUploadModal';
 import PlatformAdModal from './PlatformAdModal';
+import EditPlatformAdModal from './EditPlatformAdModal';
 import PlatformAdPreviewModal from './PlatformAdPreviewModal';
 import PlatformAdResolutionModal from './PlatformAdResolutionModal';
 import DeployDeviceModal from './DeployDeviceModal';
@@ -146,6 +147,12 @@ export default function AdminModalContainer({
   showNotification,
   previewPlatformAd,
   setPreviewPlatformAd,
+  editingPlatformAd,
+  setEditingPlatformAd,
+  editPlatformAdForm,
+  setEditPlatformAdForm,
+  isSavingPlatformAd,
+  handleSaveEditPlatformAd,
   platformAdResolutionWarning,
 
   // Advertiser Ads
@@ -382,6 +389,17 @@ export default function AdminModalContainer({
         onClose={() => setShowCreatePlatformAdModal(false)}
         setPlatformAdResolutionWarning={setPlatformAdResolutionWarning}
         showToast={(msg, type) => showNotification(msg, type)}
+      />
+
+      <EditPlatformAdModal
+        isOpen={Boolean(editingPlatformAd)}
+        ad={editingPlatformAd}
+        form={editPlatformAdForm}
+        setForm={setEditPlatformAdForm}
+        hosts={hosts}
+        isSaving={isSavingPlatformAd}
+        onSave={handleSaveEditPlatformAd}
+        onClose={() => setEditingPlatformAd(null)}
       />
 
       <PlatformAdPreviewModal

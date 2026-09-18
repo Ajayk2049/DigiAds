@@ -266,7 +266,7 @@ export default function PlatformAdsTab({
 
                     <td className="p-4 text-center">
                       <button
-                        onClick={() => onToggleStatus && onToggleStatus(ad._id, !ad.isActive)}
+                        onClick={() => onToggleStatus && onToggleStatus(ad, !ad.isActive)}
                         className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider cursor-pointer transition-colors ${
                           ad.isActive
                             ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
@@ -287,7 +287,7 @@ export default function PlatformAdsTab({
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => onDeleteAd && onDeleteAd(ad._id)}
+                          onClick={() => onDeleteAd && onDeleteAd(ad._id || ad)}
                           className="p-1.5 bg-muted hover:bg-destructive hover:text-white border border-border rounded-lg text-muted-foreground transition-colors cursor-pointer"
                           title="Delete Platform Ad"
                         >

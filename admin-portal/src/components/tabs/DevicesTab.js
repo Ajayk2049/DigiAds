@@ -14,17 +14,46 @@ export default function DevicesTab({ onOpenDeployModal }) {
   const tablets = devices.filter((d) => d.deviceType === 'tablet');
   const screens = devices.filter((d) => d.deviceType === 'screen');
 
-  const filteredDevices = devices.filter((d) => {
-    if (d.deviceType !== deviceSubTab) return false;
-    if (!searchQuery) return true;
-    const query = searchQuery.trim().toLowerCase();
-    return (
-      (d.deviceId || '').toLowerCase().includes(query) ||
-      (d.hostApplicationId?.outletName || '').toLowerCase().includes(query) ||
-      (d.hostApplicationId?.city || '').toLowerCase().includes(query) ||
-      (d.hostApplicationId?.state || '').toLowerCase().includes(query)
-    );
-  });
+  const filteredDevices = devices
+    .filter((d) => {
+      if (d.deviceType !== deviceSubTab) return false;
+      if (!searchQuery) return true;
+      const query = searchQuery.trim().toLowerCase();
+      return (
+        (d.deviceId || '').toLowerCase().includes(query) ||
+        (d.hostApplicationId?.outletName || '').toLowerCase().includes(query) ||
+        (d.hostApplicationId?.city || '').toLowerCase().includes(query) ||
+        (d.hostApplicationId?.state || '').toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      const aNeverUsed = (!a.isActivated && !a.hardwareId) || a.status === 'never_used';
+      const bNeverUsed = (!b.isActivated && !b.hardwareId) || b.status === 'never_used';
+
+      // 1. Live online devices first
+      const aOnline = !aNeverUsed && a.status === 'online' ? 1 : 0;
+      const bOnline = !bNeverUsed && b.status === 'online' ? 1 : 0;
+      if (aOnline !== bOnline) {
+        return bOnline - aOnline;
+      }
+
+      // 2. Previously active offline devices second, Never Used devices last
+      if (aNeverUsed !== bNeverUsed) {
+        return aNeverUsed ? 1 : -1;
+      }
+
+      // 3. Among active devices: sort by most recent heartbeat
+      if (!aNeverUsed) {
+        const aTime = a.lastHeartbeat ? new Date(a.lastHeartbeat).getTime() : 0;
+        const bTime = b.lastHeartbeat ? new Date(b.lastHeartbeat).getTime() : 0;
+        return bTime - aTime;
+      }
+
+      // 4. Among never-used devices: sort by creation time (newest first)
+      const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bCreated - aCreated;
+    });
 
   return (
     <motion.div
@@ -86,36 +115,55 @@ export default function DevicesTab({ onOpenDeployModal }) {
                 </td>
               </tr>
             ) : (
-              filteredDevices.map((d) => (
-                <tr key={d._id} className="hover:bg-card/20 transition-colors duration-200">
-                  <td className="p-4 pl-6 font-mono font-bold text-primary">{d.deviceId}</td>
-                  <td className="p-4 font-bold text-foreground">
-                    {d.hostApplicationId?.outletName || 'Standalone'}
-                    <div className="text-[10px] text-muted-foreground font-medium">
-                      {d.hostApplicationId?.city}, {d.hostApplicationId?.state}
-                    </div>
-                  </td>
-                  <td className="p-4 font-semibold text-foreground">
-                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono text-[11px] font-bold">
-                      {d.lastKnownAppVersion || 'v1.0.0'}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${
-                        d.status === 'online'
-                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {d.status}
-                    </span>
-                  </td>
-                  <td className="p-4 text-muted-foreground font-medium">
-                    {d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : 'Never'}
-                  </td>
-                </tr>
-              ))
+              filteredDevices.map((d) => {
+                const isNeverUsed = (!d.isActivated && !d.hardwareId) || d.status === 'never_used';
+                return (
+                  <tr key={d._id} className="hover:bg-card/20 transition-colors duration-200">
+                    <td className="p-4 pl-6 font-mono font-bold text-primary">
+                      {d.deviceId}
+                    </td>
+                    <td className="p-4 font-bold text-foreground">
+                      {d.hostApplicationId?.outletName || 'Standalone'}
+                      <div className="text-[10px] text-muted-foreground font-medium">
+                        {d.hostApplicationId?.city ? `${d.hostApplicationId.city}, ${d.hostApplicationId?.state || ''}` : 'No location specified'}
+                      </div>
+                    </td>
+                    <td className="p-4 font-semibold text-foreground">
+                      {isNeverUsed || !d.lastKnownAppVersion ? (
+                        <span className="text-muted-foreground/60 font-mono text-[11px] font-medium">—</span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono text-[11px] font-bold">
+                          v{d.lastKnownAppVersion}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {isNeverUsed ? (
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          Never Used
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${
+                            d.status === 'online'
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {d.status}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-muted-foreground font-medium text-xs">
+                      {isNeverUsed || !d.lastHeartbeat ? (
+                        <span className="text-muted-foreground/60 italic text-[11px]">Never synced</span>
+                      ) : (
+                        new Date(d.lastHeartbeat).toLocaleString()
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
