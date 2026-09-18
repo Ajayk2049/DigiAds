@@ -247,12 +247,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
 
   void _initGrpc() {
     final host = cleanGrpcHost(widget.serverHost);
-    final isLocal = host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
+    final isInsecure = isGrpcInsecure(widget.serverHost);
     _channel = ClientChannel(
       host,
       port: 4201,
       options: ChannelOptions(
-        credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+        credentials: isInsecure ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
         keepAlive: const ClientKeepAliveOptions(
           pingInterval: Duration(seconds: 30),
           timeout: Duration(seconds: 10),
@@ -334,9 +334,9 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
         isIdle: _isIdle && _cart.value.isEmpty,
       );
 
-      // Periodic background OTA update check every 6 hours
+      // Periodic background OTA update check every 15 minutes
       _otaCheckTimer?.cancel();
-      _otaCheckTimer = Timer.periodic(const Duration(hours: 6), (_) {
+      _otaCheckTimer = Timer.periodic(const Duration(minutes: 15), (_) {
         UpdateService.checkForUpdate(
           serverHost: widget.serverHost,
           isIdle: _isIdle && _cart.value.isEmpty,
@@ -1105,6 +1105,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
             _pendingMenuReload = false;
             _fetchMenu();
           }
+
+          // Evaluate OTA update installation now that kiosk is idle
+          if (_cart.value.isEmpty) {
+            UpdateService.checkForUpdate(
+              serverHost: widget.serverHost,
+              isIdle: true,
+            );
+          }
         }
       });
     }
@@ -1124,6 +1132,14 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
           setState(() {});
           debugPrint(
               '[CART] Abandoned unplaced cart cleared after ${kAbandonedCartTimeout.inMinutes} minutes of inactivity.');
+
+          // Now that cart was abandoned and cleared, evaluate OTA update if idle
+          if (_isIdle) {
+            UpdateService.checkForUpdate(
+              serverHost: widget.serverHost,
+              isIdle: true,
+            );
+          }
         }
       });
     }
@@ -1157,6 +1173,12 @@ class _KioskScreenState extends State<KioskScreen> with WidgetsBindingObserver {
     _adSync.syncNow();
     _adPlayer.resume();
     _cancelIdleTimer();
+
+    // Trigger OTA update check now that device returned to idle ads
+    UpdateService.checkForUpdate(
+      serverHost: widget.serverHost,
+      isIdle: true,
+    );
   }
 
   /// Process table session state from heartbeat: close_table → show QR,

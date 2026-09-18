@@ -284,6 +284,17 @@ class ReleaseController {
       const { status } = req.body;
       const release = await AppRelease.findByIdAndUpdate(releaseId, { status }, { new: true });
 
+      // If release was activated, broadcast app_update event to connected devices
+      if (status === 'active') {
+        if (global.deviceSockets) {
+          for (const [dId, socket] of global.deviceSockets.entries()) {
+            try {
+              socket.send(JSON.stringify({ event: 'app_update', release }));
+            } catch (_) { }
+          }
+        }
+      }
+
       // If release was revoked or inactivated, broadcast release_cancelled event to all connected devices
       if (status === 'inactive' || status === 'revoked') {
         if (global.deviceSockets) {

@@ -291,13 +291,21 @@ class LiveOrdersScreen extends StatelessWidget {
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         border: Border.all(
-          color: isPlaced ? AppColors.warning.withValues(alpha: 0.5) : Theme.of(context).dividerColor,
-          width: 0.8,
+          color: isPlaced
+              ? AppColors.warning.withValues(alpha: 0.6)
+              : (Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF2E2E38)
+                  : const Color(0xFFCBD5E1)),
+          width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: isPlaced ? AppColors.warning.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.02),
-            blurRadius: 6,
+            color: isPlaced
+                ? AppColors.warning.withValues(alpha: 0.12)
+                : (Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withValues(alpha: 0.35)
+                    : const Color(0xFF0F172A).withValues(alpha: 0.06)),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],

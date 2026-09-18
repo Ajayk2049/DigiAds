@@ -256,11 +256,14 @@ class _ItemEditorModalState extends State<ItemEditorModal> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Available in All Shifts (All-Day)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      value: _isAllShifts,
-                      onChanged: (val) => setState(() => _isAllShifts = val ?? false),
+                    Material(
+                      color: Colors.transparent,
+                      child: CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Available in All Shifts (All-Day)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        value: _isAllShifts,
+                        onChanged: (val) => setState(() => _isAllShifts = val ?? false),
+                      ),
                     ),
                     if (!_isAllShifts) ...[
                       const Text('Select Shifts for this dish:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),

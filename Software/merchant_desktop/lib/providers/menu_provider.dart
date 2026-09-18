@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../models/menu_models.dart';
 import '../services/api_service.dart';
+import '../utils/error_utils.dart';
 
 class MenuProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -83,7 +84,7 @@ class MenuProvider extends ChangeNotifier {
         _hasChanges = false;
       }
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorUtils.parseError(e);
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -98,12 +98,12 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen> {
 
   void _initGrpc() {
     final host = cleanGrpcHost(widget.serverHost);
-    final isLocal = host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
+    final isInsecure = isGrpcInsecure(widget.serverHost);
     _channel = ClientChannel(
       host,
       port: 4201,
       options: ChannelOptions(
-        credentials: isLocal ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
+        credentials: isInsecure ? const ChannelCredentials.insecure() : const ChannelCredentials.secure(),
         keepAlive: const ClientKeepAliveOptions(
           pingInterval: Duration(seconds: 30),
           timeout: Duration(seconds: 10),

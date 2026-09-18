@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../models/host_application_model.dart';
 import '../models/bill_config_model.dart';
 import '../services/api_service.dart';
+import '../utils/error_utils.dart';
 
 class VenueProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -45,7 +46,7 @@ class VenueProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorUtils.parseError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -76,7 +77,7 @@ class VenueProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorUtils.parseError(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -101,7 +102,7 @@ class VenueProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorUtils.parseError(e);
       _isLoading = false;
       notifyListeners();
       return false;

@@ -72,7 +72,7 @@ class DigiAdsMerchantApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: auth.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: auth.isLoading
+      home: auth.isInitializing
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : (auth.isAuthenticated ? const MainLayout() : const LoginScreen()),
     );

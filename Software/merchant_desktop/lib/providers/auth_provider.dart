@@ -1,27 +1,58 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/websocket_service.dart';
+import '../utils/error_utils.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
   final WebSocketService _wsService = WebSocketService();
 
   UserModel? _user;
+  bool _isInitializing = true;
   bool _isLoading = false;
   String? _error;
+  Timer? _errorTimer;
   String _themeMode = 'light'; // 'light' | 'dark'
 
   UserModel? get user => _user;
   bool get isAuthenticated => _user != null;
+  bool get isInitializing => _isInitializing;
   bool get isLoading => _isLoading;
   String? get error => _error;
   String get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == 'dark';
 
+  void _setError(String? err) {
+    _errorTimer?.cancel();
+    _error = err;
+    if (err != null) {
+      _errorTimer = Timer(const Duration(seconds: 5), () {
+        _error = null;
+        notifyListeners();
+      });
+    }
+  }
+
+  void clearError() {
+    _errorTimer?.cancel();
+    if (_error != null) {
+      _error = null;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _errorTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> init() async {
+    _isInitializing = true;
     _isLoading = true;
     notifyListeners();
 
@@ -40,6 +71,7 @@ class AuthProvider extends ChangeNotifier {
       _wsService.connect();
     }
 
+    _isInitializing = false;
     _isLoading = false;
     notifyListeners();
   }
@@ -55,7 +87,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> sendOtp(String phone) async {
     _isLoading = true;
-    _error = null;
+    _setError(null);
     notifyListeners();
 
     try {
@@ -64,7 +96,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return success;
     } catch (e) {
-      _error = e.toString();
+      _setError(ErrorUtils.parseError(e));
       _isLoading = false;
       notifyListeners();
       return false;
@@ -73,7 +105,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> verifyOtp(String phone, String otp) async {
     _isLoading = true;
-    _error = null;
+    _setError(null);
     notifyListeners();
 
     try {
@@ -85,13 +117,13 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _error = res['message'] ?? 'OTP verification failed';
+        _setError(res['message'] ?? 'OTP verification failed');
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _setError(ErrorUtils.parseError(e));
       _isLoading = false;
       notifyListeners();
       return false;
@@ -100,7 +132,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> loginWithPassword(String identifier, String password) async {
     _isLoading = true;
-    _error = null;
+    _setError(null);
     notifyListeners();
 
     try {
@@ -112,13 +144,13 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _error = res['message'] ?? 'Login failed';
+        _setError(res['message'] ?? 'Login failed');
         _isLoading = false;
         notifyListeners();
         return false;
       }
     } catch (e) {
-      _error = e.toString();
+      _setError(ErrorUtils.parseError(e));
       _isLoading = false;
       notifyListeners();
       return false;
@@ -127,7 +159,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> switchRole(String targetRole) async {
     _isLoading = true;
-    _error = null;
+    _setError(null);
     notifyListeners();
 
     try {
@@ -142,7 +174,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = e.toString();
+      _setError(ErrorUtils.parseError(e));
       _isLoading = false;
       notifyListeners();
       return false;

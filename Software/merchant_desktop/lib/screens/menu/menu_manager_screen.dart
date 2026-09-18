@@ -468,9 +468,23 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                       borderRadius: BorderRadius.circular(14),
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          color: isDark ? AppColors.darkCard : const Color(0xFFF8FAFC),
+                                          color: isDark ? AppColors.darkCard : Colors.white,
                                           borderRadius: BorderRadius.circular(14),
-                                          border: Border.all(color: Theme.of(context).dividerColor, width: 0.8),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? AppColors.primary.withValues(alpha: 0.4)
+                                                : const Color(0xFFCBD5E1),
+                                            width: 1.2,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: isDark
+                                                  ? Colors.black.withValues(alpha: 0.35)
+                                                  : const Color(0xFF0F172A).withValues(alpha: 0.06),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
                                         ),
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
@@ -500,20 +514,43 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                     decoration: BoxDecoration(
                                       color: Theme.of(context).cardColor,
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: Theme.of(context).dividerColor, width: 0.8),
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF2E2E38) : const Color(0xFFCBD5E1),
+                                        width: 1.1,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
+                                          color: isDark
+                                              ? Colors.black.withValues(alpha: 0.45)
+                                              : const Color(0xFF0F172A).withValues(alpha: 0.08),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                        BoxShadow(
+                                          color: isDark
+                                              ? Colors.black.withValues(alpha: 0.25)
+                                              : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 1),
                                         ),
                                       ],
                                     ),
                                     clipBehavior: Clip.antiAlias,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        // Dish Image Preview Header
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: InkWell(
+                                        onTap: () {
+                                          showDialog(
+                                            context: context,
+                                            builder: (_) => ItemEditorModal(itemIndex: rawIndex),
+                                          );
+                                        },
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            // Dish Image Preview Header
                                         Stack(
                                           children: [
                                             Container(
@@ -712,13 +749,15 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                                             ),
                                           ),
                                         ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  );
-                                },
-                              ),
-                            ],
-                          );
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        );
                     },
                   ),
           ),

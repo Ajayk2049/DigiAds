@@ -125,6 +125,24 @@ String cleanGrpcHost(String serverHost) {
   return host;
 }
 
+/// Checks whether gRPC should use insecure credentials (cleartext).
+/// Returns true for localhost, local IPs (e.g. 192.168.x.x, 10.x.x.x), or explicit http:// / ws:// schemes.
+bool isGrpcInsecure(String serverHost) {
+  final trimmed = serverHost.trim().toLowerCase();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('ws://')) {
+    return true;
+  }
+  final host = cleanGrpcHost(serverHost);
+  if (host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2' || host.endsWith('.local')) {
+    return true;
+  }
+  // Any IPv4 address (e.g. 192.168.0.101, 10.0.0.1, 172.16.0.1)
+  if (RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
+    return true;
+  }
+  return false;
+}
+
 /// Theme check interval.
 const Duration kThemeCheckInterval = Duration(minutes: 5);
 

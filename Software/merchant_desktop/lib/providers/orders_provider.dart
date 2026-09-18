@@ -5,6 +5,7 @@ import '../services/websocket_service.dart';
 import '../services/audio_service.dart';
 import '../services/tray_notification_service.dart';
 import '../services/printer_service.dart';
+import '../utils/error_utils.dart';
 
 class OrdersProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -142,7 +143,7 @@ class OrdersProvider extends ChangeNotifier {
         ).toList();
       }
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorUtils.parseError(e);
     } finally {
       _isLoading = false;
       notifyListeners();

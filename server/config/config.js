@@ -20,7 +20,7 @@ const config = {
   port: parseInt(process.env.PORT, 10) || 4000,
   grpcPort: parseInt(process.env.GRPC_PORT, 10) || 50051,
   mongoUri: process.env.MONGO_URI,
-  redisHost: process.env.REDIS_HOST || 'localhost',
+  redisHost: process.env.REDIS_HOST || '127.0.0.1',
   redisPort: parseInt(process.env.REDIS_PORT, 10) || 6379,
   jwtSecret: process.env.JWT_SECRET || 'dev_jwt_secret_key_12345!',
   demoMode: process.env.DEMO_MODE === 'true',

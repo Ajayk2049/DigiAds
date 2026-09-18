@@ -14,7 +14,6 @@ import '../services/api_service.dart';
 import '../services/tray_notification_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/connection_status_banner.dart';
-import '../widgets/modals/server_config_modal.dart';
 
 import 'orders/live_orders_screen.dart';
 import 'menu/menu_manager_screen.dart';
@@ -196,15 +195,15 @@ class _MainLayoutState extends State<MainLayout> {
                         ),
                         const SizedBox(width: 6),
                         _buildTopNavItem(
-                          id: 'payments',
-                          label: 'Payment History',
-                          icon: LucideIcons.receipt,
-                        ),
-                        const SizedBox(width: 6),
-                        _buildTopNavItem(
                           id: 'menu',
                           label: 'Menu Manager',
                           icon: LucideIcons.salad,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildTopNavItem(
+                          id: 'payments',
+                          label: 'Payment History',
+                          icon: LucideIcons.receipt,
                         ),
                       ],
                     ),
@@ -239,10 +238,6 @@ class _MainLayoutState extends State<MainLayout> {
                       onSelected: (value) async {
                         if (value == 'printers') {
                           setState(() => _activeTab = 'printers');
-                        } else if (value == 'server_config') {
-                          ServerConfigModal.show(context, onReconnected: () {
-                            if (mounted) setState(() {});
-                          });
                         } else if (value == 'autostart') {
                           final isEnabled = await TrayNotificationService.isAutoStartEnabled();
                           await TrayNotificationService.toggleAutoStart(!isEnabled);
@@ -297,18 +292,6 @@ class _MainLayoutState extends State<MainLayout> {
                               Icon(Icons.print, size: 14, color: isDark ? AppColors.darkText : AppColors.lightText),
                               const SizedBox(width: 8),
                               const Text('POS Printers Setup', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'server_config',
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          child: Row(
-                            children: [
-                              Icon(Icons.dns, size: 14, color: isDark ? AppColors.darkText : AppColors.lightText),
-                              const SizedBox(width: 8),
-                              const Text('Server Connection IP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ),

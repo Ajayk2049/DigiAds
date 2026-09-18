@@ -62,6 +62,25 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
     }
   }
 
+  Future<void> _handleResetDefault() async {
+    setState(() => _isSaving = true);
+    try {
+      await AppConfig.resetToDefault();
+      ApiService().refreshBaseUrl();
+      WebSocketService().connect();
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reset to default DigiAds Cloud (test-api.digiads.space). Reconnected.')),
+        );
+        widget.onReconnected?.call();
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -91,9 +110,36 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
             ),
             onSubmitted: (_) => _handleSave(),
           ),
+          if (!AppConfig.isCustomHostSet) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.cloud_done, size: 14, color: AppColors.primary),
+                  SizedBox(width: 6),
+                  Text(
+                    'Currently using official DigiAds Cloud server',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
+        if (AppConfig.isCustomHostSet)
+          TextButton.icon(
+            onPressed: _isSaving ? null : _handleResetDefault,
+            icon: const Icon(Icons.cloud_sync, size: 14),
+            label: const Text('RESET TO CLOUD', style: TextStyle(fontSize: 11)),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+          ),
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.pop(context),
           child: const Text('CANCEL'),

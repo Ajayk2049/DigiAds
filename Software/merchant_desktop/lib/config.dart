@@ -6,14 +6,15 @@ class AppConfig {
 
   // Default Host
   static const String devApiHost = '127.0.0.1:4000';
-  static const String prodApiHost = 'https://test-api.digiads.space';
+  static const String prodApiHost = 'test-api.digiads.space';
 
-  static String _activeHost = devApiHost;
-  static bool _isExplicitHttps = false;
+  static String _activeHost = prodApiHost;
+  static bool _isExplicitHttps = true;
 
   static String get serverHost => _activeHost;
+  static bool get isCustomHostSet => _activeHost != prodApiHost;
 
-  /// Load persisted server host IP on app launch
+  /// Load persisted server host IP on app launch. Defaults to production cloud if not set.
   static Future<void> loadConfig() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -30,7 +31,23 @@ class AppConfig {
           }
         }
         _activeHost = cleaned;
+      } else {
+        _activeHost = prodApiHost;
+        _isExplicitHttps = true;
       }
+    } catch (_) {
+      _activeHost = prodApiHost;
+      _isExplicitHttps = true;
+    }
+  }
+
+  /// Reset server host to canonical cloud default
+  static Future<void> resetToDefault() async {
+    _activeHost = prodApiHost;
+    _isExplicitHttps = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('custom_server_host');
     } catch (_) {}
   }
 
