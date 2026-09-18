@@ -3,19 +3,36 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Eye, Edit, Trash2, Settings } from 'lucide-react';
+import { useAdminStore } from '@/stores/useAdminStore';
 
 export default function UsersTab({
-  users = [],
-  hosts = [],
-  userSubTab = 'merchant',
-  setUserSubTab,
-  searchQuery = '',
-  selectedUser,
-  setSelectedUser,
+  users: propUsers,
+  hosts: propHosts,
+  userSubTab: propUserSubTab,
+  setUserSubTab: propSetUserSubTab,
+  searchQuery: propSearchQuery,
+  selectedUser: propSelectedUser,
+  setSelectedUser: propSetSelectedUser,
+  onSelectUser,
   onEditUser,
   onDeleteUser,
   onOpenQuotaModal
 }) {
+  const storeUsers = useAdminStore((s) => s.users);
+  const storeHosts = useAdminStore((s) => s.hosts);
+  const storeUserSubTab = useAdminStore((s) => s.userSubTab);
+  const storeSetUserSubTab = useAdminStore((s) => s.setUserSubTab);
+  const storeSearchQuery = useAdminStore((s) => s.searchQuery);
+  const storeSelectedUser = useAdminStore((s) => s.selectedUser);
+  const storeSetSelectedUser = useAdminStore((s) => s.setSelectedUser);
+
+  const users = propUsers || storeUsers || [];
+  const hosts = propHosts || storeHosts || [];
+  const userSubTab = propUserSubTab || storeUserSubTab || 'merchant';
+  const setUserSubTab = propSetUserSubTab || storeSetUserSubTab;
+  const searchQuery = propSearchQuery ?? storeSearchQuery ?? '';
+  const selectedUser = propSelectedUser || storeSelectedUser;
+  const setSelectedUser = onSelectUser || propSetSelectedUser || storeSetSelectedUser;
   const filteredUsers = users.filter((u) => {
     const userRoles = u.roles || (u.role ? [u.role] : []);
 
