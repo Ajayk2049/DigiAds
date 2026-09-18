@@ -496,10 +496,10 @@ class PrinterService {
     final pageFormat = PdfPageFormat(
       pageWidth,
       double.infinity,
-      marginLeft: 6 * PdfPageFormat.mm,
-      marginRight: 6 * PdfPageFormat.mm,
-      marginTop: 6 * PdfPageFormat.mm,
-      marginBottom: 6 * PdfPageFormat.mm,
+      marginLeft: 4 * PdfPageFormat.mm,
+      marginRight: 4 * PdfPageFormat.mm,
+      marginTop: 3 * PdfPageFormat.mm,
+      marginBottom: 3 * PdfPageFormat.mm,
     );
 
     final dateFormat = DateFormat('dd-MMM-yyyy hh:mm a');
@@ -511,10 +511,6 @@ class PrinterService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('KITCHEN ORDER TICKET (KOT)', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 4),
-              pw.Divider(thickness: 1.5),
-
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [

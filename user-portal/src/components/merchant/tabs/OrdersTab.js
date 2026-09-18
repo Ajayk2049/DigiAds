@@ -1,7 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Building, Clock, ShoppingBag, Bell, Receipt, CheckCircle } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Building, Clock, ShoppingBag, Bell, Receipt, CheckCircle, Printer } from 'lucide-react';
+
+const PrintKotModal = dynamic(() => import('../modals/PrintKotModal'), { ssr: false });
 import { useOrderStore } from '@/stores/useOrderStore';
 import { useOutletStore } from '@/stores/useOutletStore';
 import { useMenuStore } from '@/stores/useMenuStore';
@@ -33,6 +36,8 @@ export default function OrdersTab(props) {
   const markPaymentReceived = props.markPaymentReceived ?? ((orderId, type) => order.markPaymentReceived(token, orderId, type));
   const closeTable = props.closeTable ?? ((orderId) => order.closeTable(token, orderId));
 
+  const [kotOrder, setKotOrder] = React.useState(null);
+
   if (approvedOutlets.length === 0) {
     return (
       <div className="animate-fade-in w-full">
@@ -45,7 +50,21 @@ export default function OrdersTab(props) {
     );
   }
 
-  const filteredOrders = orders.filter(ord => ord.hostApplicationId === activeOrderVenueTab);
+  const selectedOutletId = outlet.selectedOutletId;
+  const activeVenueId = activeOrderVenueTab || selectedOutletId || approvedOutlets[0]?._id;
+
+  // Auto-synchronize activeOrderVenueTab in order store if unset
+  React.useEffect(() => {
+    if (!activeOrderVenueTab && activeVenueId) {
+      order.setActiveOrderVenueTab(activeVenueId);
+    }
+  }, [activeOrderVenueTab, activeVenueId]);
+
+  const filteredOrders = orders.filter(ord => {
+    if (!activeVenueId) return true;
+    const ordVenueId = ord.hostApplicationId?._id || ord.hostApplicationId;
+    return String(ordVenueId) === String(activeVenueId);
+  });
 
   const getStatusRank = (status) => {
     if (status === 'placed') return 1;
@@ -67,11 +86,44 @@ export default function OrdersTab(props) {
   return (
     <div className="animate-fade-in w-full">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 border-b border-border/40 pb-4 gap-3 sm:gap-4">
-        {/* Top Row on Mobile: Outlet Name + Live Status */}
-        <div className="flex items-center justify-between gap-3 min-w-0">
+        {/* Top Row: Outlet Name, Venue Switcher & Live Status */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
           <h1 className="font-outfit text-xl sm:text-2xl font-black text-foreground uppercase tracking-wider truncate">
-            {applications.find(app => app.status === 'approved')?.outletName || 'VENUE'}
+            {applications.find(app => String(app._id) === String(activeVenueId))?.outletName || applications.find(app => app.status === 'approved')?.outletName || 'VENUE'}
           </h1>
+
+          {/* Multiple Approved Outlets Tabs */}
+          {approvedOutlets.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              {approvedOutlets.map((app) => {
+                const isSelected = String(app._id) === String(activeVenueId);
+                const venueOrdersCount = orders.filter(o => String(o.hostApplicationId?._id || o.hostApplicationId) === String(app._id)).length;
+                return (
+                  <button
+                    key={app._id}
+                    onClick={() => {
+                      order.setActiveOrderVenueTab(app._id);
+                      outlet.setSelectedOutletId(app._id);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <span>{app.outletName}</span>
+                    {venueOrdersCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                        isSelected ? 'bg-primary-foreground text-primary' : 'bg-primary text-primary-foreground'
+                      }`}>
+                        {venueOrdersCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Live Status Pill */}
           <div className="flex items-center space-x-1.5 text-[11px] sm:text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg shrink-0 sm:hidden">
@@ -154,8 +206,19 @@ export default function OrdersTab(props) {
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 pr-2 font-mono font-bold text-foreground text-xs">
-                    {ord.orderId}
+                  <td className="py-4 pr-2 font-mono font-bold text-foreground text-xs align-top">
+                    <div className="flex flex-col items-start gap-1.5">
+                      <span>{ord.orderId}</span>
+                      <button
+                        type="button"
+                        onClick={() => setKotOrder(ord)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer transition-all shrink-0 active:scale-95"
+                        title="Print Kitchen Order Ticket"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>PRINT KOT</span>
+                      </button>
+                    </div>
                   </td>
                   <td className="py-4 pr-2 min-w-[180px] max-w-[260px]">
                     <div className="space-y-1 font-semibold text-foreground">
@@ -371,6 +434,14 @@ export default function OrdersTab(props) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {kotOrder && (
+        <PrintKotModal
+          isOpen={Boolean(kotOrder)}
+          order={kotOrder}
+          onClose={() => setKotOrder(null)}
+        />
       )}
     </div>
   );

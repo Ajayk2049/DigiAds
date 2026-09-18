@@ -5,6 +5,7 @@ import '../../constants/app_theme.dart';
 import '../../models/order_model.dart';
 import '../../providers/orders_provider.dart';
 import '../../providers/menu_provider.dart';
+import '../../providers/printer_provider.dart';
 import 'takeout_modal.dart';
 
 class LiveOrdersScreen extends StatelessWidget {
@@ -342,12 +343,51 @@ class LiveOrdersScreen extends StatelessWidget {
             ),
           ),
 
-          // 2. ORDER ID (flex: 2)
+          // 2. ORDER ID & KOT PRINT BUTTON (flex: 2)
           Expanded(
             flex: 2,
-            child: Text(
-              order.orderId,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  order.orderId,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier'),
+                ),
+                const SizedBox(height: 6),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final printerProv = context.read<PrinterProvider>();
+                    final success = await printerProv.printKitchenKot(order: order);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? 'Kitchen KOT sent to printer (${order.orderId})'
+                                : 'Failed to print KOT. Please check printer configuration.',
+                          ),
+                          backgroundColor: success ? AppColors.success : AppColors.danger,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(LucideIcons.printer, size: 11),
+                  label: const Text(
+                    'PRINT KOT',
+                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: const Size(0, 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    elevation: 1,
+                  ),
+                ),
+              ],
             ),
           ),
 
