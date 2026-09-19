@@ -118,13 +118,19 @@ async function ensureRedisRunning(port = 6379, host = '127.0.0.1') {
       if (redisProcess && !redisProcess.killed) {
         try {
           redisProcess.kill();
-        } catch (_) {}
+        } catch (_) { }
       }
     };
 
     process.on('exit', cleanup);
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', () => {
+      cleanup();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      cleanup();
+      process.exit(0);
+    });
 
     // Give Redis up to 1 second to bind to port
     for (let i = 0; i < 10; i++) {
