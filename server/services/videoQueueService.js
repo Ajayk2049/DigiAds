@@ -59,6 +59,12 @@ class VideoQueueService {
         }
       });
 
+      this.queue.on('error', (err) => {
+        if (this.isRedisAvailable) {
+          console.warn(`\x1b[33m[BullMQ Queue Warning]\x1b[0m ${err.message}`);
+        }
+      });
+
       // Worker strictly locked to concurrency: 1 (ONLY 1 FFmpeg instance runs at a time)
       this.worker = new Worker(
         this.queueName,
@@ -70,6 +76,12 @@ class VideoQueueService {
           concurrency: 1 // STRICT SINGLE-CONCURRENCY LOCK TO PROTECT VPS CPU & RAM
         }
       );
+
+      this.worker.on('error', (err) => {
+        if (this.isRedisAvailable) {
+          console.warn(`\x1b[33m[BullMQ Worker Warning]\x1b[0m ${err.message}`);
+        }
+      });
 
       this.worker.on('completed', (job) => {
         console.log(`\x1b[32m[BullMQ Worker]\x1b[0m Transcode job #${job.id} completed successfully.`);
