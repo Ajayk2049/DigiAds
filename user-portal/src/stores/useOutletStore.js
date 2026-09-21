@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { config, API_BASE } from '../config';
 import { useUIStore } from './useUIStore';
+import { useAuthStore } from './useAuthStore';
 import { normalizeAndMatchState, normalizeCity } from '../components/merchant/common/constants';
 
 export const useOutletStore = create((set, get) => ({
@@ -164,8 +165,17 @@ export const useOutletStore = create((set, get) => ({
       set({ applications: apps });
 
       const approvedApps = apps.filter(app => app.status === 'approved' && app.requestTablet);
-      if (approvedApps.length > 0 && !get().selectedOutletId) {
-        get().setSelectedOutletId(approvedApps[0]._id);
+      const currentSelected = get().selectedOutletId;
+      const isSelectedValid = apps.some(app => String(app._id) === String(currentSelected));
+
+      if (!isSelectedValid || !currentSelected) {
+        if (approvedApps.length > 0) {
+          get().setSelectedOutletId(approvedApps[0]._id);
+        } else if (apps.length > 0) {
+          get().setSelectedOutletId(apps[0]._id);
+        } else {
+          get().setSelectedOutletId('');
+        }
       }
 
       if (onTabSelect) {
@@ -363,8 +373,9 @@ export const useOutletStore = create((set, get) => ({
           allowOpenAds: true
         }
       });
-      showToast('Host application submitted successfully!', 'success');
-      get().fetchApplications(token);
+      showToast('Host application submitted successfully! Your application is now under review.', 'success');
+      useAuthStore.getState().setActiveTab('my-applications');
+      await get().fetchApplications(token, (tab) => useAuthStore.getState().setActiveTab(tab));
       get().fetchDevices(token);
     } catch (err) {
       set({ applyError: err.response?.data?.message || 'Failed to submit host application.' });

@@ -107,3 +107,4 @@ server/uploads/*
 !server/uploads/.gitkeep
 server/delete_dummies.js
 user-portal/page.monolith.backup.js
+server/out.log

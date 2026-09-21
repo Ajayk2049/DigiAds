@@ -5,10 +5,17 @@ import { Lock, Send } from 'lucide-react';
 import LocationPicker from '../../LocationPicker';
 import { useOutletStore } from '@/stores/useOutletStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import MyApplicationsTab from './MyApplicationsTab';
 
 export default function ApplicationsTab(props) {
   const outlet = useOutletStore();
   const auth = useAuthStore();
+  const applications = props.applications ?? outlet.applications;
+
+  // Each merchant user is permitted only one application. If an application exists, show status view.
+  if (applications && applications.length > 0) {
+    return <MyApplicationsTab applications={applications} openEditApplicationModal={props.openEditApplicationModal ?? outlet.openEditApplicationModal} />;
+  }
 
   const form = props.form ?? outlet.form;
   const setForm = props.setForm ?? outlet.setForm;

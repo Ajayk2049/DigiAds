@@ -14,6 +14,20 @@ export default function MyApplicationsTab(props) {
       <h1 className="font-outfit text-2xl font-black text-foreground mb-2">My Applications</h1>
       <p className="text-muted-foreground text-xs font-semibold mb-8">View and monitor the status of all your submitted host applications.</p>
 
+      {applications.length > 0 && !applications.some(app => app.status === 'approved') && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 animate-fade-in">
+          <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+            <Building className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-foreground">Application Received — Under Review</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed font-medium">
+              Your host application has been submitted and is currently pending administrator verification. Each merchant account is limited to one venue application. Once approved, your tablet and screen device setups will unlock automatically.
+            </p>
+          </div>
+        </div>
+      )}
+
       {applications.length === 0 ? (
         <div className="text-center py-20 border border-dashed border-border/40 bg-card/5 rounded-2xl">
           <Building className="w-12 h-12 text-[#0069a8] fill-[#0069a8] mx-auto mb-4 opacity-50" />
@@ -92,6 +106,13 @@ export default function MyApplicationsTab(props) {
                   </div>
                 </div>
               </div>
+
+              {app.status === 'pending' && (
+                <div className="border-t border-border/40 pt-3 text-[10px] text-muted-foreground font-semibold space-y-1 bg-amber-500/5 p-3 rounded-xl border border-amber-500/20">
+                  <p className="uppercase text-[9px] tracking-wider font-bold text-amber-600 dark:text-amber-400">Pending Review</p>
+                  <p className="text-foreground/80 leading-relaxed font-semibold">Your application is in the admin verification queue. You will be notified as soon as your venue and devices are approved.</p>
+                </div>
+              )}
 
               {app.status === 'approved' && (
                 <div className="border-t border-border/40 pt-3 text-[10px] text-muted-foreground font-semibold space-y-1">

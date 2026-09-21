@@ -127,6 +127,9 @@ async function createFastifyApp() {
     }
   );
 
+  // Register root health check for monitoring, load balancers, and tablet discovery
+  fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+
   // Register WebSocket routes
   await fastify.register(wsRoutes);
 

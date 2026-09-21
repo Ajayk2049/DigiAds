@@ -1,6 +1,6 @@
 name: tabletop_ordering_app
 description: "A Flutter tabletop ordering and advertising kiosk app."
-version: 1.0.14+20006
+version: 1.0.15+20007
 
 
 environment:

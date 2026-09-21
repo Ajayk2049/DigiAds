@@ -95,13 +95,14 @@ export default function MerchantDashboard() {
   // 2. React to selectedOutletId shifts
   useEffect(() => {
     if (!token || !selectedOutletId) return;
+    if (applications.length > 0 && !applications.some(a => String(a._id) === String(selectedOutletId))) return;
 
     menu.fetchMenu(token, selectedOutletId);
     payment.fetchBillConfig(token, selectedOutletId, applications);
     payment.fetchPaymentConfig(token, selectedOutletId);
     promo.fetchHostPromos(token, selectedOutletId);
     outlet.fetchVenueAnalytics(token, outlet.analyticsDays, selectedOutletId);
-  }, [token, selectedOutletId]);
+  }, [token, selectedOutletId, applications]);
 
   // 3. Tab-specific lazy refreshes
   useEffect(() => {
@@ -116,6 +117,13 @@ export default function MerchantDashboard() {
       outlet.fetchVenueAnalytics(token, outlet.analyticsDays, selectedOutletId);
     }
   }, [activeTab, token, selectedOutletId]);
+
+  // 4. Auto-route to my-applications if user already submitted an application
+  useEffect(() => {
+    if (applications.length > 0 && activeTab === 'applications') {
+      setActiveTab('my-applications');
+    }
+  }, [applications.length, activeTab, setActiveTab]);
 
   // Warn user if navigating away during active ad uploads
   useEffect(() => {

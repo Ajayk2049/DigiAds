@@ -38,6 +38,16 @@ export default function OrdersTab(props) {
 
   const [kotOrder, setKotOrder] = React.useState(null);
 
+  const selectedOutletId = outlet.selectedOutletId;
+  const activeVenueId = activeOrderVenueTab || selectedOutletId || approvedOutlets[0]?._id;
+
+  // Auto-synchronize activeOrderVenueTab in order store if unset
+  React.useEffect(() => {
+    if (!activeOrderVenueTab && activeVenueId) {
+      order.setActiveOrderVenueTab(activeVenueId);
+    }
+  }, [activeOrderVenueTab, activeVenueId]);
+
   if (approvedOutlets.length === 0) {
     return (
       <div className="animate-fade-in w-full">
@@ -49,16 +59,6 @@ export default function OrdersTab(props) {
       </div>
     );
   }
-
-  const selectedOutletId = outlet.selectedOutletId;
-  const activeVenueId = activeOrderVenueTab || selectedOutletId || approvedOutlets[0]?._id;
-
-  // Auto-synchronize activeOrderVenueTab in order store if unset
-  React.useEffect(() => {
-    if (!activeOrderVenueTab && activeVenueId) {
-      order.setActiveOrderVenueTab(activeVenueId);
-    }
-  }, [activeOrderVenueTab, activeVenueId]);
 
   const filteredOrders = orders.filter(ord => {
     if (!activeVenueId) return true;
