@@ -126,6 +126,47 @@ if (fs.existsSync(AD_VIDEOS_DIR)) {
     .map(f => path.join(AD_VIDEOS_DIR, f));
 }
 
+// dynamically generate lightweight synthetic test assets so ad upload and BullMQ transcoding pipelines can be exercised.
+if (allAdVideoFiles.length === 0) {
+  try {
+    const fallbackVidDir = path.join(__dirname, 'test-media/ad-videos');
+    if (!fs.existsSync(fallbackVidDir)) fs.mkdirSync(fallbackVidDir, { recursive: true });
+    const syntheticVid = path.join(fallbackVidDir, 'synthetic_test_ad.mp4');
+    if (!fs.existsSync(syntheticVid)) {
+      require('child_process').execSync(`ffmpeg -y -f lavfi -i testsrc=duration=5:size=1280x720:rate=30 -f lavfi -i anullsrc=r=44100:cl=stereo -t 5 -c:v libx264 -pix_fmt yuv420p -c:a aac "${syntheticVid}"`, { stdio: 'ignore' });
+    }
+    if (fs.existsSync(syntheticVid)) {
+      allAdVideoFiles.push(syntheticVid);
+      console.log(`Generated synthetic test video asset for VPS pipeline testing: ${syntheticVid}`);
+    }
+  } catch (err) {
+    // FFmpeg not found or skipped
+  }
+}
+
+if (allAdImageFiles.length === 0) {
+  try {
+    const fallbackImgDir = path.join(__dirname, 'test-media/ad-images');
+    if (!fs.existsSync(fallbackImgDir)) fs.mkdirSync(fallbackImgDir, { recursive: true });
+    const syntheticImg = path.join(fallbackImgDir, 'synthetic_test_ad.png');
+    if (!fs.existsSync(syntheticImg)) {
+      const sharp = require('sharp');
+      sharp({
+        create: {
+          width: 1280,
+          height: 720,
+          channels: 4,
+          background: { r: 59, g: 130, b: 246, alpha: 1 }
+        }
+      }).png().toFile(syntheticImg).then(() => {
+        allAdImageFiles.push(syntheticImg);
+      }).catch(() => {});
+    } else {
+      allAdImageFiles.push(syntheticImg);
+    }
+  } catch (err) {}
+}
+
 // Load gRPC Protos
 const deviceProtoPkg = protoLoader.loadSync(path.join(__dirname, '../protos/device.proto'), {
   keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
