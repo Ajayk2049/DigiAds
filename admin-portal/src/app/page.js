@@ -178,6 +178,7 @@ export default function AdminPortal() {
                   modals.setShowDeviceReqModal(true);
                 }}
                 onReviewDeviceRequest={modals.handleReviewDeviceRequest}
+                onReviewModeChange={modals.handleReviewModeChange}
               />
             )}
 

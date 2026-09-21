@@ -2804,7 +2804,7 @@ class HostController {
         });
       }
 
-      const requestId = `REQ_MODE_${generateCustomId()}`;
+      const requestId = generateCustomId('REQ_MODE_');
       const modeReq = new ModeChangeRequest({
         requestId,
         hostApplicationId: app._id,

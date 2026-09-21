@@ -1182,9 +1182,10 @@ class AdminController {
     try {
       const ModeChangeRequest = require('../models/ModeChangeRequest');
       const HostApplication = require('../models/HostApplication');
-      const Device = require('../models/Device');
-
-      const modeReq = await ModeChangeRequest.findOne({ requestId });
+      const query = mongoose.Types.ObjectId.isValid(requestId)
+        ? { $or: [{ requestId }, { _id: requestId }] }
+        : { requestId };
+      const modeReq = await ModeChangeRequest.findOne(query);
       if (!modeReq) {
         return res.status(404).send({ success: false, message: 'Mode change request not found' });
       }

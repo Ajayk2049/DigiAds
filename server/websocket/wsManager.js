@@ -28,8 +28,13 @@ function canAcceptWebSocket(ip) {
     }
   }
   if (totalConns >= MAX_TOTAL_WS_CONNS) return false;
+
+  // Allow high concurrency on local loopback during swarm load testing or in dev
+  const isLoopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost';
+  const maxForThisIp = isLoopback ? 1000 : MAX_WS_PER_IP;
+
   const ipCount = ipWsConnectionCounts.get(ip) || 0;
-  if (ipCount >= MAX_WS_PER_IP) return false;
+  if (ipCount >= maxForThisIp) return false;
   return true;
 }
 

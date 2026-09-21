@@ -78,14 +78,14 @@ export default function ModeChangeRequestSubTab({
                   {req.status === 'pending' ? (
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => onReviewModeChange && onReviewModeChange(req.requestId, 'approved')}
+                        onClick={() => onReviewModeChange && onReviewModeChange(req.requestId || req._id, 'approved')}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center space-x-1 shadow-sm"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>Approve</span>
                       </button>
                       <button
-                        onClick={() => onReviewModeChange && onReviewModeChange(req.requestId, 'rejected')}
+                        onClick={() => onReviewModeChange && onReviewModeChange(req.requestId || req._id, 'rejected')}
                         className="px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center space-x-1"
                       >
                         <X className="w-3.5 h-3.5" />

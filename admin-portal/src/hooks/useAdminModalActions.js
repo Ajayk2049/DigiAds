@@ -196,6 +196,18 @@ export default function useAdminModalActions({
     }
   };
 
+  const handleReviewModeChange = async (requestId, status) => {
+    try {
+      const res = await adminService.reviewModeChangeRequest(token, requestId, status);
+      if (res.data.success) {
+        showNotification(`Ad Mode change request ${status} successfully!`, 'success');
+        fetchDashboardData(token);
+      }
+    } catch (err) {
+      showNotification(err.response?.data?.message || 'Failed to review ad mode change request', 'error');
+    }
+  };
+
   const handleDeployDevice = async (e) => {
     e.preventDefault();
     if (!deviceForm.hostApplicationId) {
@@ -462,6 +474,7 @@ export default function useAdminModalActions({
     handleUpdateBookingCategory,
     handleRevokeCampaign,
     handleReviewDeviceRequest,
+    handleReviewModeChange,
     handleDeployDevice,
     handleUploadRelease,
     handleToggleReleaseStatus,
