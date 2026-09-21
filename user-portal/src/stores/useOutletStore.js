@@ -463,7 +463,7 @@ export const useOutletStore = create((set, get) => ({
 
     set({ editAppLoading: true });
     try {
-      const currentApp = applications.find(a => a._id === effectiveAppId);
+      const currentApp = applications.find(a => String(a._id) === String(effectiveAppId));
       const currentMode = currentApp?.adMode || (currentApp?.allowOpenAds === false ? 'closed' : 'open');
       const requestedMode = editAppForm.adMode || (editAppForm.allowOpenAds === false ? 'closed' : 'open');
 

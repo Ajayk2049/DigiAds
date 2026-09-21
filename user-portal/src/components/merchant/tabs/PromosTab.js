@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Send, Tablet, Tv, Video, Upload, Lock, Trash2, Plus } from 'lucide-react';
+import { Send, Tablet, Tv, Video, Upload, Lock, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
 import { usePromoStore } from '@/stores/usePromoStore';
 import { useOutletStore } from '@/stores/useOutletStore';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -47,11 +47,21 @@ export default function PromosTab(props) {
         </div>
 
         <div className="flex items-center space-x-3">
-          {pendingModeReq && pendingModeReq.status === 'pending' && (
+          {pendingModeReq && pendingModeReq.status === 'pending' ? (
             <div className="px-4 py-2.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-xs font-bold flex items-center space-x-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
               <span>Mode Change Pending Admin Review ({pendingModeReq.requestedMode?.toUpperCase()})</span>
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => promo.setShowModeChangeModal(true)}
+              className="px-4 py-2.5 bg-card hover:bg-muted/80 text-foreground border border-border/70 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1.5 shadow-sm"
+              title="Request venue transition between Open Ads Mode and Closed Mode"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>Request Mode Change</span>
+            </button>
           )}
 
           <button

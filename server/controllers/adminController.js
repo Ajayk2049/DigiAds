@@ -313,7 +313,9 @@ class AdminController {
     }
 
     try {
-      const booking = await AdBooking.findOne({ bookingId });
+      const isMongoId = mongoose.isValidObjectId(bookingId);
+      const query = isMongoId ? { $or: [{ _id: bookingId }, { bookingId }] } : { bookingId };
+      const booking = await AdBooking.findOne(query);
       if (!booking) {
         return res.status(404).send({ success: false, message: 'Booking not found' });
       }
@@ -937,10 +939,12 @@ class AdminController {
         return res.status(400).send({ success: false, message: 'Invalid password. Action rejected.' });
       }
 
-      // Case-insensitive query to support any case variations
-      const booking = await AdBooking.findOne({
-        bookingId: { $regex: new RegExp(`^${bookingId}$`, 'i') }
-      });
+      // Case-insensitive query to support any case variations and dual _id/bookingId support
+      const isMongoId = mongoose.isValidObjectId(bookingId);
+      const query = isMongoId
+        ? { $or: [{ _id: bookingId }, { bookingId: { $regex: new RegExp(`^${bookingId}$`, 'i') } }] }
+        : { bookingId: { $regex: new RegExp(`^${bookingId}$`, 'i') } };
+      const booking = await AdBooking.findOne(query);
       if (!booking) {
         return res.status(404).send({ success: false, message: 'Booking not found' });
       }
@@ -1025,7 +1029,9 @@ class AdminController {
 
     try {
       const DeviceRequest = require('../models/DeviceRequest');
-      const deviceReq = await DeviceRequest.findById(requestId);
+      const isMongoId = mongoose.isValidObjectId(requestId);
+      const query = isMongoId ? { $or: [{ _id: requestId }, { requestId }] } : { requestId };
+      const deviceReq = await DeviceRequest.findOne(query);
       if (!deviceReq) {
         return res.status(404).send({ success: false, message: 'Device request not found' });
       }
@@ -1252,7 +1258,9 @@ class AdminController {
     }
 
     try {
-      const booking = await AdBooking.findOne({ bookingId });
+      const isMongoId = mongoose.isValidObjectId(bookingId);
+      const query = isMongoId ? { $or: [{ _id: bookingId }, { bookingId }] } : { bookingId };
+      const booking = await AdBooking.findOne(query);
       if (!booking) {
         return res.status(404).send({ success: false, message: 'Booking not found' });
       }

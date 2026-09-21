@@ -1064,8 +1064,10 @@ class AdController {
     }
 
     try {
-      // Find booking
-      const booking = await AdBooking.findOne({ bookingId });
+      // Find booking (supports both Mongo _id and custom bookingId)
+      const isMongoId = mongoose.isValidObjectId(bookingId);
+      const query = isMongoId ? { $or: [{ _id: bookingId }, { bookingId }] } : { bookingId };
+      const booking = await AdBooking.findOne(query);
       if (!booking) {
         return res.status(404).send({ success: false, message: 'Booking not found' });
       }
@@ -1307,9 +1309,11 @@ class AdController {
       const HostApplication = require('../models/HostApplication');
 
       const isAdminUser = req.user.role === 'admin' || (Array.isArray(req.user.roles) && req.user.roles.includes('admin'));
-      const query = { bookingId };
+      const isMongoId = mongoose.isValidObjectId(bookingId);
+      const idFilter = isMongoId ? { $or: [{ _id: bookingId }, { bookingId }] } : { bookingId };
+      const query = { ...idFilter };
       if (!isAdminUser) {
-        query.$or = [{ advertiserId: req.user.uid }, { userId: req.user.uid }];
+        query.$and = [{ $or: [{ advertiserId: req.user.uid }, { userId: req.user.uid }] }];
       }
 
       const booking = await AdBooking.findOne(query);

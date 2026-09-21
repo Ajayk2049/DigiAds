@@ -241,6 +241,7 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.get('/admin/stats', adminController.getStats.bind(adminController));
     adminRoutes.get('/admin/devices', adminController.getDevices.bind(adminController));
     adminRoutes.post('/admin/devices', adminController.createDevice.bind(adminController));
+    adminRoutes.post('/admin/devices/deploy', adminController.createDevice.bind(adminController));
     adminRoutes.get('/admin/users', adminController.getUsers.bind(adminController));
     adminRoutes.put('/admin/users/:userId', adminController.updateUser.bind(adminController));
     adminRoutes.post('/admin/users/:userId/reset-password', adminController.adminResetPassword.bind(adminController));

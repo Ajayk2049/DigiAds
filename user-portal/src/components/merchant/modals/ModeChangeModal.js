@@ -25,7 +25,7 @@ export default function ModeChangeModal(props) {
   if (!isOpen) return null;
 
 
-  const currentApp = applications.find(a => a._id === selectedOutletId);
+  const currentApp = applications.find(a => String(a._id) === String(selectedOutletId));
   const currentMode = currentApp?.adMode || (currentApp?.allowOpenAds === false ? 'closed' : 'open');
   const targetMode = currentMode === 'open' ? 'closed' : 'open';
   const hasActivePromos = (promosList || []).some(p => p.isStreaming);
