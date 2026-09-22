@@ -113,18 +113,36 @@ const AD_VIDEOS_DIR = resolveMediaDir(
   ]
 );
 
-let allAdImageFiles = [];
-let allAdVideoFiles = [];
-if (fs.existsSync(AD_IMAGES_DIR)) {
-  allAdImageFiles = fs.readdirSync(AD_IMAGES_DIR)
-    .filter(f => ['.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(f).toLowerCase()))
-    .map(f => path.join(AD_IMAGES_DIR, f));
+function collectMediaFiles(dirs, extensions) {
+  const result = [];
+  for (const d of dirs) {
+    if (d && fs.existsSync(d)) {
+      try {
+        const items = fs.readdirSync(d)
+          .filter(f => extensions.includes(path.extname(f).toLowerCase()))
+          .map(f => path.join(d, f));
+        result.push(...items);
+      } catch (e) {}
+    }
+  }
+  return [...new Set(result)];
 }
-if (fs.existsSync(AD_VIDEOS_DIR)) {
-  allAdVideoFiles = fs.readdirSync(AD_VIDEOS_DIR)
-    .filter(f => ['.mp4', '.mov', '.webm'].includes(path.extname(f).toLowerCase()))
-    .map(f => path.join(AD_VIDEOS_DIR, f));
-}
+
+let allAdImageFiles = collectMediaFiles([
+  AD_IMAGES_DIR,
+  path.join(__dirname, '../uploads/platform-ads/platform'),
+  path.join(__dirname, '../uploads/ads'),
+  path.join(__dirname, 'test-assets/ad-images'),
+  path.join(__dirname, 'test-media/ad-images')
+], ['.png', '.jpg', '.jpeg', '.webp']);
+
+let allAdVideoFiles = collectMediaFiles([
+  AD_VIDEOS_DIR,
+  path.join(__dirname, '../uploads/platform-ads/platform'),
+  path.join(__dirname, '../uploads/ads'),
+  path.join(__dirname, 'test-assets/ad-videos'),
+  path.join(__dirname, 'test-media/ad-videos')
+], ['.mp4', '.mov', '.webm']);
 
 // dynamically generate lightweight synthetic test assets so ad upload and BullMQ transcoding pipelines can be exercised.
 if (allAdVideoFiles.length === 0) {
@@ -763,6 +781,19 @@ function renderDashboard() {
   const totalMemGb = (totalMemBytes / 1024 / 1024 / 1024).toFixed(2);
   const memUtilPct = ((usedMemBytes / totalMemBytes) * 100).toFixed(1);
 
+  let diskStr = 'N/A';
+  try {
+    const stats = fs.statfsSync(path.resolve(__dirname, '..'));
+    const totalDiskBytes = stats.blocks * stats.bsize;
+    const freeDiskBytes = stats.bavail * stats.bsize;
+    const usedDiskBytes = totalDiskBytes - freeDiskBytes;
+    const usedGb = (usedDiskBytes / 1024 / 1024 / 1024).toFixed(1);
+    const totalGb = (totalDiskBytes / 1024 / 1024 / 1024).toFixed(1);
+    const diskPct = ((usedDiskBytes / totalDiskBytes) * 100).toFixed(1);
+    const diskColor = diskPct > 85 ? '\x1b[31m' : (diskPct > 70 ? '\x1b[33m' : '\x1b[32m');
+    diskStr = `${diskColor}${usedGb} GB / ${totalGb} GB (${diskPct}% utilized)\x1b[0m`;
+  } catch (e) {}
+
   const cpuColor = state.systemCpuPct < 60 ? '\x1b[32m' : (state.systemCpuPct < 85 ? '\x1b[33m' : '\x1b[31m');
   const loopColor = state.eventLoopLagMs < 20 ? '\x1b[32m' : '\x1b[31m';
 
@@ -777,6 +808,7 @@ function renderDashboard() {
 --------------------------------------------------------------------------------
  [SYSTEM HARDWARE & RUNTIME METRICS]
  Host RAM Used:     ${usedMemGb} GB / ${totalMemGb} GB (${memUtilPct}% utilized)
+ Disk Space Used:   ${diskStr}
  Process Memory:    Heap: ${procHeapUsedMb} MB / ${procHeapTotalMb} MB | RSS: ${procRssMb} MB
  Processor Load:    System CPU: ${cpuColor}${state.systemCpuPct}%\x1b[0m | Process CPU: ${state.processCpuPct}% | Cores: ${os.cpus().length}
  Event Loop Lag:    ${loopColor}${state.eventLoopLagMs} ms\x1b[0m (Health Probe: ${color}${latencyStr}\x1b[0m)
@@ -938,7 +970,15 @@ async function main() {
     console.log(` * Orders Served:               ${state.ordersServed}`);
     console.log(` * Orders Settled & Paid:       ${state.ordersPaid}`);
     console.log(` * Total Settled Revenue:       ₹${(state.revenuePaidPaise / 100).toFixed(2)}`);
-    console.log(` * Peak System CPU Load:        ${state.systemCpuPct}%`);
+    console.log(` * Peak System CPU Load:        ${state.systemCpuPct}% (Process: ${state.processCpuPct}%)`);
+    const finalMem = process.memoryUsage();
+    console.log(` * Process Memory (RSS / Heap): ${(finalMem.rss / 1024 / 1024).toFixed(1)} MB / ${(finalMem.heapUsed / 1024 / 1024).toFixed(1)} MB`);
+    try {
+      const stats = fs.statfsSync(path.resolve(__dirname, '..'));
+      const usedDiskGb = ((stats.blocks - stats.bavail) * stats.bsize / 1024 / 1024 / 1024).toFixed(1);
+      const totalDiskGb = (stats.blocks * stats.bsize / 1024 / 1024 / 1024).toFixed(1);
+      console.log(` * Final Disk Utilization:      ${usedDiskGb} GB / ${totalDiskGb} GB (${(((stats.blocks - stats.bavail) / stats.blocks) * 100).toFixed(1)}%)`);
+    } catch (e) {}
     console.log(` * Server API / Health Latency: ${state.healthLatencyMs} ms`);
     console.log(`================================================================================\n`);
 

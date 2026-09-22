@@ -6,6 +6,9 @@ let originalBodyOverflow = '';
 let originalHtmlOverflow = '';
 let originalBodyPaddingRight = '';
 
+// Global stack of currently open modals: array of { instanceId, modalId, depth, onCloseRef }
+let modalStack = [];
+
 function lockScroll() {
   if (typeof document === 'undefined') return;
   if (activeModalCount === 0) {
@@ -37,12 +40,19 @@ function unlockScroll() {
  * Universal hook for Escape key (Desktop), Back gesture / hardware back button (Mobile),
  * and background scroll locking on popups, modals, drawers, and lightboxes.
  *
+ * Supports nested / stacked modals gracefully: closing a child modal (via UI button,
+ * Escape key, or browser back button) never inadvertently closes parent modals.
+ *
  * @param {boolean} isOpen - Whether the modal is currently open.
  * @param {function} onClose - Callback function to close the modal.
  * @param {string} [modalId='modal'] - Optional identifier for the modal.
+ * @param {object|boolean} [options={}] - Optional configuration: { pushHistory: true }
  */
-export function useModalDismiss(isOpen, onClose, modalId = 'modal') {
+export function useModalDismiss(isOpen, onClose, modalId = 'modal', options = {}) {
+  const { pushHistory = true } = typeof options === 'boolean' ? { pushHistory: options } : options;
   const hasPushedState = useRef(false);
+  const myDepthRef = useRef(0);
+  const instanceIdRef = useRef('');
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
@@ -51,11 +61,11 @@ export function useModalDismiss(isOpen, onClose, modalId = 'modal') {
 
   useEffect(() => {
     if (!isOpen) {
-      // If modal was closed by user action (e.g. clicking [X] or backdrop)
-      // and we had previously pushed a history state, pop it cleanly.
+      // If modal was closed programmatically (e.g. clicking [X], Continue, Cancel)
+      // and we had previously pushed a history state, pop it cleanly if history is still at our depth.
       if (hasPushedState.current && typeof window !== 'undefined') {
         hasPushedState.current = false;
-        if (window.history.state && window.history.state._modalId === modalId) {
+        if (window.history.state && window.history.state._modalDepth === myDepthRef.current) {
           window.history.back();
         }
       }
@@ -65,14 +75,41 @@ export function useModalDismiss(isOpen, onClose, modalId = 'modal') {
     // 1. Lock background scrolling while modal is open
     lockScroll();
 
-    // 2. Push history state for mobile back gesture / Android hardware back button
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ _modalOpen: true, _modalId: modalId }, '');
+    // 2. Generate a unique instance ID and register in global modalStack
+    const instanceId = `${modalId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    instanceIdRef.current = instanceId;
+    const depth = modalStack.length + 1;
+    myDepthRef.current = depth;
+
+    modalStack.push({
+      instanceId,
+      modalId,
+      depth,
+      onCloseRef
+    });
+
+    // 3. Push history state for mobile back gesture / Android hardware back button
+    if (pushHistory && typeof window !== 'undefined') {
+      window.history.pushState(
+        { _modalOpen: true, _modalId: modalId, _modalDepth: depth, _instanceId: instanceId },
+        ''
+      );
       hasPushedState.current = true;
     }
 
-    // 3. Handle popstate (mobile back swipe or browser back button)
+    // 4. Handle popstate (mobile back swipe or browser back button or child modal back())
     const handlePopState = (e) => {
+      const targetDepth = (e.state && typeof e.state._modalDepth === 'number') ? e.state._modalDepth : 0;
+      const myDepth = myDepthRef.current;
+
+      // If the browser navigated to a depth that is >= this modal's depth,
+      // it means a deeper (child) modal was popped back to this modal.
+      // This modal is STILL active in history — DO NOT close it!
+      if (targetDepth >= myDepth) {
+        return;
+      }
+
+      // The browser navigated back past this modal.
       if (hasPushedState.current) {
         hasPushedState.current = false;
         if (onCloseRef.current) {
@@ -81,26 +118,36 @@ export function useModalDismiss(isOpen, onClose, modalId = 'modal') {
       }
     };
 
-    // 4. Handle Desktop Escape Key
+    // 5. Handle Desktop Escape Key (only the topmost modal in the stack handles it)
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
-        e.preventDefault();
-        e.stopPropagation();
-        if (onCloseRef.current) {
-          onCloseRef.current();
+        if (modalStack.length === 0) return;
+        const topModal = modalStack[modalStack.length - 1];
+        if (topModal && topModal.instanceId === instanceIdRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (onCloseRef.current) {
+            onCloseRef.current();
+          }
         }
       }
     };
 
-    window.addEventListener('popstate', handlePopState);
+    if (pushHistory && typeof window !== 'undefined') {
+      window.addEventListener('popstate', handlePopState);
+    }
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      if (pushHistory && typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handlePopState);
+      }
       window.removeEventListener('keydown', handleKeyDown);
+      modalStack = modalStack.filter((m) => m.instanceId !== instanceId);
       unlockScroll();
     };
-  }, [isOpen, modalId]);
+  }, [isOpen, modalId, pushHistory]);
 }
 
 export default useModalDismiss;
+

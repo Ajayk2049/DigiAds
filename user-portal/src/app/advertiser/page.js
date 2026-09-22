@@ -40,15 +40,12 @@ function AdvertiserContent() {
     setMobileMenuOpen,
   } = useAdvertiserStore();
 
-  // Handle hardware / back button / esc dismiss for open overlays
-  const anyModalOpen = showAnalyticsModal || showMediaModal || !!previewVideoUrl || !!videoResolutionWarning || mobileMenuOpen;
-  useModalDismiss(anyModalOpen, () => {
-    if (showAnalyticsModal) closeAnalyticsModal();
-    else if (showMediaModal) setShowMediaModal(false);
-    else if (previewVideoUrl) setPreviewVideoUrl(null);
-    else if (videoResolutionWarning) setVideoResolutionWarning(null);
-    else if (mobileMenuOpen) setMobileMenuOpen(false);
-  });
+  // Handle hardware / back button / esc dismiss for open overlays with distinct depths
+  useModalDismiss(showAnalyticsModal, () => closeAnalyticsModal(), 'advertiser-analytics-modal');
+  useModalDismiss(showMediaModal, () => setShowMediaModal(false), 'advertiser-media-modal');
+  useModalDismiss(Boolean(previewVideoUrl), () => setPreviewVideoUrl(null), 'advertiser-video-player-modal');
+  useModalDismiss(Boolean(videoResolutionWarning), () => setVideoResolutionWarning(null), 'advertiser-resolution-warning-modal');
+  useModalDismiss(mobileMenuOpen, () => setMobileMenuOpen(false), 'advertiser-mobile-drawer');
 
   // Initial auth hydration & data fetch
   useEffect(() => {

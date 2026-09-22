@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { X, Tv, Megaphone } from 'lucide-react';
 
@@ -17,6 +17,13 @@ export default function PlatformAdModal({
   showToast
 }) {
   const [venueSearchFilter, setVenueSearchFilter] = useState('');
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!createPlatformAdForm.file && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [createPlatformAdForm.file]);
 
   if (!isOpen) return null;
 
@@ -295,8 +302,15 @@ export default function PlatformAdModal({
                   }
                 }
               }}
+              ref={fileInputRef}
               className="w-full bg-background border border-input rounded-xl px-3 py-2 text-foreground focus:outline-none cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-primary-foreground"
             />
+            {createPlatformAdForm.file && (
+              <div className="mt-2 flex items-center justify-between px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                <span className="truncate max-w-[75%]">✓ Ready: {createPlatformAdForm.file.name}</span>
+                <span className="font-mono text-[11px]">{(createPlatformAdForm.file.size / (1024 * 1024)).toFixed(1)} MB</span>
+              </div>
+            )}
             <p className="text-[10px] text-muted-foreground mt-1">
               ⚡ Auto-optimized: Sharp WebP / FFmpeg H.264 Baseline 3.1 silent transcode pipeline.
             </p>
