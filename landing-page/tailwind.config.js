@@ -76,10 +76,10 @@ module.exports = {
         modal: "var(--shadow-modal)",
       },
       fontFamily: {
-        outfit: ['Outfit', 'sans-serif'],
-        heading: ['Outfit', 'sans-serif'],
-        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        outfit: ['var(--font-outfit)', 'Outfit', 'sans-serif'],
+        heading: ['var(--font-outfit)', 'Outfit', 'sans-serif'],
+        sans: ['var(--font-sans)', '"Plus Jakarta Sans"', 'sans-serif'],
+        mono: ['var(--font-mono)', '"JetBrains Mono"', 'monospace'],
       }
     },
   },

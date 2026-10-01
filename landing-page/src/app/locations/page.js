@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { config } from '@/config';
+import 'leaflet/dist/leaflet.css';
 import useModalDismiss from '@/hooks/useModalDismiss';
 
 export default function LocationsPage() {
@@ -104,39 +105,25 @@ export default function LocationsPage() {
     return () => clearTimeout(timer);
   }, [selectedCity, selectedCategory, selectedDeviceType, searchQuery]);
 
-  // Load Leaflet dynamically via CDN scripts (SSR-safe)
+  // Load Leaflet locally (SSR-safe dynamic import)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    let isMounted = true;
 
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
+    async function initMap() {
+      if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    if (!window.L) {
-      const script = document.createElement('script');
-      script.id = 'leaflet-js';
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.async = true;
-      script.onload = () => initMap();
-      document.body.appendChild(script);
-    } else {
-      initMap();
-    }
+      const leafletModule = await import('leaflet');
+      const L = leafletModule.default || leafletModule;
+      if (!isMounted || !mapContainerRef.current) return;
 
-    function initMap() {
-      if (!mapContainerRef.current || mapInstanceRef.current || !window.L) return;
-
-      const L = window.L;
+      window.L = L;
 
       // Default map center (India / Bengaluru hub)
       const map = L.map(mapContainerRef.current, {
         center: [12.9716, 77.5946],
         zoom: 12,
-        zoomControl: false
+        zoomControl: false,
+        attributionControl: false
       });
 
       // Position zoom control at bottom right
@@ -144,7 +131,6 @@ export default function LocationsPage() {
 
       // OpenStreetMap standard clean free map tiles (No API key required)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(map);
 
@@ -152,7 +138,10 @@ export default function LocationsPage() {
       setMapLoaded(true);
     }
 
+    initMap();
+
     return () => {
+      isMounted = false;
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
