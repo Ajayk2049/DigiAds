@@ -52,13 +52,13 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
 
         {/* Elevated Interactive Tab Controller */}
         <div className="flex justify-center mb-14">
-          <div className="bg-muted/70 backdrop-blur-md border border-border/80 p-1.5 rounded-lg inline-flex space-x-2 shadow-inner">
+          <div className="bg-card border border-border p-1.5 rounded-card inline-flex space-x-2 shadow-card">
             <button
               onClick={() => setActiveTab('tablet')}
-              className={`relative flex items-center space-x-2 px-5 py-2.5 rounded-md font-bold text-sm transition-all duration-200 cursor-pointer ${
+              className={`relative flex items-center space-x-2 px-5 py-2.5 rounded-input font-bold text-sm transition-all duration-200 cursor-pointer ${
                 activeTab === 'tablet'
-                  ? 'bg-[#0069a8] text-white shadow-md shadow-[#0069a8]/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  ? 'bg-accent text-white shadow-card'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               <Tablet className="w-4 h-4" />
@@ -66,10 +66,10 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
             </button>
             <button
               onClick={() => setActiveTab('screen')}
-              className={`relative flex items-center space-x-2 px-5 py-2.5 rounded-md font-bold text-sm transition-all duration-200 cursor-pointer ${
+              className={`relative flex items-center space-x-2 px-5 py-2.5 rounded-input font-bold text-sm transition-all duration-200 cursor-pointer ${
                 activeTab === 'screen'
-                  ? 'bg-[#0069a8] text-white shadow-md shadow-[#0069a8]/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  ? 'bg-accent text-white shadow-card'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               <Tv className="w-4 h-4" />
@@ -92,7 +92,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   transition={{ duration: 0.3 }}
                   className="space-y-5"
                 >
-                  <div className="inline-flex items-center space-x-2 text-xs font-extrabold text-[#0069a8] uppercase tracking-wider bg-[#0069a8]/10 px-3 py-1 rounded-md border border-[#0069a8]/20">
+                  <div className="inline-flex items-center space-x-2 text-xs font-extrabold text-accent uppercase tracking-wider bg-accent/10 px-3 py-1 rounded-pill border border-accent/20">
                     <Tablet className="w-3.5 h-3.5" />
                     <span>Tabletop Hardware Terminal</span>
                   </div>
@@ -116,7 +116,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                       "Dashboard for tracking orders and revenue and analytics"
                     ].map((item, i) => (
                       <div key={i} className="flex items-start text-sm font-semibold text-foreground/90">
-                        <div className="p-0.5 rounded-md bg-emerald-500/10 text-emerald-500 mr-2.5 mt-0.5 shrink-0">
+                        <div className="p-0.5 rounded-input bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mr-2.5 mt-0.5 shrink-0">
                           <CheckCircle2 className="w-4 h-4" />
                         </div>
                         <span>{item}</span>
@@ -129,7 +129,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                       href={`${userPortalUrl}/register?role=merchant`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-2 bg-[#0069a8] hover:bg-[#005a91] text-white font-bold px-6 py-3 rounded-lg transition-all shadow-md shadow-[#0069a8]/20 hover:scale-[1.01]"
+                      className="inline-flex items-center space-x-2 bg-accent hover:bg-accent/90 text-white font-bold px-6 py-3 rounded-card transition-all shadow-card hover:shadow-pop"
                     >
                       <span>Deploy Tablets for Your Venue</span>
                       <ArrowRight className="w-4 h-4" />
@@ -145,7 +145,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   transition={{ duration: 0.3 }}
                   className="space-y-5"
                 >
-                  <div className="inline-flex items-center space-x-2 text-xs font-extrabold text-indigo-500 uppercase tracking-wider bg-indigo-500/10 px-3 py-1 rounded-md border border-indigo-500/20">
+                  <div className="inline-flex items-center space-x-2 text-xs font-extrabold text-accent uppercase tracking-wider bg-accent/10 px-3 py-1 rounded-pill border border-accent/20">
                     <Tv className="w-3.5 h-3.5" />
                     <span>Wall Display</span>
                   </div>
@@ -166,7 +166,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                       "No Audio playback ensures no disturbance to dining ambiance"
                     ].map((item, i) => (
                       <div key={i} className="flex items-start text-sm font-semibold text-foreground/90">
-                        <div className="p-0.5 rounded-md bg-indigo-500/10 text-indigo-500 mr-2.5 mt-0.5 shrink-0">
+                        <div className="p-0.5 rounded-input bg-accent/10 text-accent mr-2.5 mt-0.5 shrink-0">
                           <CheckCircle2 className="w-4 h-4" />
                         </div>
                         <span>{item}</span>
@@ -179,7 +179,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                       href={`${userPortalUrl}/register?role=advertiser`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-md shadow-indigo-600/20 hover:scale-[1.01]"
+                      className="inline-flex items-center space-x-2 bg-accent hover:bg-accent/90 text-white font-bold px-6 py-3 rounded-card transition-all shadow-card hover:shadow-pop"
                     >
                       <span>Book Wall Display Campaign Slots</span>
                       <ArrowRight className="w-4 h-4" />
@@ -202,7 +202,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   transition={{ duration: 0.35 }}
                   className="relative w-full max-w-[560px] xl:max-w-[620px] flex flex-col items-center justify-center"
                 >
-                  <div className="relative w-full aspect-[3/4] overflow-hidden flex items-center justify-center rounded-2xl">
+                  <div className="relative w-full aspect-[3/4] overflow-hidden flex items-center justify-center">
                     <AnimatePresence mode="wait">
                       <motion.img
                         key={tabletIndex}
@@ -218,14 +218,14 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   </div>
 
                   <div className="w-full pt-6 flex justify-center items-center">
-                    <div className="bg-muted/70 backdrop-blur-md px-4 py-2 rounded-full border border-border/60 shadow-sm inline-flex items-center space-x-2.5">
+                    <div className="bg-card px-4 py-2 rounded-pill border border-border shadow-card inline-flex items-center space-x-2.5">
                       {tabletImages.map((_, i) => (
                         <button
                           key={i}
                           onClick={() => setTabletIndex(i)}
                           className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
                             tabletIndex === i
-                              ? 'w-9 bg-[#0069a8] shadow-sm shadow-[#0069a8]/40'
+                              ? 'w-9 bg-accent shadow-card'
                               : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
                           }`}
                           aria-label={`Go to slide ${i + 1}`}
@@ -241,9 +241,9 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.98 }}
                   transition={{ duration: 0.35 }}
-                  className="relative w-full max-w-[820px] xl:max-w-[900px] flex flex-col items-center justify-center"
+                  className="relative w-full max-w-[700px] xl:max-w-[760px] flex flex-col items-center justify-center"
                 >
-                  <div className="relative w-full aspect-[16/10] overflow-hidden flex items-center justify-center rounded-2xl">
+                  <div className="relative w-full aspect-[16/10] overflow-hidden flex items-center justify-center">
                     <AnimatePresence mode="wait">
                       <motion.img
                         key={screenIndex}
@@ -259,14 +259,14 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
                   </div>
 
                   <div className="w-full pt-6 flex justify-center items-center">
-                    <div className="bg-muted/70 backdrop-blur-md px-4 py-2 rounded-full border border-border/60 shadow-sm inline-flex items-center space-x-2.5">
+                    <div className="bg-card px-4 py-2 rounded-pill border border-border shadow-card inline-flex items-center space-x-2.5">
                       {screenImages.map((_, i) => (
                         <button
                           key={i}
                           onClick={() => setScreenIndex(i)}
                           className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
                             screenIndex === i
-                              ? 'w-9 bg-indigo-600 shadow-sm shadow-indigo-600/40'
+                              ? 'w-9 bg-accent shadow-card'
                               : 'w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60'
                           }`}
                           aria-label={`Go to slide ${i + 1}`}

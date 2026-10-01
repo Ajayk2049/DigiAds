@@ -20,7 +20,7 @@ export default function HeroSection({ userPortalUrl }) {
           {/* Status Pill */}
           <motion.div
             variants={fadeInUp}
-            className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-[#0069a8]/10 border border-[#0069a8]/20 text-[#0069a8] dark:text-sky-400 text-xs font-bold tracking-wide"
+            className="inline-flex items-center space-x-2 px-3 py-1 rounded-pill bg-accent/10 border border-accent/20 text-accent text-xs font-bold tracking-wide"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>Next-Gen Dining & Digital Ad Network</span>
@@ -31,7 +31,7 @@ export default function HeroSection({ userPortalUrl }) {
             className="font-outfit text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-foreground leading-[1.08]"
           >
             Transform Dining Tables Into <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0069a8] via-sky-500 to-indigo-600">
+            <span className="text-accent">
               Interactive Ad Channels
             </span>
           </motion.h1>
@@ -52,7 +52,7 @@ export default function HeroSection({ userPortalUrl }) {
               href={`${userPortalUrl}/register?role=merchant`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center space-x-2.5 bg-[#0069a8] hover:bg-[#005a91] text-white font-bold text-base px-7 py-3.5 rounded-lg glow-blue-lg transition-all shadow-xl hover:scale-[1.01] active:scale-[0.99]"
+              className="inline-flex items-center justify-center space-x-2.5 bg-accent hover:bg-accent/90 text-white font-bold text-base px-7 py-3.5 rounded-card transition-all shadow-card hover:shadow-pop active:scale-[0.99]"
             >
               <Store className="w-5 h-5" />
               <span>Apply as Venue Host</span>
@@ -62,9 +62,9 @@ export default function HeroSection({ userPortalUrl }) {
               href={`${userPortalUrl}/register?role=advertiser`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center space-x-2.5 bg-background hover:bg-muted/80 border-2 border-border text-foreground font-bold text-base px-7 py-3.5 rounded-lg transition-all shadow-sm hover:border-[#0069a8]/40 hover:scale-[1.01] active:scale-[0.99]"
+              className="inline-flex items-center justify-center space-x-2.5 bg-card hover:bg-muted/80 border border-border text-foreground font-bold text-base px-7 py-3.5 rounded-card transition-all shadow-card hover:border-accent/40 active:scale-[0.99]"
             >
-              <TrendingUp className="w-5 h-5 text-[#0069a8]" />
+              <TrendingUp className="w-5 h-5 text-accent" />
               <span>Book Ad Campaign</span>
             </a>
           </motion.div>
@@ -112,7 +112,7 @@ export default function HeroSection({ userPortalUrl }) {
             <img
               src={imgHeroBanner.src}
               alt="DigiAds Tabletop Kiosk and Wall Screen Hardware"
-              className="w-full h-auto object-contain drop-shadow-2xl hover:scale-[1.01] transition-transform duration-500 select-none scale-[1.03] origin-center"
+              className="w-full h-auto object-contain drop-shadow-xl hover:scale-[1.01] transition-transform duration-500 select-none scale-[1.03] origin-center"
             />
 
             {/* Floating Badge 1: Live Orders */}
@@ -120,9 +120,9 @@ export default function HeroSection({ userPortalUrl }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.6 }}
-              className="absolute -top-3 right-0 md:top-2 md:right-2 glassmorphism-card p-3 rounded-lg shadow-xl flex items-center space-x-3 border border-sky-500/20 glow-blue animate-bounce-subtle z-20"
+              className="absolute -top-3 right-0 md:top-2 md:right-2 token-card p-3 rounded-card shadow-pop flex items-center space-x-3 border border-border z-20"
             >
-              <div className="w-8 h-8 rounded-md bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-input bg-accent/10 text-accent flex items-center justify-center shrink-0">
                 <Zap className="w-4 h-4" />
               </div>
               <div className="text-left">
@@ -136,9 +136,9 @@ export default function HeroSection({ userPortalUrl }) {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
-              className="absolute -bottom-3 left-0 md:bottom-2 md:left-2 glassmorphism-card p-3 rounded-lg shadow-xl flex items-center space-x-3 border border-emerald-500/20 glow-emerald z-20"
+              className="absolute -bottom-3 left-0 md:bottom-2 md:left-2 token-card p-3 rounded-card shadow-pop flex items-center space-x-3 border border-border z-20"
             >
-              <div className="w-8 h-8 rounded-md bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-input bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                 <BarChart3 className="w-4 h-4" />
               </div>
               <div className="text-left">

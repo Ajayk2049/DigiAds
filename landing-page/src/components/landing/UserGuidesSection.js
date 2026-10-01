@@ -15,7 +15,7 @@ export default function UserGuidesSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-14 space-y-3"
         >
-          <span className="text-xs font-extrabold text-[#0069a8] tracking-widest uppercase bg-[#0069a8]/10 px-3.5 py-1.5 rounded-md border border-[#0069a8]/20 inline-flex items-center space-x-1.5">
+          <span className="text-xs font-extrabold text-accent tracking-widest uppercase bg-accent/10 px-3.5 py-1.5 rounded-pill border border-accent/20 inline-flex items-center space-x-1.5">
             <BookOpen className="w-3.5 h-3.5" />
             <span>Official Documentation</span>
           </span>
@@ -34,20 +34,20 @@ export default function UserGuidesSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="glassmorphism-card rounded-2xl border border-border/80 p-7 flex flex-col justify-between hover:border-[#0069a8]/50 transition-all duration-300 group hover:shadow-xl hover:shadow-[#0069a8]/5 relative overflow-hidden"
+            className="token-card rounded-card border border-border p-7 flex flex-col justify-between hover:border-accent/40 transition-all duration-200 group shadow-card hover:shadow-pop relative overflow-hidden"
           >
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-[#0069a8]/10 text-[#0069a8] dark:text-sky-400 border border-[#0069a8]/20 px-3 py-1 rounded-md">
+                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-accent/10 text-accent border border-accent/20 px-3 py-1 rounded-pill">
                   For Venue Hosts
                 </span>
-                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-input">
                   PDF • 7.1 MB
                 </span>
               </div>
 
               <div className="space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-[#0069a8]/10 text-[#0069a8] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-input bg-accent/10 text-accent flex items-center justify-center transition-transform">
                   <Store className="w-6 h-6" />
                 </div>
                 <h3 className="font-outfit text-2xl font-extrabold text-foreground tracking-tight pt-1">
@@ -84,7 +84,7 @@ export default function UserGuidesSection() {
                 download="DigiAds-Venue-Guide.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center space-x-2 bg-[#0069a8] hover:bg-[#005a91] text-white font-bold text-sm px-5 py-3 rounded-xl transition-all shadow-md shadow-[#0069a8]/20 group-hover:shadow-lg group-hover:shadow-[#0069a8]/30"
+                className="w-full inline-flex items-center justify-center space-x-2 bg-accent hover:bg-accent/90 text-white font-bold text-sm px-5 py-3 rounded-card transition-all shadow-card hover:shadow-pop"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Venue Guide</span>
@@ -98,20 +98,20 @@ export default function UserGuidesSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="glassmorphism-card rounded-2xl border border-border/80 p-7 flex flex-col justify-between hover:border-indigo-500/50 transition-all duration-300 group hover:shadow-xl hover:shadow-indigo-500/5 relative overflow-hidden"
+            className="token-card rounded-card border border-border p-7 flex flex-col justify-between hover:border-accent/40 transition-all duration-200 group shadow-card hover:shadow-pop relative overflow-hidden"
           >
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-md">
+                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-pill">
                   For Advertisers
                 </span>
-                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-input">
                   PDF • 3.5 MB
                 </span>
               </div>
 
               <div className="space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-input bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center transition-transform">
                   <BarChart3 className="w-6 h-6" />
                 </div>
                 <h3 className="font-outfit text-2xl font-extrabold text-foreground tracking-tight pt-1">
@@ -148,7 +148,7 @@ export default function UserGuidesSection() {
                 download="DigiAds-Advertiser-Portal-Guide.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 group-hover:shadow-lg group-hover:shadow-indigo-600/30"
+                className="w-full inline-flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-5 py-3 rounded-card transition-all shadow-card hover:shadow-pop"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Advertiser Guide</span>
@@ -162,20 +162,20 @@ export default function UserGuidesSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="glassmorphism-card rounded-2xl border border-border/80 p-7 flex flex-col justify-between hover:border-emerald-500/50 transition-all duration-300 group hover:shadow-xl hover:shadow-emerald-500/5 relative overflow-hidden"
+            className="token-card rounded-card border border-border p-7 flex flex-col justify-between hover:border-accent/40 transition-all duration-200 group shadow-card hover:shadow-pop relative overflow-hidden"
           >
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-md">
+                <span className="text-[11px] font-extrabold tracking-wider uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-pill">
                   General Platform
                 </span>
-                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                <span className="text-[11px] font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-input">
                   PDF • 2.3 MB
                 </span>
               </div>
 
               <div className="space-y-2">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-input bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center transition-transform">
                   <FileText className="w-6 h-6" />
                 </div>
                 <h3 className="font-outfit text-2xl font-extrabold text-foreground tracking-tight pt-1">
@@ -212,7 +212,7 @@ export default function UserGuidesSection() {
                 download="DigiAds-User-Guide.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 group-hover:shadow-lg group-hover:shadow-emerald-600/30"
+                className="w-full inline-flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-3 rounded-card transition-all shadow-card hover:shadow-pop"
               >
                 <Download className="w-4 h-4" />
                 <span>Download User Guide</span>

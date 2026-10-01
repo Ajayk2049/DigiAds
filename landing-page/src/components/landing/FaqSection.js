@@ -18,7 +18,7 @@ export default function FaqSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-14 space-y-3"
         >
-          <span className="text-xs font-extrabold text-[#0069a8] tracking-widest uppercase bg-[#0069a8]/10 px-3 py-1 rounded-md border border-[#0069a8]/20">
+          <span className="text-xs font-extrabold text-accent tracking-widest uppercase bg-accent/10 px-3 py-1 rounded-pill border border-accent/20">
             Questions & Answers
           </span>
           <h2 className="font-outfit text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
@@ -33,16 +33,16 @@ export default function FaqSection() {
           {faqs.map((faq, idx) => (
             <div
               key={idx}
-              className="glassmorphism-card rounded-xl border border-border/80 overflow-hidden transition-all"
+              className="token-card rounded-card border border-border overflow-hidden transition-all shadow-card"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                className="w-full p-5 text-left flex justify-between items-center font-outfit text-base md:text-lg font-bold text-foreground hover:text-[#0069a8] transition-colors cursor-pointer"
+                className="w-full p-5 text-left flex justify-between items-center font-outfit text-base md:text-lg font-bold text-foreground hover:text-accent transition-colors cursor-pointer"
               >
                 <span>{faq.q}</span>
                 <ChevronDown
                   className={`w-5 h-5 text-muted-foreground transition-transform duration-300 shrink-0 ml-4 ${
-                    openFaq === idx ? 'rotate-180 text-[#0069a8]' : ''
+                    openFaq === idx ? 'rotate-180 text-accent' : ''
                   }`}
                 />
               </button>
@@ -53,7 +53,7 @@ export default function FaqSection() {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="px-5 pb-5 text-sm md:text-base text-muted-foreground leading-relaxed border-t border-border/40 pt-3.5"
+                    className="px-5 pb-5 text-sm md:text-base text-muted-foreground leading-relaxed border-t border-border pt-3.5"
                   >
                     {faq.a}
                   </motion.div>

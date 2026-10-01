@@ -9,7 +9,7 @@ export default function TrustRibbon() {
       <div className="w-full max-w-[1700px] mx-auto px-6 md:px-12">
         <div className="flex flex-wrap items-center justify-between gap-6 text-xs md:text-sm font-semibold text-muted-foreground">
           <div className="flex items-center space-x-2">
-            <ShieldCheck className="w-4 h-4 text-[#0069a8]" />
+            <ShieldCheck className="w-4 h-4 text-accent" />
             <span className="text-foreground">Secure TableTop Kiosks</span>
           </div>
           <div className="flex items-center space-x-2">
@@ -21,11 +21,11 @@ export default function TrustRibbon() {
             <span className="text-foreground">UPI Payment Integration</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Layers className="w-4 h-4 text-indigo-500" />
+            <Layers className="w-4 h-4 text-accent" />
             <span className="text-foreground">Analytics Dashboard</span>
           </div>
           <div className="flex items-center space-x-2">
-            <BarChart3 className="w-4 h-4 text-cyan-500" />
+            <BarChart3 className="w-4 h-4 text-accent" />
             <span className="text-foreground">Targeted Advertisements</span>
           </div>
         </div>

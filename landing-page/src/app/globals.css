@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+@import './tokens.css';
 
 @tailwind base;
 @tailwind components;
@@ -7,34 +7,19 @@
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   overflow-x: hidden;
+  color: var(--ink-1);
+  background: var(--background);
 }
 
-/* Custom premium design classes */
-.glassmorphism {
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+/* Crisp token-based surfaces */
+.token-surface {
+  background: var(--bone-1);
+  border: 1px solid var(--border);
 }
 
-.dark .glassmorphism {
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.text-gradient {
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.glow-hover {
-  transition: all 0.3s ease;
-}
-
-.glow-hover:hover {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-  transform: translateY(-2px);
+.dark .token-surface {
+  background: var(--bone-1);
+  border: 1px solid var(--border);
 }
 
 @theme {
@@ -171,31 +156,25 @@ code, pre, .font-mono, [class*="font-mono"] {
   text-transform: none;
 }
 
-/* Glassmorphism and Glow Effects */
-.glassmorphism-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 105, 168, 0.12);
+/* Clean Token Cards (No blurry glassmorphism) */
+.glassmorphism-card,
+.token-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
-.dark .glassmorphism-card {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.dark .glassmorphism-card,
+.dark .token-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
-.glow-blue {
-  box-shadow: 0 8px 30px rgba(0, 105, 168, 0.18);
-}
-
-.glow-blue-lg {
-  box-shadow: 0 12px 40px rgba(0, 105, 168, 0.28);
-}
-
+.glow-blue,
+.glow-blue-lg,
 .glow-emerald {
-  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.18);
+  box-shadow: var(--shadow-pop);
 }
 
 .device-frame-glow {

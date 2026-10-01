@@ -48,12 +48,32 @@ module.exports = {
           500: '#3b82f6',
           600: '#2563eb',
           900: '#1e3a8a',
+        },
+        ink: {
+          1: "var(--ink-1)",
+          2: "var(--ink-2)",
+          3: "var(--ink-3)",
+          4: "var(--ink-4)",
+        },
+        bone: {
+          1: "var(--bone-1)",
+          2: "var(--bone-2)",
+          3: "var(--bone-3)",
         }
       },
       borderRadius: {
+        input: "var(--radius-input)",
+        card: "var(--radius-card)",
+        modal: "var(--radius-modal)",
+        pill: "var(--radius-pill)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        pop: "var(--shadow-pop)",
+        modal: "var(--shadow-modal)",
       },
       fontFamily: {
         outfit: ['Outfit', 'sans-serif'],

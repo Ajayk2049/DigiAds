@@ -1,6 +1,5 @@
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
-import Script from 'next/script';
 
 export const metadata = {
   title: 'DigiAds & Dine - Premium Tabletop Ordering & Ad Network',
@@ -27,24 +26,6 @@ export default function RootLayout({ children }) {
         >
           {children}
         </ThemeProvider>
-        {process.env.NODE_ENV === 'development' && (
-          <>
-            <Script src="https://cdn.jsdelivr.net/npm/eruda" strategy="afterInteractive" />
-            <Script id="eruda-init" strategy="afterInteractive">
-              {`
-                if (typeof window !== 'undefined') {
-                  if (window.eruda) {
-                    window.eruda.init();
-                  } else {
-                    window.addEventListener('load', () => {
-                      if (window.eruda) window.eruda.init();
-                    });
-                  }
-                }
-              `}
-            </Script>
-          </>
-        )}
       </body>
     </html>
   );

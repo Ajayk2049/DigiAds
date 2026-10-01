@@ -38,6 +38,7 @@ export default function LocationsPage() {
   // Universal Modal Dismissal (Desktop Esc key & Mobile back gesture)
   useModalDismiss(Boolean(bookingModalVenue), () => setBookingModalVenue(null), 'locations-booking-modal');
   const [isLoading, setIsLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
 
@@ -45,8 +46,8 @@ export default function LocationsPage() {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef({});
 
-  const userPortalUrl = config.userPortalUrl || 'http://localhost:3001';
-  const apiUrl = config.apiUrl || 'http://localhost:4200/api/v1';
+  const userPortalUrl = config.userPortalUrl || 'http://localhost:4200';
+  const apiUrl = config.apiUrl || 'http://localhost:4000/api/v1';
 
   // Categories list
   const categories = [
@@ -62,32 +63,43 @@ export default function LocationsPage() {
   ];
 
   // Fetch public venues directory
-  useEffect(() => {
-    async function fetchVenues() {
-      setIsLoading(true);
-      try {
-        const queryParams = new URLSearchParams();
-        if (selectedCity !== 'all') queryParams.set('city', selectedCity);
-        if (selectedCategory !== 'all') queryParams.set('category', selectedCategory);
-        if (selectedDeviceType !== 'all') queryParams.set('deviceType', selectedDeviceType);
-        if (searchQuery.trim()) queryParams.set('search', searchQuery.trim());
+  const fetchVenues = async () => {
+    setIsLoading(true);
+    setIsOffline(false);
+    try {
+      const queryParams = new URLSearchParams();
+      if (selectedCity !== 'all') queryParams.set('city', selectedCity);
+      if (selectedCategory !== 'all') queryParams.set('category', selectedCategory);
+      if (selectedDeviceType !== 'all') queryParams.set('deviceType', selectedDeviceType);
+      if (searchQuery.trim()) queryParams.set('search', searchQuery.trim());
 
-        const res = await fetch(`${apiUrl}/public/venues?${queryParams.toString()}`);
-        const result = await res.json();
-
-        if (result.success && result.data) {
-          setVenues(result.data.venues || []);
-          if (result.data.availableCities && availableCities.length === 0) {
-            setAvailableCities(result.data.availableCities);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch public venues:', err);
-      } finally {
-        setIsLoading(false);
+      const res = await fetch(`${apiUrl}/public/venues?${queryParams.toString()}`);
+      if (!res.ok) {
+        setIsOffline(true);
+        setVenues([]);
+        return;
       }
-    }
+      const result = await res.json();
 
+      if (result.success && result.data) {
+        setVenues(result.data.venues || []);
+        setIsOffline(false);
+        if (result.data.availableCities && availableCities.length === 0) {
+          setAvailableCities(result.data.availableCities);
+        }
+      } else {
+        setVenues([]);
+      }
+    } catch {
+      // Backend server offline - display friendly offline UI instead of unhandled console error
+      setIsOffline(true);
+      setVenues([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     const timer = setTimeout(fetchVenues, 250);
     return () => clearTimeout(timer);
   }, [selectedCity, selectedCategory, selectedDeviceType, searchQuery]);
@@ -254,7 +266,7 @@ export default function LocationsPage() {
   return (
     <div className="h-screen w-screen relative overflow-hidden bg-background text-foreground flex flex-col font-sans">
       {/* Top Main Navigation Header */}
-      <header className="h-16 bg-background/90 backdrop-blur-xl border-b border-border/80 px-6 flex items-center justify-between z-30 shrink-0">
+      <header className="h-16 bg-background px-6 flex items-center justify-between z-30 shrink-0">
         <div className="flex items-center space-x-8">
           <a href="/" className="flex items-center space-x-3 group">
             <img
@@ -263,28 +275,28 @@ export default function LocationsPage() {
               className="w-8 h-8 object-contain shrink-0 group-hover:scale-105 transition-transform"
             />
             <span className="font-outfit text-xl font-bold tracking-tight text-foreground leading-none brandLogo">
-              Digi<span className="text-[#0069a8]">Ads</span>
+              Digi<span className="text-accent">Ads</span>
             </span>
           </a>
 
           <nav className="hidden md:flex items-center space-x-6 text-xs font-bold text-muted-foreground">
-            <a href="/" className="hover:text-foreground transition-colors">Home</a>
-            <a href="/#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="/#demo" className="hover:text-foreground transition-colors">Device Demo</a>
-            <a href="/locations" className="text-[#0069a8] flex items-center space-x-1">
+            <a href="/" className="hover:text-foreground transition-colors hover:text-accent">Home</a>
+            <a href="/#features" className="hover:text-foreground transition-colors hover:text-accent">Features</a>
+            <a href="/#demo" className="hover:text-foreground transition-colors hover:text-accent">Device Demo</a>
+            <a href="/locations" className="text-accent flex items-center space-x-1.5">
               <span>Locations Directory</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0069a8]"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
             </a>
-            <a href="/#faq" className="hover:text-foreground transition-colors">FAQ</a>
+            <a href="/#faq" className="hover:text-foreground transition-colors hover:text-accent">FAQ</a>
           </nav>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <a
             href={`${userPortalUrl}/login`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-bold text-foreground hover:text-[#0069a8] px-3.5 py-2 rounded-md hover:bg-muted transition-all"
+            className="text-xs font-bold text-foreground hover:text-accent px-3.5 py-2 rounded-card border border-border bg-card hover:bg-muted transition-colors"
           >
             Advertiser Sign In
           </a>
@@ -292,7 +304,7 @@ export default function LocationsPage() {
             href={`${userPortalUrl}/register?role=advertiser`}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center space-x-1.5 text-xs font-bold bg-[#0069a8] hover:bg-[#005a91] text-white px-4 py-2 rounded-md transition-all shadow-sm"
+            className="hidden sm:inline-flex items-center space-x-1.5 text-xs font-bold bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-card transition-all shadow-card hover:shadow-pop"
           >
             <span>Book Campaign</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -420,8 +432,24 @@ export default function LocationsPage() {
             <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
               {isLoading ? (
                 <div className="p-8 text-center space-y-3">
-                  <div className="w-8 h-8 rounded-full border-2 border-[#0069a8] border-t-transparent animate-spin mx-auto" />
+                  <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin mx-auto" />
                   <p className="text-xs text-muted-foreground font-medium">Scanning live venue fleet...</p>
+                </div>
+              ) : isOffline ? (
+                <div className="p-6 text-center space-y-3.5 token-card rounded-card border border-border m-2 shadow-card">
+                  <Store className="w-8 h-8 text-muted-foreground mx-auto opacity-40" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-foreground">Backend Server Offline</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      API server is currently unreachable. Start the backend server to inspect live venues.
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchVenues}
+                    className="text-xs font-bold px-3.5 py-1.5 rounded-card bg-accent hover:bg-accent/90 text-white transition-all shadow-card hover:shadow-pop cursor-pointer"
+                  >
+                    Retry Connection
+                  </button>
                 </div>
               ) : venues.length === 0 ? (
                 <div className="p-8 text-center space-y-3">
