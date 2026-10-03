@@ -74,7 +74,9 @@ function buildOrderSearchPipeline(matchStage, search, queryLimit) {
   const sRaw = search.trim();
   const sClean = sRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const numericVal = parseFloat(sRaw);
-  const paiseVal = !isNaN(numericVal) ? Math.round(numericVal * 100) : null;
+  const paiseVal = !isNaN(numericVal) && !sRaw.includes('-') && !sRaw.includes('/') ? Math.round(numericVal * 100) : null;
+  const isOrderIdPattern = /^ord/i.test(sRaw);
+  const hasDateSeparators = sRaw.includes('-') || sRaw.includes('/');
 
   const pipeline = [
     { $match: matchStage },
@@ -82,26 +84,32 @@ function buildOrderSearchPipeline(matchStage, search, queryLimit) {
       $addFields: {
         amountRupeesStr: { $toString: { $divide: ['$totalAmount', 100] } },
         amountPaiseStr: { $toString: '$totalAmount' },
-        dateFormattedStr: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-        dateFormattedIndian: { $dateToString: { format: '%d/%m/%Y', date: '$createdAt' } }
+        ...(hasDateSeparators ? {
+          dateFormattedStr: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          dateFormattedIndian: { $dateToString: { format: '%d/%m/%Y', date: '$createdAt' } }
+        } : {})
       }
     }
   ];
 
   const orConditions = [
-    { orderId: { $regex: sClean, $options: 'i' } },
+    isOrderIdPattern 
+      ? { orderId: { $regex: `^${sClean}`, $options: 'i' } }
+      : { orderId: { $regex: sClean, $options: 'i' } },
     { tableNumber: { $regex: sClean, $options: 'i' } },
     { paymentType: { $regex: sClean, $options: 'i' } },
     { orderType: { $regex: sClean, $options: 'i' } },
-    { 'items.name': { $regex: sClean, $options: 'i' } },
-    { amountRupeesStr: { $regex: sClean, $options: 'i' } },
-    { amountPaiseStr: { $regex: sClean, $options: 'i' } },
-    { dateFormattedStr: { $regex: sClean, $options: 'i' } },
-    { dateFormattedIndian: { $regex: sClean, $options: 'i' } }
+    { 'items.name': { $regex: sClean, $options: 'i' } }
   ];
 
   if (paiseVal !== null) {
     orConditions.push({ totalAmount: paiseVal });
+    orConditions.push({ amountRupeesStr: { $regex: `^${sClean}` } });
+  }
+
+  if (hasDateSeparators) {
+    orConditions.push({ dateFormattedStr: { $regex: sClean, $options: 'i' } });
+    orConditions.push({ dateFormattedIndian: { $regex: sClean, $options: 'i' } });
   }
 
   pipeline.push({ $match: { $or: orConditions } });

@@ -12,17 +12,12 @@ const config = require('../config/config');
 const logger = require('../utils/logger');
 const { TIMEOUTS } = require('../config/constants');
 
+const { createRedisClient } = require('../config/redis');
+
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-// Configure Redis Client with reconnect strategy
-const redisConnection = new IORedis({
-  host: config.redisHost || 'localhost',
-  port: parseInt(config.redisPort, 10) || 6379,
-  maxRetriesPerRequest: null,
-  enableOfflineQueue: true,
-  lazyConnect: false,
-  retryStrategy: (times) => (times > 20 ? null : Math.min(times * 200, 3000))
-});
+// Configure Redis Client with reconnect strategy via centralized factory
+const redisConnection = createRedisClient('bullmq');
 
 class VideoQueueService {
   constructor() {
@@ -469,7 +464,7 @@ class VideoQueueService {
         await PlatformAd.updateMany(
           isMongoId 
             ? { _id: rawRecordId } 
-            : { $or: [{ adId: recordIdStr }, { mediaUrl: { $regex: new RegExp(regexEscaped) } }, { mediaUrls: { $regex: new RegExp(regexEscaped) } }] },
+            : { $or: [{ adId: recordIdStr }, { mediaUrl: { $regex: new RegExp(`${regexEscaped}$`) } }, { mediaUrls: { $regex: new RegExp(`${regexEscaped}$`) } }] },
           {
             mediaUrl: finalUrl,
             transcodeStatus: 'completed'

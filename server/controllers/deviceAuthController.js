@@ -117,7 +117,7 @@ class DeviceAuthController {
       const HostApplication = require('../models/HostApplication');
       const VenuePromo = require('../models/VenuePromo');
 
-      const hostApp = await HostApplication.findById(hostApplicationId);
+      const hostApp = await HostApplication.findById(hostApplicationId).select('isPaused isRevoked allowOpenAds adMode').lean();
       if (!hostApp || hostApp.isPaused || hostApp.isRevoked) {
         return res.status(200).send({ success: true, data: [] });
       }
@@ -136,17 +136,21 @@ class DeviceAuthController {
       const SystemSetting = require('../models/SystemSetting');
       let universalImageDuration = 10;
       try {
-        const promoDurationsSetting = await SystemSetting.findOne({ key: 'venue_promo_durations' });
+        const promoDurationsSetting = await SystemSetting.findOne({ key: 'venue_promo_durations' }).select('value').lean();
         const openDuration = promoDurationsSetting?.value?.openDurationSeconds ?? 10;
         const closedDuration = promoDurationsSetting?.value?.closedDurationSeconds ?? 15;
         const isClosedVenue = hostApp.allowOpenAds === false || hostApp.adMode === 'closed';
         universalImageDuration = isClosedVenue ? closedDuration : openDuration;
       } catch (err) {
-        console.error('[deviceAuthController] Failed to fetch promo durations setting:', err.message);
+        req.log.warn({ err }, '[deviceAuthController] Failed to fetch promo durations setting');
         universalImageDuration = (hostApp.allowOpenAds === false || hostApp.adMode === 'closed') ? 15 : 10;
       }
 
-      const venuePromos = await VenuePromo.find(promoQuery).sort({ slotType: 1, slotIndex: 1 });
+      const venuePromos = await VenuePromo.find(promoQuery)
+        .select('promoId mediaUrl mediaType title slotType slotIndex')
+        .sort({ slotType: 1, slotIndex: 1 })
+        .lean();
+
       const promoAds = venuePromos.map(p => {
         const resolvedUrl = resolveMediaUrl(p.mediaUrl, req.headers.host);
         return {
@@ -163,67 +167,67 @@ class DeviceAuthController {
 
       let thirdPartyAds = [];
       const AdBooking = require('../models/AdBooking');
-      const bookings = await AdBooking.find({
+      const now = new Date();
+      const activeBookings = await AdBooking.find({
         outletId: hostApplicationId,
         deviceType: deviceType,
         paymentStatus: 'completed',
-        approvalStatus: 'approved'
-      });
-
-        const now = new Date();
-        const activeBookings = bookings.filter(b => {
-          const expiryDate = new Date(b.createdAt);
-          expiryDate.setDate(expiryDate.getDate() + b.adDurationDays);
-          return expiryDate >= now;
-        });
-
-        // Fetch Universal Commercial Advertiser Image Duration from SystemSetting
-        let baseAdvertiserImageDuration = 8;
-        try {
-          const advSetting = await SystemSetting.findOne({ key: 'advertiser_image_duration' });
-          if (advSetting?.value?.durationSeconds) {
-            baseAdvertiserImageDuration = Number(advSetting.value.durationSeconds) || 8;
-          }
-        } catch (err) {
-          console.error('[deviceAuthController] Failed to fetch advertiser image duration setting:', err.message);
+        approvalStatus: 'approved',
+        $expr: {
+          $gte: [
+            { $add: ['$createdAt', { $multiply: ['$adDurationDays', 86400000] }] },
+            now
+          ]
         }
+      }).select('bookingId mediaUrl mediaType mediaDuration frequency createdAt adDurationDays').lean();
 
-        thirdPartyAds = activeBookings.map(b => {
-          let frequencyMinutes = 0;
-          const freq = (b.frequency || '').toLowerCase().trim();
-          if (freq.includes('continuous') || freq === '0') {
-            frequencyMinutes = 0;
-          } else if (freq.includes('hourly') || freq === '1_per_hour' || freq === 'once_hourly') {
-            frequencyMinutes = 60;
-          } else {
-            const match = freq.match(/(\d+)\s*(?:min|minute|hr|hour)/);
-            if (match) {
-              const val = parseInt(match[1], 10);
-              if (freq.includes('hr') || freq.includes('hour')) {
-                frequencyMinutes = val * 60;
-              } else {
-                frequencyMinutes = val;
-              }
+      // Fetch Universal Commercial Advertiser Image Duration from SystemSetting
+      let baseAdvertiserImageDuration = 8;
+      try {
+        const advSetting = await SystemSetting.findOne({ key: 'advertiser_image_duration' }).select('value').lean();
+        if (advSetting?.value?.durationSeconds) {
+          baseAdvertiserImageDuration = Number(advSetting.value.durationSeconds) || 8;
+        }
+      } catch (err) {
+        req.log.warn({ err }, '[deviceAuthController] Failed to fetch advertiser image duration setting');
+      }
+
+      thirdPartyAds = activeBookings.map(b => {
+        let frequencyMinutes = 0;
+        const freq = (b.frequency || '').toLowerCase().trim();
+        if (freq.includes('continuous') || freq === '0') {
+          frequencyMinutes = 0;
+        } else if (freq.includes('hourly') || freq === '1_per_hour' || freq === 'once_hourly') {
+          frequencyMinutes = 60;
+        } else {
+          const match = freq.match(/(\d+)\s*(?:min|minute|hr|hour)/);
+          if (match) {
+            const val = parseInt(match[1], 10);
+            if (freq.includes('hr') || freq.includes('hour')) {
+              frequencyMinutes = val * 60;
+            } else {
+              frequencyMinutes = val;
             }
           }
+        }
 
-          const rawUrls = (b.mediaUrl || '').split(',').map(s => s.trim()).filter(Boolean);
-          const resolvedUrls = rawUrls.map(u => resolveMediaUrl(u, req.headers.host));
-          const firstUrl = resolvedUrls[0] || '';
-          const isVideo = firstUrl.endsWith('.mp4') || firstUrl.endsWith('.webm');
-          const isImageAd = b.mediaType === 'image' || !isVideo;
-          const imageDuration = resolvedUrls.length >= 2 ? (baseAdvertiserImageDuration * 2) : baseAdvertiserImageDuration;
+        const rawUrls = (b.mediaUrl || '').split(',').map(s => s.trim()).filter(Boolean);
+        const resolvedUrls = rawUrls.map(u => resolveMediaUrl(u, req.headers.host));
+        const firstUrl = resolvedUrls[0] || '';
+        const isVideo = firstUrl.endsWith('.mp4') || firstUrl.endsWith('.webm');
+        const isImageAd = b.mediaType === 'image' || !isVideo;
+        const imageDuration = resolvedUrls.length >= 2 ? (baseAdvertiserImageDuration * 2) : baseAdvertiserImageDuration;
 
-          return {
-            bookingId: b.bookingId,
-            mediaUrl: firstUrl,
-            mediaUrls: resolvedUrls,
-            frequencyMinutes: frequencyMinutes,
-            durationSeconds: isImageAd ? imageDuration : (b.mediaDuration || 30),
-            title: `Campaign ${b.bookingId}`,
-            mediaType: isVideo ? 'video' : 'static'
-          };
-        });
+        return {
+          bookingId: b.bookingId,
+          mediaUrl: firstUrl,
+          mediaUrls: resolvedUrls,
+          frequencyMinutes: frequencyMinutes,
+          durationSeconds: isImageAd ? imageDuration : (b.mediaDuration || 30),
+          title: `Campaign ${b.bookingId}`,
+          mediaType: isVideo ? 'video' : 'static'
+        };
+      });
 
       // Combine active 3rd-party ads and venue in-house promos
       let combinedPlaylist = [...thirdPartyAds, ...promoAds];
@@ -241,7 +245,7 @@ class DeviceAuthController {
           targetVenueIds: hostApplicationId,
           targetDeviceType: { $in: ['all', deviceType] },
           transcodeStatus: { $ne: 'processing' }
-        });
+        }).select('adId mediaUrls mediaUrl mediaType durationSeconds title').lean();
 
         const targetedPlatformAds = targetedPlatformDocs.map(ad => {
           const rawUrls = (ad.mediaUrls && ad.mediaUrls.length > 0) ? ad.mediaUrls : [ad.mediaUrl];
@@ -270,7 +274,7 @@ class DeviceAuthController {
             isActive: true,
             targetDeviceType: { $in: ['all', deviceType] },
             transcodeStatus: { $ne: 'processing' }
-          });
+          }).select('adId mediaUrls mediaUrl mediaType durationSeconds title').lean();
 
           const fallbackAds = fallbackDocs.map(ad => {
             const rawUrls = (ad.mediaUrls && ad.mediaUrls.length > 0) ? ad.mediaUrls : [ad.mediaUrl];
@@ -313,7 +317,7 @@ class DeviceAuthController {
         data: combinedPlaylist
       });
     } catch (error) {
-      console.error('getDeviceAds Error:', error.message);
+      req.log.error({ err: error }, 'getDeviceAds Error');
       return res.status(500).send({ success: false, message: 'Server error fetching device ads' });
     }
   }

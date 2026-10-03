@@ -15,8 +15,7 @@ const {
   calculateQuotaDeductions,
   enqueuePromoTranscode
 } = require('./venuePromoHelper');
-const { generateCustomId } = require('../../utils/idGenerator');
-const { streamAndOptimizeImage } = require('../../utils/uploadHandler');
+const { streamAndOptimizeImage, streamToFile } = require('../../utils/uploadHandler');
 const { UPLOAD_LIMITS } = require('../../config/constants');
 const videoQueueService = require('../../services/videoQueueService');
 
@@ -145,7 +144,7 @@ class VenuePromoController {
       tempPath = path.join(os.tmpdir(), `tmp-host-promo-${Date.now()}${ext}`);
       const rawFilePath = path.join(uploadsDir, uniqueFilename);
 
-      await pipeline(req.body || req.raw, fs.createWriteStream(tempPath));
+      await streamToFile(req.body || req.raw, tempPath);
 
       const check = await validateVideoDuration(tempPath, hostApp);
       if (!check.isValid) {

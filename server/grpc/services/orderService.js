@@ -31,7 +31,9 @@ const orderServiceHandlers = {
       const claims = await verifyGrpcToken(call);
       const { deviceId, hostApplicationId } = claims;
 
-      const device = await Device.findOne({ deviceId }).populate('hostApplicationId');
+      const device = await Device.findOne({ deviceId })
+        .populate({ path: 'hostApplicationId', select: 'userId status' })
+        .lean();
       if (!device || !device.hostApplicationId) {
         return callback({ code: grpc.status.FAILED_PRECONDITION, message: 'Device is not linked to an application' });
       }
@@ -39,7 +41,7 @@ const orderServiceHandlers = {
 
       // Recalculate item prices server-side against active menu database & check availability
       const requestedItemIds = (items || []).map(i => i.itemId).filter(Boolean);
-      const menuDoc = await Menu.findOne({ hostApplicationId });
+      const menuDoc = await Menu.findOne({ hostApplicationId }).lean();
       const menuItems = menuDoc?.items || [];
       const menuItemMap = new Map();
       const unavailableItems = [];

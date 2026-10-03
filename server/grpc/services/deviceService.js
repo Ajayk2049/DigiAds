@@ -7,6 +7,24 @@ const { deviceLastDbTouch } = require('../../websocket/wsManager');
 const { handleDeviceWaiterCall } = require('../../websocket/waiterCallHandler');
 const { recordSingleImpression, recordBatchImpressions } = require('../utils/impressionTracker');
 
+const venueBillConfigCache = new Map(); // hostApplicationId -> { billConfig, expiresAt }
+
+async function getCachedVenueBillConfig(hostApplicationId) {
+  if (!hostApplicationId) return {};
+  const key = String(hostApplicationId);
+  const cached = venueBillConfigCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.billConfig;
+  }
+  const app = await HostApplication.findById(hostApplicationId).select('billConfig').lean();
+  const billConfig = app?.billConfig || {};
+  venueBillConfigCache.set(key, {
+    billConfig,
+    expiresAt: Date.now() + 60000 // 60s TTL
+  });
+  return billConfig;
+}
+
 // Implement Device gRPC Service Handlers
 const deviceServiceHandlers = {
   RegisterDevice: async (call, callback) => {
@@ -52,8 +70,9 @@ const deviceServiceHandlers = {
       }).sort({ createdAt: -1 }).lean();
 
       if (activeOrder) {
-        const app = await HostApplication.findById(activeOrder.hostApplicationId);
-        const billConfig = app?.billConfig || {};
+        const billConfig = (activeOrder.billConfigSnapshot && Object.keys(activeOrder.billConfigSnapshot).length > 0)
+          ? activeOrder.billConfigSnapshot
+          : await getCachedVenueBillConfig(activeOrder.hostApplicationId);
         const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
         const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
         const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;

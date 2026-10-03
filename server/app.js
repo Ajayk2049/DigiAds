@@ -69,23 +69,8 @@ async function createFastifyApp() {
   // Connect dedicated Redis client for distributed rate limiting store across clusters
   let rateLimitRedis = null;
   try {
-    const IORedis = require('ioredis');
-    const client = new IORedis({
-      host: config.redisHost || 'localhost',
-      port: parseInt(config.redisPort, 10) || 6379,
-      lazyConnect: true,
-      maxRetriesPerRequest: 1,
-      enableOfflineQueue: false,
-      retryStrategy: (times) => (times > 3 ? null : Math.min(times * 500, 2000))
-    });
-    let lastWarnTime = 0;
-    client.on('error', (err) => {
-      const now = Date.now();
-      if (now - lastWarnTime > 30000) {
-        lastWarnTime = now;
-        logger.warn({ err: (err && err.message) || 'Unknown error' }, '[RateLimit Redis Warning]: Connection unavailable, falling back to memory store');
-      }
-    });
+    const { createRedisClient } = require('./config/redis');
+    const client = createRedisClient('ratelimit');
     await client.connect();
     rateLimitRedis = client;
   } catch (err) {

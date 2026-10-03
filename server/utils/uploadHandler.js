@@ -104,11 +104,66 @@ async function streamAndOptimizeImage(input, destinationPath, options = {}) {
   }
 }
 
+/**
+ * Streams input (stream, raw, or Buffer) directly to disk with cleanup on failure
+ * @param {ReadableStream|Buffer|object} input - req.body, req.raw, or Buffer
+ * @param {string} destinationPath - Absolute destination file path
+ * @param {object} options - maxBytes
+ * @returns {Promise<void>}
+ */
+async function streamToFile(input, destinationPath, options = {}) {
+  const { maxBytes = UPLOAD_LIMITS.VIDEO_MAX_SIZE_BYTES } = options;
+  await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
+
+  try {
+    if (Buffer.isBuffer(input)) {
+      if (input.length > maxBytes) {
+        throw new Error(`File size exceeds maximum allowable limit of ${(maxBytes / (1024 * 1024)).toFixed(0)}MB`);
+      }
+      await fs.promises.writeFile(destinationPath, input);
+    } else {
+      const inputStream = (input && typeof input.pipe === 'function')
+        ? input
+        : (input && input.raw && typeof input.raw.pipe === 'function')
+          ? input.raw
+          : null;
+
+      if (!inputStream) {
+        throw new Error('Unsupported or empty stream payload');
+      }
+
+      let bytesWritten = 0;
+      const passThrough = new stream.Transform({
+        transform(chunk, encoding, callback) {
+          bytesWritten += chunk.length;
+          if (bytesWritten > maxBytes) {
+            callback(new Error(`File size exceeds maximum allowable limit of ${(maxBytes / (1024 * 1024)).toFixed(0)}MB`));
+          } else {
+            callback(null, chunk);
+          }
+        }
+      });
+
+      await pipeline(inputStream, passThrough, fs.createWriteStream(destinationPath));
+    }
+  } catch (err) {
+    try {
+      if (fs.existsSync(destinationPath)) {
+        await fs.promises.unlink(destinationPath);
+      }
+    } catch (cleanupErr) {
+      logger.warn({ err: cleanupErr.message, destinationPath }, 'Failed to unlink failed file destination');
+    }
+    throw err;
+  }
+}
+
 module.exports = {
   ALLOWED_IMAGE_EXTS,
   ALLOWED_VIDEO_EXTS,
   validateExtension,
   validateContentLength,
   generateMediaFilename,
-  streamAndOptimizeImage
+  streamAndOptimizeImage,
+  streamToFile
 };
