@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 export default function AboutUsSection() {
@@ -18,9 +19,11 @@ export default function AboutUsSection() {
           >
             <div className="relative group p-8 token-card rounded-card border border-border shadow-card hover:border-accent/40 transition-all duration-300 max-w-[320px] w-full aspect-square flex items-center justify-center">
               <div className="absolute inset-0 bg-accent/5 rounded-card opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <img
+              <Image
                 src="/digiads-logo.svg"
                 alt="DigiAds Brand Logo"
+                width={200}
+                height={80}
                 className="w-full h-full object-contain max-h-[160px] filter drop-shadow-sm group-hover:scale-105 transition-transform duration-300 select-none"
               />
             </div>

@@ -144,7 +144,11 @@ export const useOrderStore = create((set, get) => ({
           } else if (data.event === 'device_status_changed') {
             if (onDeviceStatusChanged) onDeviceStatusChanged();
           }
-        } catch (e) {}
+        } catch (parseErr) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[useOrderStore] WebSocket message parse failure:', parseErr?.message);
+          }
+        }
       };
 
       ws.onclose = () => {
@@ -166,8 +170,10 @@ export const useOrderStore = create((set, get) => ({
 
       };
 
-      ws.onerror = () => {
-        // Clean error suppression to avoid terminal log pollution
+      ws.onerror = (err) => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[useOrderStore] WebSocket connection event:', err?.message || 'interrupted');
+        }
       };
     } catch (err) {
       if (pingTimer) {

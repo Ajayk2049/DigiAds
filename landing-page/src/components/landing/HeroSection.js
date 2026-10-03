@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Sparkles, Store, ArrowRight, TrendingUp, Zap, BarChart3 } from 'lucide-react';
 import imgHeroBanner from '@/assets/HeroBanner.png';
@@ -109,9 +110,11 @@ export default function HeroSection({ userPortalUrl }) {
           className="lg:col-span-7 relative flex items-center justify-center lg:justify-end"
         >
           <div className="relative w-full max-w-3xl xl:max-w-[880px]">
-            <img
-              src={imgHeroBanner.src}
+            <Image
+              src={imgHeroBanner}
               alt="DigiAds Tabletop Kiosk and Wall Screen Hardware"
+              priority
+              sizes="(max-width: 1024px) 100vw, 880px"
               className="w-full h-auto object-contain drop-shadow-xl hover:scale-[1.01] transition-transform duration-500 select-none scale-[1.03] origin-center"
             />
 

@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 
 export default function LandingFooter() {
   return (
     <footer className="bg-card border-t border-border py-12 px-6">
       <div className="w-full max-w-[1700px] mx-auto px-4 md:px-12 flex flex-col md:flex-row items-center justify-between gap-8 text-sm text-muted-foreground">
         <div className="flex items-center space-x-3">
-          <img src="/digiads-icon.svg" alt="DigiAds Icon" className="w-8 h-8 object-contain shrink-0" />
+          <Image src="/digiads-icon.svg" alt="DigiAds Icon" width={32} height={32} className="w-8 h-8 object-contain shrink-0" />
           <span className="font-outfit text-lg font-bold text-foreground brandLogo">
             Digi<span className="text-accent">Ads</span>
           </span>

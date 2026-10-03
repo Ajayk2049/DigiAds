@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -17,9 +18,11 @@ export default function LandingHeader({ userPortalUrl }) {
             transition={{ duration: 0.5 }}
             className="flex items-center space-x-3 group"
           >
-            <img
+            <Image
               src="/digiads-icon.svg"
               alt="DigiAds Logo"
+              width={32}
+              height={32}
               className="w-8 h-8 object-contain shrink-0 group-hover:scale-105 transition-transform"
             />
             <span className="font-outfit text-xl font-bold tracking-tight text-foreground leading-none brandLogo">

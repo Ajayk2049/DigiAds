@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Clock, Sparkles, Settings, Plus, ChevronUp, ChevronDown, Pencil, Star, Trash2, UtensilsCrossed, Building } from 'lucide-react';
 import { getCategoryName, getCategoryIconKey, renderCategoryIcon, resolveMediaUrl } from '../common/constants';
 import { useMenuStore } from '@/stores/useMenuStore';
@@ -34,6 +35,20 @@ export default function MenuTab(props) {
   const togglePopular = props.togglePopular ?? menu.togglePopular;
   const openEditModal = props.openEditModal ?? menu.openEditModal;
   const removeMenuItem = props.removeMenuItem ?? menu.removeMenuItem;
+
+  // Memoize grouped items by category to avoid repeated full array scans
+  const itemsByCategory = React.useMemo(() => {
+    const map = {};
+    for (const item of menuItems) {
+      if (item.isAllShifts !== true && Array.isArray(item.shifts) && item.shifts.length > 0) {
+        if (!item.shifts.includes(selectedMenuShift)) continue;
+      }
+      const catKey = (item.category || '').toLowerCase();
+      if (!map[catKey]) map[catKey] = [];
+      map[catKey].push(item);
+    }
+    return map;
+  }, [menuItems, selectedMenuShift]);
 
   return (
     <div className="animate-fade-in">
@@ -137,15 +152,7 @@ export default function MenuTab(props) {
           {menuCategories.map((category, catIndex) => {
             const catName = getCategoryName(category);
             const catIconKey = getCategoryIconKey(category);
-            const items = menuItems.filter(item => {
-              const matchesCat = (item.category || '').toLowerCase() === catName.toLowerCase();
-              if (!matchesCat) return false;
-              if (item.isAllShifts === true) return true;
-              if (Array.isArray(item.shifts) && item.shifts.length > 0) {
-                return item.shifts.includes(selectedMenuShift);
-              }
-              return true;
-            });
+            const items = itemsByCategory[catName.toLowerCase()] || [];
             return (
               <div key={`${catName}-${catIndex}`} className="space-y-4">
                 <div className="flex items-center space-x-3 bg-muted/20 dark:bg-muted/5 border border-border/40 px-4 py-3 rounded-xl shadow-sm">
@@ -263,10 +270,13 @@ export default function MenuTab(props) {
                               </div>
                             )}
                             {item.imageUrl ? (
-                              <img
+                              <Image
                                 src={resolveMediaUrl(item.imageUrl)}
                                 alt={item.name}
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                fill
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+                                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                unoptimized={resolveMediaUrl(item.imageUrl).startsWith('data:')}
                               />
                             ) : (
                               <div className="w-full h-full flex flex-col items-center justify-center text-[10px] text-muted-foreground font-bold uppercase p-4 text-center">

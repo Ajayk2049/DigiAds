@@ -5,6 +5,17 @@ const nextConfig = {
     appIsrStatus: false,
   },
   poweredByHeader: false,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
+  },
+  images: {
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost', port: '4000', pathname: '/**' },
+      { protocol: 'http', hostname: '127.0.0.1', port: '4000', pathname: '/**' },
+      { protocol: 'https', hostname: 'test-api.digiads.space', pathname: '/**' },
+      { protocol: 'https', hostname: 'api.digiads.space', pathname: '/**' },
+    ],
+  },
   // Allows local network connections without HMR blocking in Next.js development
   allowedDevOrigins: ['192.168.0.101', '192.168.31.195', '172.16.0.2', 'localhost', '127.0.0.1'],
   async headers() {

@@ -27,40 +27,65 @@ export default function VenuesTab({
   const setShowVenueModal = useAdminStore((s) => s.setShowVenueModal);
   const setIsPromoDurationsModalOpen = useAdminStore((s) => s.setIsPromoDurationsModalOpen);
 
-  const handleSelectVenue = (venue) => {
+  const handleSelectVenue = React.useCallback((venue) => {
     if (onSelectVenue) onSelectVenue(venue);
     else {
       setSelectedHostApp(venue);
       setShowVenueModal(true);
     }
-  };
+  }, [onSelectVenue, setSelectedHostApp, setShowVenueModal]);
 
-  const handleOpenPromoDurations = () => {
+  const handleOpenPromoDurations = React.useCallback(() => {
     if (onOpenPromoDurations) onOpenPromoDurations();
     else setIsPromoDurationsModalOpen(true);
-  };
+  }, [onOpenPromoDurations, setIsPromoDurationsModalOpen]);
 
   // Filter approved venues according to status and search
-  const approvedVenuesList = hosts.filter((h) => {
-    const isApproved = h.status === 'approved';
-    if (!isApproved) return false;
+  const approvedVenuesList = React.useMemo(() => {
+    return hosts.filter((h) => {
+      const isApproved = h.status === 'approved';
+      if (!isApproved) return false;
 
-    const isClosed = h.allowOpenAds === false || h.adMode === 'closed';
+      const isClosed = h.allowOpenAds === false || h.adMode === 'closed';
 
-    if (venueStatusFilter === 'open' && (isClosed || h.isPaused)) return false;
-    if (venueStatusFilter === 'private' && (!isClosed || h.isPaused)) return false;
-    if (venueStatusFilter === 'paused' && !h.isPaused && !h.isRevoked) return false;
+      if (venueStatusFilter === 'open' && (isClosed || h.isPaused)) return false;
+      if (venueStatusFilter === 'private' && (!isClosed || h.isPaused)) return false;
+      if (venueStatusFilter === 'paused' && !h.isPaused && !h.isRevoked) return false;
 
-    if (!searchQuery) return true;
-    const query = searchQuery.trim().toLowerCase();
-    return (
-      (h.venueId || '').toLowerCase().includes(query) ||
-      (h.outletName || '').toLowerCase().includes(query) ||
-      (h.contactPerson || '').toLowerCase().includes(query) ||
-      (h.city || '').toLowerCase().includes(query) ||
-      (h.state || '').toLowerCase().includes(query)
-    );
-  });
+      if (!searchQuery) return true;
+      const query = searchQuery.trim().toLowerCase();
+      return (
+        (h.venueId || '').toLowerCase().includes(query) ||
+        (h.outletName || '').toLowerCase().includes(query) ||
+        (h.contactPerson || '').toLowerCase().includes(query) ||
+        (h.city || '').toLowerCase().includes(query) ||
+        (h.state || '').toLowerCase().includes(query)
+      );
+    });
+  }, [hosts, venueStatusFilter, searchQuery]);
+
+  // Memoize summary counts across hosts
+  const { approvedCount, openCount, closedCount, pausedCount } = React.useMemo(() => {
+    let approved = 0;
+    let open = 0;
+    let closed = 0;
+    let paused = 0;
+
+    for (const h of hosts) {
+      if (h.status !== 'approved') continue;
+      approved++;
+      const isClosed = h.allowOpenAds === false || h.adMode === 'closed';
+      if (h.isPaused || h.isRevoked) {
+        paused++;
+      } else if (isClosed) {
+        closed++;
+      } else {
+        open++;
+      }
+    }
+
+    return { approvedCount: approved, openCount: open, closedCount: closed, pausedCount: paused };
+  }, [hosts]);
 
   return (
     <motion.div
@@ -75,21 +100,21 @@ export default function VenuesTab({
         <div className="glassmorphism p-5 rounded-2xl bg-card/30 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Approved Outlets</p>
           <h3 className="font-outfit text-2xl font-black mt-2 text-foreground">
-            {hosts.filter((h) => h.status === 'approved').length}
+            {approvedCount}
           </h3>
           <p className="text-[10px] text-emerald-500 font-semibold mt-1">Active streaming outlets</p>
         </div>
         <div className="glassmorphism p-5 rounded-2xl bg-card/30 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Open Ads Mode</p>
           <h3 className="font-outfit text-2xl font-black mt-2 text-blue-500">
-            {hosts.filter((h) => h.status === 'approved' && h.allowOpenAds !== false).length}
+            {openCount}
           </h3>
           <p className="text-[10px] text-muted-foreground font-semibold mt-1">Public ad Network venues</p>
         </div>
         <div className="glassmorphism p-5 rounded-2xl bg-card/30 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Closed Private Mode</p>
           <h3 className="font-outfit text-2xl font-black mt-2 text-purple-500">
-            {hosts.filter((h) => h.status === 'approved' && h.allowOpenAds === false).length}
+            {closedCount}
           </h3>
           <p className="text-[10px] text-muted-foreground font-semibold mt-1">Private venue promos</p>
         </div>
@@ -104,30 +129,10 @@ export default function VenuesTab({
       <div className="bg-card/40 border border-border p-4 rounded-2xl flex justify-between items-center flex-wrap gap-4 shadow-sm">
         <div className="flex space-x-2 bg-muted/30 p-1 rounded-xl border border-border/60">
           {[
-            { id: 'all', label: `All Outlets (${hosts.filter((h) => h.status === 'approved').length})` },
-            {
-              id: 'open',
-              label: `Open Ads Network (${
-                hosts.filter(
-                  (h) => h.status === 'approved' && h.allowOpenAds !== false && h.adMode !== 'closed' && !h.isPaused
-                ).length
-              })`
-            },
-            {
-              id: 'private',
-              label: `Private Promos (${
-                hosts.filter(
-                  (h) =>
-                    h.status === 'approved' &&
-                    (h.allowOpenAds === false || h.adMode === 'closed') &&
-                    !h.isPaused
-                ).length
-              })`
-            },
-            {
-              id: 'paused',
-              label: `Paused (${hosts.filter((h) => h.status === 'approved' && (h.isPaused || h.isRevoked)).length})`
-            }
+            { id: 'all', label: `All Outlets (${approvedCount})` },
+            { id: 'open', label: `Open Ads Network (${openCount})` },
+            { id: 'private', label: `Private Promos (${closedCount})` },
+            { id: 'paused', label: `Paused (${pausedCount})` }
           ].map((f) => (
             <button
               key={f.id}

@@ -60,11 +60,13 @@ export default function OrdersTab(props) {
     );
   }
 
-  const filteredOrders = orders.filter(ord => {
-    if (!activeVenueId) return true;
-    const ordVenueId = ord.hostApplicationId?._id || ord.hostApplicationId;
-    return String(ordVenueId) === String(activeVenueId);
-  });
+  const filteredOrders = React.useMemo(() => {
+    return orders.filter(ord => {
+      if (!activeVenueId) return true;
+      const ordVenueId = ord.hostApplicationId?._id || ord.hostApplicationId;
+      return String(ordVenueId) === String(activeVenueId);
+    });
+  }, [orders, activeVenueId]);
 
   const getStatusRank = (status) => {
     if (status === 'placed') return 1;
@@ -73,15 +75,17 @@ export default function OrdersTab(props) {
     return 4;
   };
 
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const rankA = getStatusRank(a.orderStatus);
-    const rankB = getStatusRank(b.orderStatus);
-    if (rankA !== rankB) return rankA - rankB;
+  const sortedOrders = React.useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      const rankA = getStatusRank(a.orderStatus);
+      const rankB = getStatusRank(b.orderStatus);
+      if (rankA !== rankB) return rankA - rankB;
 
-    const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
-    const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
-    return timeA - timeB;
-  });
+      const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return timeA - timeB;
+    });
+  }, [filteredOrders]);
 
   return (
     <div className="animate-fade-in w-full">
