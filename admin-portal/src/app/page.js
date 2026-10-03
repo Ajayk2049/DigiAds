@@ -11,7 +11,6 @@ import { config } from '@/config';
 import AdminSidebar from '@/components/layout/AdminSidebar';
 import AdminHeader from '@/components/layout/AdminHeader';
 import LoginView from '@/components/layout/LoginView';
-import AdminToast from '@/components/common/AdminToast';
 import AdminModalContainer from '@/components/modals/AdminModalContainer';
 
 // Dynamically split tabs for instant loading and code-splitting
@@ -107,7 +106,6 @@ export default function AdminPortal() {
 
   return (
     <div className="h-screen bg-background text-foreground flex overflow-hidden font-sans relative">
-      <AdminToast />
       <AdminSidebar />
 
       {/* Main Content Viewport */}

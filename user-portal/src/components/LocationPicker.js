@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 import { MapPin, Navigation, Maximize2, X, Check, Loader2, Sparkles, HelpCircle } from 'lucide-react';
 import useModalDismiss from '@/hooks/useModalDismiss';
 
+import 'leaflet/dist/leaflet.css';
+
 export default function LocationPicker({
   latitude,
   longitude,
@@ -34,28 +36,22 @@ export default function LocationPicker({
   const effectiveLng = longitude || 77.5946;
   const hasCoordinates = Boolean(latitude && longitude);
 
-  // Dynamic SSR-safe Leaflet CSS/JS loader
+  // Dynamic SSR-safe Leaflet npm loader
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-
-    if (!window.L) {
-      const script = document.createElement('script');
-      script.id = 'leaflet-js';
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.async = true;
-      script.onload = () => setLeafletLoaded(true);
-      document.body.appendChild(script);
-    } else {
-      setLeafletLoaded(true);
-    }
+    let isMounted = true;
+    (async () => {
+      if (typeof window === 'undefined') return;
+      if (!window.L) {
+        const leafletModule = await import('leaflet');
+        window.L = leafletModule.default || leafletModule;
+      }
+      if (isMounted) {
+        setLeafletLoaded(true);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Helper to create custom draggable storefront marker

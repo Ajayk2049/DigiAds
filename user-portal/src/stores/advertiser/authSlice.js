@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 import { API_BASE } from '../../config';
 
 export const createAuthSlice = (set, get) => ({
@@ -15,14 +16,26 @@ export const createAuthSlice = (set, get) => ({
   // Toast System
   toasts: [],
   showToast: (type, message) => {
-    const id = Date.now() + Math.random();
-    set(state => ({ toasts: [...state.toasts, { id, type, message }] }));
-    setTimeout(() => {
-      set(state => ({ toasts: state.toasts.filter(t => t.id !== id) }));
-    }, 5000);
+    // If called as showToast(message, type) vs showToast(type, message)
+    let actualType = type;
+    let actualMsg = message;
+    if (typeof type === 'string' && !['success', 'error', 'warning', 'info'].includes(type) && ['success', 'error', 'warning', 'info'].includes(message)) {
+      actualType = message;
+      actualMsg = type;
+    }
+
+    if (actualType === 'error' || actualType === 'danger') {
+      toast.error(actualMsg);
+    } else if (actualType === 'warning') {
+      toast.warning(actualMsg);
+    } else if (actualType === 'info') {
+      toast.info(actualMsg);
+    } else {
+      toast.success(actualMsg);
+    }
   },
   dismissToast: (id) => {
-    set(state => ({ toasts: state.toasts.filter(t => t.id !== id) }));
+    toast.dismiss(id);
   },
 
   setTheme: (theme) => set({ theme }),

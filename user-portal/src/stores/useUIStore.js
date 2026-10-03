@@ -1,19 +1,21 @@
 import { create } from 'zustand';
-
-let toastTimeout = null;
+import { toast } from 'sonner';
 
 export const useUIStore = create((set) => ({
   toast: null,
   showToast: (message, type = 'success') => {
-    if (toastTimeout) clearTimeout(toastTimeout);
-    set({ toast: { message, type } });
-    toastTimeout = setTimeout(() => {
-      set({ toast: null });
-    }, 4000);
+    if (type === 'error' || type === 'danger') {
+      toast.error(message);
+    } else if (type === 'warning') {
+      toast.warning(message);
+    } else if (type === 'info') {
+      toast.info(message);
+    } else {
+      toast.success(message);
+    }
   },
   clearToast: () => {
-    if (toastTimeout) clearTimeout(toastTimeout);
-    set({ toast: null });
+    toast.dismiss();
   },
   globalLoading: false,
   setGlobalLoading: (loading) => set({ globalLoading: loading }),

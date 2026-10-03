@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
 import { useAdvertiserStore } from "@/stores/useAdvertiserStore";
 import AdvertiserHeader from "@/components/advertiser/layout/AdvertiserHeader";
-import AdvertiserToast from "@/components/advertiser/common/AdvertiserToast";
 
 // Dynamic imports for code-splitting
 const CampaignsTab = dynamic(() => import("@/components/advertiser/tabs/CampaignsTab"), { ssr: false });
@@ -80,7 +79,6 @@ function AdvertiserContent() {
       <MediaPreviewModal />
       <VideoPlayerModal />
       <VideoResolutionModal />
-      <AdvertiserToast />
     </div>
   );
 }

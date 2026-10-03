@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { X, Download } from 'lucide-react';
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
 import { usePaymentStore } from '@/stores/usePaymentStore';
 import { useOrderStore } from '@/stores/useOrderStore';
 import { useOutletStore } from '@/stores/useOutletStore';
@@ -87,6 +85,11 @@ export default function ExcelExportModal(props) {
 
     setIsExporting(true);
     try {
+      const [{ default: ExcelJS }, { saveAs }] = await Promise.all([
+        import('exceljs'),
+        import('file-saver')
+      ]);
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'DigiAds Platform';
       workbook.created = new Date();

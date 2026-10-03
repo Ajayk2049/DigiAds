@@ -3,7 +3,6 @@
 import React, { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, AlertCircle, X } from 'lucide-react';
 import useModalDismiss from '@/hooks/useModalDismiss';
 
 // Zustand Domain Stores
@@ -172,34 +171,6 @@ export default function MerchantDashboard() {
       <ExcelExportModal />
       <TakeoutOrderModal />
       <ModeChangeModal />
-
-      {/* Global Toast Feedback */}
-      {ui.toast && (
-        <div className={`fixed top-6 right-6 z-[9999] flex items-center space-x-3 border px-4 py-3 rounded-2xl shadow-xl animate-in slide-in-from-top-2 duration-300 ${
-          ui.toast.type === 'success'
-            ? 'bg-emerald-600 dark:bg-emerald-700 border-emerald-700 text-white'
-            : 'bg-red-600 dark:bg-red-700 border-red-700 text-white'
-        }`}>
-          {ui.toast.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 text-white shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-white shrink-0" />
-          )}
-          <div className="text-xs font-bold pr-4">
-            {ui.toast.message}
-          </div>
-          <button
-            onClick={ui.clearToast}
-            className={`p-1 rounded-lg transition-colors cursor-pointer ${
-              ui.toast.type === 'success'
-                ? 'text-emerald-100 hover:bg-emerald-700 hover:text-white'
-                : 'text-red-100 hover:bg-red-700 hover:text-white'
-            }`}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

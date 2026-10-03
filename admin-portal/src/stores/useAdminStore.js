@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { toast } from 'sonner';
 import { config } from '@/config';
 
 const API_BASE = config.apiUrl;
@@ -173,13 +174,17 @@ export const useAdminStore = create((set, get) => ({
   setEditingRate: (editingRate) => set({ editingRate }),
   setRateForm: (rateForm) => set({ rateForm }),
 
-  // Notification helper
+  // Notification helper (Sonner)
   showNotification: (message, type = 'info') => {
-    const id = Date.now();
-    set((state) => ({ notifications: [...state.notifications, { id, message, type }] }));
-    setTimeout(() => {
-      set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }));
-    }, 4000);
+    if (type === 'error' || type === 'destructive') {
+      toast.error(message);
+    } else if (type === 'warning') {
+      toast.warning(message);
+    } else if (type === 'info') {
+      toast.info(message);
+    } else {
+      toast.success(message);
+    }
   },
 
   // Auth Actions
