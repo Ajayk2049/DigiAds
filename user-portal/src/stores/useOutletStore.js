@@ -153,6 +153,17 @@ export const useOutletStore = create((set, get) => ({
   },
 
 
+  resetOutletStore: () => {
+    set({
+      applications: [],
+      selectedOutletId: '',
+      devices: []
+    });
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('selectedOutletId');
+    }
+  },
+
   // Actions
   fetchApplications: async (token, onTabSelect) => {
     if (!token || get().isFetchingApps) return;
@@ -162,19 +173,27 @@ export const useOutletStore = create((set, get) => ({
         headers: { Authorization: `Bearer ${token}` }
       });
       const apps = res.data.data || [];
-      set({ applications: apps });
-
       const approvedApps = apps.filter(app => app.status === 'approved' && app.requestTablet);
       const currentSelected = get().selectedOutletId;
       const isSelectedValid = apps.some(app => String(app._id) === String(currentSelected));
 
+      let nextSelectedId = currentSelected;
       if (!isSelectedValid || !currentSelected) {
         if (approvedApps.length > 0) {
-          get().setSelectedOutletId(approvedApps[0]._id);
+          nextSelectedId = approvedApps[0]._id;
         } else if (apps.length > 0) {
-          get().setSelectedOutletId(apps[0]._id);
+          nextSelectedId = apps[0]._id;
         } else {
-          get().setSelectedOutletId('');
+          nextSelectedId = '';
+        }
+      }
+
+      set({ applications: apps, selectedOutletId: nextSelectedId });
+      if (typeof window !== 'undefined') {
+        if (nextSelectedId) {
+          localStorage.setItem('selectedOutletId', nextSelectedId);
+        } else {
+          localStorage.removeItem('selectedOutletId');
         }
       }
 

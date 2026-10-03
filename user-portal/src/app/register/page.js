@@ -296,6 +296,7 @@ function RegisterForm() {
       });
 
       // Store Auth Details
+      localStorage.removeItem('selectedOutletId');
       localStorage.setItem('token', response.data.data.token);
       localStorage.setItem('role', response.data.data.user.role);
       localStorage.setItem('phone', response.data.data.user.phone);

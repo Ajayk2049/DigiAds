@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { Mail, Phone, KeyRound, Tv, Sun, Moon, ShieldAlert, Check, Eye, EyeOff, Megaphone, X, ShieldCheck } from 'lucide-react';
 import { config } from '@/config';
+import { useOutletStore } from '@/stores/useOutletStore';
 
 const API_BASE = config.apiUrl;
 
@@ -253,13 +254,21 @@ export default function LoginPage() {
         return;
       }
 
-      // Save credentials locally
+      // Save credentials locally and purge stale venue residue
+      localStorage.removeItem('selectedOutletId');
+      localStorage.removeItem('merchantActiveTab');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('active_session_uid', response.data.data.user.uid);
+      }
       localStorage.setItem('token', response.data.data.token);
       localStorage.setItem('role', response.data.data.user.role);
       localStorage.setItem('roles', JSON.stringify(response.data.data.user.roles));
       localStorage.setItem('phone', response.data.data.user.phone);
       localStorage.setItem('name', response.data.data.user.name || '');
       localStorage.setItem('uid', response.data.data.user.uid);
+
+      // Reset in-memory outlet store before mounting dashboard
+      useOutletStore.getState().resetOutletStore?.();
 
       // Routing based on role
       if (response.data.data.user.role === 'merchant') {

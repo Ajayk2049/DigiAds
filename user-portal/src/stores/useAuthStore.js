@@ -86,6 +86,16 @@ export const useAuthStore = create((set, get) => ({
       return false;
     }
 
+    const storedUid = localStorage.getItem('uid');
+    const lastSessionUid = typeof window !== 'undefined' ? sessionStorage.getItem('active_session_uid') : null;
+    if (storedUid && lastSessionUid && storedUid !== lastSessionUid) {
+      localStorage.removeItem('selectedOutletId');
+      localStorage.removeItem('merchantActiveTab');
+    }
+    if (storedUid && typeof window !== 'undefined') {
+      sessionStorage.setItem('active_session_uid', storedUid);
+    }
+
     set({
       token: storedToken,
       phone: storedPhone || '',
@@ -108,6 +118,7 @@ export const useAuthStore = create((set, get) => ({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data?.success) {
+        localStorage.removeItem('selectedOutletId');
         localStorage.setItem('token', res.data.data.token);
         localStorage.setItem('role', res.data.data.user.role);
         localStorage.setItem('roles', JSON.stringify(res.data.data.user.roles));
@@ -124,10 +135,11 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  handleLogout: (router) => {
+  handleLogout: () => {
     if (typeof window !== 'undefined') {
       localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/login';
     }
-    if (router) router.push('/login');
   }
 }));

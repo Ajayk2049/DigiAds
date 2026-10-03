@@ -81,6 +81,91 @@ const resetPasswordSchema = z.object({
     })
 });
 
+const hostApplySchema = z.object({
+  outletName: z.string({ required_error: 'Outlet name is required' }).trim().min(2, 'Outlet name must be at least 2 characters'),
+  outletDescription: z.string({ required_error: 'Outlet description is required' }).trim().min(2, 'Outlet description is required'),
+  doorNo: z.string({ required_error: 'Door/Shop number is required' }).trim().min(1, 'Door number is required'),
+  street: z.string({ required_error: 'Street is required' }).trim().min(1, 'Street is required'),
+  city: z.string({ required_error: 'City is required' }).trim().min(1, 'City is required'),
+  state: z.string({ required_error: 'State is required' }).trim().min(1, 'State is required'),
+  zipCode: z.string({ required_error: 'PIN/Zip code is required' }).trim().regex(/^\d{6}$/, 'PIN Code must be a 6-digit number'),
+  contactPerson: z.string({ required_error: 'Contact person is required' }).trim().min(2, 'Contact person must be at least 2 characters'),
+  phone: z.string({ required_error: 'Phone number is required' }).trim().min(10, 'Valid phone number is required'),
+  email: z.string({ required_error: 'Email is required' }).trim().email('Invalid email address'),
+  requestTablet: z.boolean().optional().default(false),
+  tabletQuantity: z.union([z.number(), z.string()]).optional().default('1'),
+  requestScreen: z.boolean().optional().default(false),
+  screenQuantity: z.union([z.number(), z.string()]).optional().default('1'),
+  adMode: z.enum(['open', 'closed']).optional().default('open'),
+  allowOpenAds: z.boolean().optional().default(true),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional()
+}).refine(data => data.requestTablet || data.requestScreen, {
+  message: 'You must select at least one device type (Tablet or Screen)',
+  path: ['requestTablet']
+});
+
+const menuItemSchema = z.object({
+  itemId: z.string({ required_error: 'itemId is required' }).min(1, 'itemId cannot be empty'),
+  name: z.string({ required_error: 'Item name is required' }).trim().min(1, 'Item name cannot be empty'),
+  price: z.number({ required_error: 'Price is required' }).min(0, 'Price must be a positive number in paise'),
+  category: z.string({ required_error: 'Category is required' }).trim().min(1, 'Category cannot be empty'),
+  description: z.string().optional().default(''),
+  imageUrl: z.string().optional().default(''),
+  isAvailable: z.boolean().optional().default(true),
+  shifts: z.array(z.string()).optional()
+});
+
+const menuUpdateSchema = z.object({
+  hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId is required'),
+  items: z.array(menuItemSchema, { required_error: 'Items must be an array' }),
+  categories: z.array(z.any()).optional(),
+  shifts: z.array(z.string()).optional(),
+  activeShift: z.string().optional(),
+  shift: z.string().optional(),
+  defaultGst: z.number().min(0).max(100).optional(),
+  defaultOtherCharges: z.number().min(0).optional(),
+  defaultOtherChargesType: z.enum(['percentage', 'fixed']).optional(),
+  popularCategory: z.any().optional()
+});
+
+const paymentConfigSchema = z.object({
+  hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId is required'),
+  upiId: z.string().nullable().optional(),
+  payeeName: z.string().nullable().optional()
+}).refine(data => {
+  if (data.upiId && data.upiId.trim().length > 0) {
+    return data.upiId.includes('@');
+  }
+  return true;
+}, {
+  message: 'A valid UPI ID is required (e.g. merchant@okhdfcbank)',
+  path: ['upiId']
+});
+
+const modeChangeRequestSchema = z.object({
+  hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId is required'),
+  requestedMode: z.enum(['open', 'closed'], {
+    errorMap: () => ({ message: 'requestedMode must be either "open" or "closed"' })
+  }),
+  merchantNotes: z.string().optional().default('')
+});
+
+const adBookingSchema = z.object({
+  outletId: z.string({ required_error: 'outletId is required' }).min(1, 'outletId is required'),
+  deviceType: z.enum(['tablet', 'screen'], {
+    errorMap: () => ({ message: 'deviceType must be "tablet" or "screen"' })
+  }),
+  mediaType: z.enum(['video', 'image']).optional().default('video'),
+  maxVideoLengthSeconds: z.union([z.number(), z.string()]).optional().default(30),
+  quantity: z.union([z.number(), z.string()], { required_error: 'Quantity is required' }),
+  adDurationDays: z.union([z.number(), z.string()], { required_error: 'Ad duration is required' }),
+  frequency: z.union([z.number(), z.string()], { required_error: 'Frequency is required' }),
+  mediaUrl: z.string().optional(),
+  adCategory: z.string().optional(),
+  redirectUrl: z.string({ required_error: 'redirectUrl is required' }).url('Valid redirect URL is required')
+});
+
 module.exports = {
   deviceActivationSchema,
   registerSchema,
@@ -88,6 +173,12 @@ module.exports = {
   verifyOtpSchema,
   sendOtpSchema,
   checkAvailabilitySchema,
-  resetPasswordSchema
+  resetPasswordSchema,
+  hostApplySchema,
+  menuItemSchema,
+  menuUpdateSchema,
+  paymentConfigSchema,
+  modeChangeRequestSchema,
+  adBookingSchema
 };
 

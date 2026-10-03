@@ -6,6 +6,12 @@ const Order = require('../models/Order');
 const phonePeService = require('../services/phonePeService');
 const config = require('../config/config');
 const { v4: uuidv4 } = require('uuid');
+const {
+  validateExtension,
+  validateContentLength,
+  generateMediaFilename,
+  streamAndOptimizeImage
+} = require('../utils/uploadHandler');
 
 const resolveMediaUrl = (mediaUrl, host) => {
   if (!mediaUrl) return '';
@@ -970,33 +976,17 @@ class AdController {
       return res.status(500).send({ success: false, message: 'Failed to initialize upload tracking' });
     }
 
-    const uniqueFilename = `img_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
+    const uniqueFilename = generateMediaFilename('img', '.webp');
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'ads', 'images', deviceType);
-
-    await fs.promises.mkdir(uploadsDir, { recursive: true });
-
     const filePath = path.join(uploadsDir, uniqueFilename);
 
     try {
-      const transformer = sharp({ limitInputPixels: 25000000 })
-        .resize(targetDim.width, targetDim.height, {
-          fit: 'inside',
-          withoutEnlargement: false
-        })
-        .webp({ quality: 85 });
-
-      if (req.body && typeof req.body.pipe === 'function') {
-        await pipeline(req.body, transformer, fs.createWriteStream(filePath));
-      } else if (Buffer.isBuffer(req.body)) {
-        await sharp(req.body, { limitInputPixels: 25000000 })
-          .resize(targetDim.width, targetDim.height, { fit: 'inside', withoutEnlargement: false })
-          .webp({ quality: 85 })
-          .toFile(filePath);
-      } else if (req.raw) {
-        await pipeline(req.raw, transformer, fs.createWriteStream(filePath));
-      } else {
-        return res.status(400).send({ success: false, message: 'Invalid or empty image payload' });
-      }
+      await streamAndOptimizeImage(req.body || req.raw, filePath, {
+        width: targetDim.width,
+        height: targetDim.height,
+        withoutEnlargement: false,
+        quality: 85
+      });
 
       mediaLog.status = 'completed';
       mediaLog.finalizedFilename = uniqueFilename;

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
+const logger = require('./logger');
 
 /**
  * Middleware to authenticate requests via JWT
@@ -13,7 +14,7 @@ function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
   jwt.verify(token, config.jwtSecret, (error, decoded) => {
     if (error) {
-      console.error('JWT Verification Error:', error.message);
+      logger.warn({ err: error.message }, 'JWT Verification Failed');
       return res.status(401).send({ success: false, message: 'Invalid or expired authorization token' });
     }
     req.user = decoded; // Contains { uid, phone, role, isDemo }

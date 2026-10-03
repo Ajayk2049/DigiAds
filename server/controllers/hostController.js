@@ -4,6 +4,14 @@ const Device = require('../models/Device');
 const Order = require('../models/Order');
 const { generateUniqueCustomId } = require('../utils/idGenerator');
 const geocodeService = require('../services/geocodeService');
+const {
+  validateExtension,
+  validateContentLength,
+  generateMediaFilename,
+  streamAndOptimizeImage
+} = require('../utils/uploadHandler');
+const { UPLOAD_LIMITS } = require('../config/constants');
+const logger = require('../utils/logger');
 
 const CITY_ALIASES = {
   'bangalore': 'Bengaluru',
@@ -810,34 +818,17 @@ class HostController {
     const { folderName } = await this.getVenueFolderInfo(hostApplicationId);
 
     const filenameHeader = req.headers['x-filename'] || 'image.png';
-    const ext = path.extname(filenameHeader).toLowerCase() || '.png';
-
-    // Enforce image extensions
-    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+    const { isValid } = validateExtension(filenameHeader);
+    if (!isValid) {
       return res.status(400).send({ success: false, message: 'Unsupported file type. Only JPG, JPEG, PNG, and WEBP are allowed.' });
     }
 
-    const uniqueFilename = `menu_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
+    const uniqueFilename = generateMediaFilename('menu', '.webp');
     const uploadsDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'menu');
-
-    await fs.promises.mkdir(uploadsDir, { recursive: true });
-
     const filePath = path.join(uploadsDir, uniqueFilename);
 
     try {
-      // Optimize and resize image using sharp
-      const sharpStream = sharp({ limitInputPixels: 25000000 })
-        .resize(800, 800, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .webp({ quality: 80 });
-
-      await pipeline(
-        req.body,
-        sharpStream,
-        fs.createWriteStream(filePath)
-      );
+      await streamAndOptimizeImage(req.body || req.raw, filePath, { width: 800, height: 800, quality: 80 });
 
       const fileUrl = `/uploads/outlets/${folderName}/menu/${uniqueFilename}`;
 
@@ -850,10 +841,7 @@ class HostController {
         }
       });
     } catch (error) {
-      console.error('uploadImage Error:', error.message);
-      try {
-        await fs.promises.unlink(filePath);
-      } catch (unlinkErr) {}
+      logger.error({ err: error.message }, 'uploadImage Error');
       return res.status(500).send({ success: false, message: 'Failed to upload and process image: ' + error.message });
     }
   }
@@ -2712,42 +2700,24 @@ class HostController {
     const { folderName } = await this.getVenueFolderInfo(hostApplicationId);
 
     const filenameHeader = req.headers['x-filename'] || 'bill_image.png';
-    const ext = path.extname(filenameHeader).toLowerCase() || '.png';
-
-    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+    const { isValid } = validateExtension(filenameHeader);
+    if (!isValid) {
       return res.status(400).send({ success: false, message: 'Unsupported file type. Only JPG, JPEG, PNG, and WEBP are allowed.' });
     }
 
     const uploadDir = path.join(__dirname, '..', 'uploads', 'outlets', folderName, 'bills');
-    await fs.promises.mkdir(uploadDir, { recursive: true });
 
     // 5 MB max payload size check (fast early rejection)
-    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
-    if (contentLength > 5242880) {
-      return res.status(400).send({ success: false, message: 'Bill image file size exceeds maximum limit of 5MB' });
+    const sizeError = validateContentLength(req, UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, 'Bill image file');
+    if (sizeError) {
+      return res.status(400).send({ success: false, message: sizeError });
     }
 
-    const uniqueFilename = `bill_logo_${uuidv4().replace(/-/g, '').slice(0, 16)}.webp`;
+    const uniqueFilename = generateMediaFilename('bill_logo', '.webp');
     const filePath = path.join(uploadDir, uniqueFilename);
 
     try {
-      const sharp = require('sharp');
-      const transformer = sharp({ limitInputPixels: 25000000 })
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 85 });
-
-      if (req.body && typeof req.body.pipe === 'function') {
-        await pipeline(req.body, transformer, fs.createWriteStream(filePath));
-      } else if (Buffer.isBuffer(req.body)) {
-        await sharp(req.body, { limitInputPixels: 25000000 })
-          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 85 })
-          .toFile(filePath);
-      } else if (req.raw) {
-        await pipeline(req.raw, transformer, fs.createWriteStream(filePath));
-      } else {
-        return res.status(400).send({ success: false, message: 'Invalid or empty image payload' });
-      }
+      await streamAndOptimizeImage(req.body || req.raw, filePath, { width: 800, height: 800, quality: 85 });
 
       const fileUrl = `/uploads/outlets/${folderName}/bills/${uniqueFilename}`;
       return res.status(200).send({
@@ -2756,8 +2726,7 @@ class HostController {
         url: fileUrl
       });
     } catch (error) {
-      console.error('uploadBillImage Error:', error.message);
-      try { await fs.promises.unlink(filePath); } catch (e) {}
+      logger.error({ err: error.message }, 'uploadBillImage Error');
       return res.status(500).send({ success: false, message: 'Failed to upload bill image: ' + error.message });
     }
   }

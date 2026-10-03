@@ -9,6 +9,8 @@ const AdBooking = require('../models/AdBooking');
 const VenuePromo = require('../models/VenuePromo');
 const PlatformAd = require('../models/PlatformAd');
 const config = require('../config/config');
+const logger = require('../utils/logger');
+const { TIMEOUTS } = require('../config/constants');
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
@@ -200,7 +202,9 @@ class VideoQueueService {
       try {
         const now = new Date();
         await fs.promises.utimes(jobData.tempPath, now, now);
-      } catch (_) {}
+      } catch (err) {
+        logger.debug({ err: err && err.message, path: jobData.tempPath }, 'Failed to refresh tempPath utimes (non-fatal)');
+      }
     }
 
     const jobPayload = {
@@ -252,6 +256,7 @@ class VideoQueueService {
           removeOnFail: { count: 50, age: 86400 }
         });
       } catch (err) {
+        logger.warn({ err: err && err.message }, 'Failed adding fallback job to BullMQ queue during drain; requeued in memory');
         this.fallbackQueue.unshift(jobPayload);
         break;
       }
@@ -274,9 +279,9 @@ class VideoQueueService {
 
     console.log(`\x1b[35m[FFmpeg Worker]\x1b[0m Single worker starting transcode for ${modelType} (${recordIdStr})...`);
 
-    // 1. Enforce 7.5s ingestion hold delay for streaming file handles to settle completely
+    // 1. Enforce ingestion hold delay for streaming file handles to settle completely
     const elapsed = Date.now() - (job.enqueuedAt || Date.now());
-    const waitTime = Math.max(0, 7500 - elapsed);
+    const waitTime = Math.max(0, TIMEOUTS.VIDEO_QUEUE_STALL_INTERVAL_MS - elapsed);
     if (waitTime > 0) {
       console.log(`\x1b[35m[FFmpeg Worker]\x1b[0m Holding temp file handle (${Math.round(waitTime / 1000)}s settling delay)...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));

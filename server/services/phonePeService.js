@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const config = require('../config/config');
+const logger = require('../utils/logger');
+const { TIMEOUTS } = require('../config/constants');
 
 class PhonePeService {
   constructor() {
@@ -54,11 +56,11 @@ class PhonePeService {
         expiresAt
       };
 
-      console.log('[PhonePe] Auth token obtained, expires:', new Date(expiresAt * 1000).toISOString());
+      logger.info({ expires: new Date(expiresAt * 1000).toISOString() }, '[PhonePe] Auth token obtained');
       return access_token;
 
     } catch (error) {
-      console.error('PhonePe OAuth Token Fetch Error:', error.response?.data || error.message);
+      logger.error({ err: error.response?.data || error.message }, 'PhonePe OAuth Token Fetch Error');
       throw new Error('Failed to authenticate with PhonePe payment service');
     }
   }
@@ -113,11 +115,11 @@ class PhonePeService {
     }
 
     try {
-      console.log('[PhonePe] Initiating payment:', {
+      logger.info({
         url: `${config.phonePe.hostUrl}${endpoint}`,
         merchantOrderId: transactionId,
         amount
-      });
+      }, '[PhonePe] Initiating payment');
 
       const callbackUrl = config.phonePe.callbackUrl;
 
@@ -128,7 +130,7 @@ class PhonePeService {
 
       if (callbackUrl) {
         headers['X-CALLBACK-URL'] = callbackUrl;
-        console.log(`[PhonePe] Using callback URL: ${callbackUrl}`);
+        logger.info({ callbackUrl }, '[PhonePe] Using callback URL');
       }
 
       const response = await axios.post(
@@ -136,17 +138,17 @@ class PhonePeService {
         payload,
         {
           headers,
-          timeout: 15000
+          timeout: TIMEOUTS.HTTP_REQUEST_TIMEOUT_MS
         }
       );
 
-      console.log('[PhonePe] Payment initiation response:', JSON.stringify(response.data, null, 2));
+      logger.debug({ status: response.status, data: response.data }, '[PhonePe] Payment initiation response received');
 
       // Extract payment URL from response (handles multiple response formats)
       const paymentUrl = this.extractPaymentUrl(response.data);
 
       if (!paymentUrl) {
-        console.error('[PhonePe] Response missing payment URL:', JSON.stringify(response.data));
+        logger.error({ data: response.data }, '[PhonePe] Response missing payment URL');
         throw new Error('Failed to retrieve checkout redirect URL from PhonePe response');
       }
 
@@ -156,7 +158,7 @@ class PhonePeService {
       };
 
     } catch (error) {
-      console.error('PhonePe V2 Payment Initiation Error:', error.response?.data || error.message);
+      logger.error({ err: error.response?.data || error.message }, 'PhonePe V2 Payment Initiation Error');
       throw new Error(error.response?.data?.message || 'PhonePe payment integration error');
     }
   }
@@ -204,7 +206,7 @@ class PhonePeService {
       };
 
     } catch (error) {
-      console.error('PhonePe V2 Status Check Error:', error.response?.data || error.message);
+      logger.error({ err: error.response?.data || error.message }, 'PhonePe V2 Status Check Error');
       if (error.response?.status === 400 || error.response?.status === 404) {
         return {
           status: 'FAILED',
@@ -252,7 +254,7 @@ class PhonePeService {
             'Content-Type': 'application/json',
             'Authorization': `O-Bearer ${token}`
           },
-          timeout: 15000
+          timeout: TIMEOUTS.HTTP_REQUEST_TIMEOUT_MS
         }
       );
 
@@ -265,7 +267,7 @@ class PhonePeService {
         throw new Error(response.data.message || 'Refund initiation failed');
       }
     } catch (error) {
-      console.error('PhonePe V2 Refund Initiation Error:', error.response?.data || error.message);
+      logger.error({ err: error.response?.data || error.message }, 'PhonePe V2 Refund Initiation Error');
       throw new Error(error.response?.data?.message || 'PhonePe refund error');
     }
   }
@@ -277,12 +279,12 @@ class PhonePeService {
    */
   verifyWebhook(authHeader) {
     if (!config.phonePe.webhookStrict) {
-      console.log('[PhonePe Webhook] Strict verification disabled. Bypassing check.');
+      logger.info('[PhonePe Webhook] Strict verification disabled. Bypassing check.');
       return true;
     }
 
     if (!authHeader || !authHeader.startsWith('SHA256(') || !authHeader.endsWith(')')) {
-      console.error('[PhonePe Webhook] Invalid Authorization header format. Expected SHA256(...)');
+      logger.error('[PhonePe Webhook] Invalid Authorization header format. Expected SHA256(...)');
       return false;
     }
 
@@ -297,13 +299,13 @@ class PhonePeService {
       const expectedSignature = `SHA256(${expectedHash})`;
 
       if (receivedSignature !== expectedSignature) {
-        console.error('[PhonePe Webhook] Signature mismatch. Received:', receivedSignature, 'Expected:', expectedSignature);
+        logger.error({ receivedSignature, expectedSignature }, '[PhonePe Webhook] Signature mismatch');
         return false;
       }
 
       return true;
     } catch (err) {
-      console.error('Webhook V2 Authentication Parse Error:', err.message);
+      logger.error({ err: err.message }, 'Webhook V2 Authentication Parse Error');
       return false;
     }
   }

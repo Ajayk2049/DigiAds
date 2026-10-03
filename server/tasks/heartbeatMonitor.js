@@ -1,5 +1,6 @@
 const Device = require('../models/Device');
 const logger = require('../utils/logger');
+const { TIMEOUTS } = require('../config/constants');
 const {
   merchantSockets,
   deviceSockets,
@@ -15,13 +16,13 @@ const {
  *  2. Transition stale online devices to offline (35s no ping)
  */
 function startHeartbeatMonitor() {
-  console.log('[Heartbeat Monitor] Started background device check interval (15s)...');
+  logger.info('[Heartbeat Monitor] Started background device check interval (15s)...');
   let isHeartbeatRunning = false;
   const heartbeatTimer = setInterval(async () => {
     if (isHeartbeatRunning) return;
     isHeartbeatRunning = true;
     try {
-      const offlineThreshold = new Date(Date.now() - 35000); // 35s — mark offline
+      const offlineThreshold = new Date(Date.now() - TIMEOUTS.DEVICE_OFFLINE_THRESHOLD_MS);
 
       // 0a) Prune dead / zombie device WebSockets
       if (global.deviceSockets) {
@@ -34,8 +35,8 @@ function startHeartbeatMonitor() {
           }
           const isAlive = getSocketMeta(sock).isAlive;
           if (isAlive === false) {
-            console.log(`[WS] Terminating unresponsive zombie socket for Device: ${devId}`);
-            try { sock.terminate(); } catch (_) { }
+            logger.info({ devId }, '[WS] Terminating unresponsive zombie socket for Device');
+            try { sock.terminate(); } catch (err) { logger.debug({ err: err && err.message }, 'Non-fatal socket termination error'); }
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -45,8 +46,9 @@ function startHeartbeatMonitor() {
           try {
             if (typeof sock.ping === 'function') sock.ping();
             else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping', timestamp: Date.now() }));
-          } catch (_) {
-            try { sock.terminate(); } catch (_) { }
+          } catch (err) {
+            logger.debug({ err: err && err.message, devId }, 'Failed to send WS ping to device; terminating');
+            try { sock.terminate(); } catch (termErr) { logger.debug({ err: termErr && termErr.message }, 'Non-fatal socket termination error'); }
             global.deviceSockets.delete(devId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -67,7 +69,7 @@ function startHeartbeatMonitor() {
               }
               const isAlive = getSocketMeta(sock).isAlive;
               if (isAlive === false) {
-                try { sock.terminate(); } catch (_) { }
+                try { sock.terminate(); } catch (err) { logger.debug({ err: err && err.message }, 'Non-fatal socket termination error'); }
                 sockSet.delete(sock);
                 clearSocketMeta(sock);
                 if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -77,8 +79,9 @@ function startHeartbeatMonitor() {
               try {
                 if (typeof sock.ping === 'function') sock.ping();
                 else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
-              } catch (_) {
-                try { sock.terminate(); } catch (_) { }
+              } catch (err) {
+                logger.debug({ err: err && err.message, merchantId }, 'Failed to send WS ping to merchant; terminating');
+                try { sock.terminate(); } catch (termErr) { logger.debug({ err: termErr && termErr.message }, 'Non-fatal socket termination error'); }
                 sockSet.delete(sock);
                 clearSocketMeta(sock);
                 if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -102,7 +105,7 @@ function startHeartbeatMonitor() {
           }
           const isAlive = getSocketMeta(sock).isAlive;
           if (isAlive === false) {
-            try { sock.terminate(); } catch (_) { }
+            try { sock.terminate(); } catch (err) { logger.debug({ err: err && err.message }, 'Non-fatal socket termination error'); }
             global.adminSockets.delete(adminId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -112,8 +115,9 @@ function startHeartbeatMonitor() {
           try {
             if (typeof sock.ping === 'function') sock.ping();
             else if (typeof sock.send === 'function') sock.send(JSON.stringify({ event: 'ping' }));
-          } catch (_) {
-            try { sock.terminate(); } catch (_) { }
+          } catch (err) {
+            logger.debug({ err: err && err.message, adminId }, 'Failed to send WS ping to admin; terminating');
+            try { sock.terminate(); } catch (termErr) { logger.debug({ err: termErr && termErr.message }, 'Non-fatal socket termination error'); }
             global.adminSockets.delete(adminId);
             clearSocketMeta(sock);
             if (typeof sock.removeAllListeners === 'function') sock.removeAllListeners();
@@ -135,7 +139,7 @@ function startHeartbeatMonitor() {
     } finally {
       isHeartbeatRunning = false;
     }
-  }, 15000); // Check every 15 seconds
+  }, TIMEOUTS.HEARTBEAT_INTERVAL_MS);
 
   if (typeof heartbeatTimer.unref === 'function') {
     heartbeatTimer.unref();

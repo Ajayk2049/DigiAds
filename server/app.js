@@ -3,6 +3,7 @@ const cors = require('@fastify/cors');
 const websocket = require('@fastify/websocket');
 const rateLimit = require('@fastify/rate-limit');
 const config = require('./config/config');
+const { UPLOAD_LIMITS, RATE_LIMITS } = require('./config/constants');
 const isDev = config.env === 'development' || config.demoMode;
 const logger = require('./utils/logger');
 const wsRoutes = require('./websocket/wsRoutes');
@@ -15,7 +16,7 @@ const apiRoutes = require('./routes/api');
 async function createFastifyApp() {
   const fastify = Fastify({
     loggerInstance: logger,
-    bodyLimit: 52428800 // 50MB default body limit (hardened against event-loop & memory exhaustion)
+    bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES
   });
 
   const allowedOrigins = Array.isArray(config.clientOrigins) ? config.clientOrigins : [];
@@ -59,7 +60,7 @@ async function createFastifyApp() {
       !url.includes('/auth/device/ads') &&
       !url.includes('/ws')
     ) {
-      console.log(`\x1b[36m[API]\x1b[0m ${request.method} ${url}`);
+      logger.info({ method: request.method, url }, `[API] ${request.method} ${url}`);
     }
     done();
   });
@@ -82,19 +83,20 @@ async function createFastifyApp() {
       const now = Date.now();
       if (now - lastWarnTime > 30000) {
         lastWarnTime = now;
-        console.warn('[RateLimit Redis Warning]:', (err && err.message) || 'Connection unavailable, falling back to memory store');
+        logger.warn({ err: (err && err.message) || 'Unknown error' }, '[RateLimit Redis Warning]: Connection unavailable, falling back to memory store');
       }
     });
     await client.connect();
     rateLimitRedis = client;
-  } catch (_) {
+  } catch (err) {
+    logger.warn({ err: (err && err.message) || err }, 'Failed to initialize Redis rate-limiter store; falling back to memory store');
     rateLimitRedis = null;
   }
 
   const rateLimitOptions = {
     global: true,
-    max: isDev ? 2000 : 500,
-    timeWindow: '1 minute',
+    max: isDev ? RATE_LIMITS.GLOBAL_MAX_DEV : RATE_LIMITS.GLOBAL_MAX_PROD,
+    timeWindow: RATE_LIMITS.GLOBAL_WINDOW,
     skipOnError: true,
     exclusionRules: (req) => {
       // Exclude websockets and static uploads from rate limiting to prevent playback/sync cuts
@@ -114,18 +116,78 @@ async function createFastifyApp() {
   // Gracefully quit rateLimit Redis client on Fastify server shutdown
   fastify.addHook('onClose', async () => {
     if (rateLimitRedis) {
-      try { await rateLimitRedis.quit(); } catch (_) { }
+      try {
+        await rateLimitRedis.quit();
+      } catch (err) {
+        logger.debug({ err: (err && err.message) || err }, 'Non-fatal error while closing rateLimit Redis client');
+      }
     }
   });
 
   // Register raw buffer parser for videos and images (up to 100MB)
   fastify.addContentTypeParser(
     ['application/octet-stream', 'video/mp4', 'video/webm', 'image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'],
-    { bodyLimit: 104857600 },
+    { bodyLimit: UPLOAD_LIMITS.RAW_MEDIA_BODY_LIMIT_BYTES },
     function (req, payload, done) {
       done(null, payload); // Pass the raw payload stream through to req.body
     }
   );
+
+  // Centralized Global Error Handler
+  fastify.setErrorHandler((error, request, reply) => {
+    const statusCode = error.statusCode || 500;
+
+    if (statusCode >= 500) {
+      logger.error({
+        err: error,
+        method: request.method,
+        url: request.raw.url,
+        params: request.params,
+        query: request.query
+      }, 'Unhandled Server Exception');
+
+      const isProduction = config.env === 'production';
+      const message = (isProduction && !error.expose)
+        ? 'An unexpected internal error occurred'
+        : (error.message || 'Internal Server Error');
+
+      return reply.status(statusCode).send({
+        success: false,
+        error: {
+          code: error.code || 'INTERNAL_SERVER_ERROR',
+          message
+        }
+      });
+    }
+
+    // 4xx Client Errors (Validation, Rate Limiting, Bad Requests)
+    logger.warn({
+      err: error.message,
+      statusCode,
+      method: request.method,
+      url: request.raw.url
+    }, 'Client Request Error');
+
+    return reply.status(statusCode).send({
+      success: false,
+      error: {
+        code: error.code || 'BAD_REQUEST',
+        message: error.message,
+        ...(error.validation ? { validation: error.validation } : {})
+      }
+    });
+  });
+
+  // Centralized 404 Not Found Handler
+  fastify.setNotFoundHandler((request, reply) => {
+    return reply.status(404).send({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: `Route ${request.method} ${request.raw.url} not found`
+      }
+    });
+  });
 
   // Register root health check for monitoring, load balancers, and tablet discovery
   fastify.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));

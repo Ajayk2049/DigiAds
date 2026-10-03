@@ -95,7 +95,8 @@ export default function MerchantDashboard() {
   // 2. React to selectedOutletId shifts
   useEffect(() => {
     if (!token || !selectedOutletId) return;
-    if (applications.length > 0 && !applications.some(a => String(a._id) === String(selectedOutletId))) return;
+    if (!applications || applications.length === 0) return;
+    if (!applications.some(a => String(a._id) === String(selectedOutletId))) return;
 
     menu.fetchMenu(token, selectedOutletId);
     payment.fetchBillConfig(token, selectedOutletId, applications);
@@ -106,17 +107,20 @@ export default function MerchantDashboard() {
 
   // 3. Tab-specific lazy refreshes
   useEffect(() => {
-    if (!token) return;
-    if (activeTab === 'payment' && selectedOutletId) {
+    if (!token || !selectedOutletId) return;
+    if (!applications || applications.length === 0) return;
+    if (!applications.some(a => String(a._id) === String(selectedOutletId))) return;
+
+    if (activeTab === 'payment') {
       payment.fetchPaymentConfig(token, selectedOutletId);
     }
-    if (activeTab === 'promos' && selectedOutletId) {
+    if (activeTab === 'promos') {
       promo.fetchHostPromos(token, selectedOutletId);
     }
     if (activeTab === 'dashboard') {
       outlet.fetchVenueAnalytics(token, outlet.analyticsDays, selectedOutletId);
     }
-  }, [activeTab, token, selectedOutletId]);
+  }, [activeTab, token, selectedOutletId, applications]);
 
   // 4. Auto-route to my-applications if user already submitted an application
   useEffect(() => {

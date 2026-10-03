@@ -50,8 +50,11 @@ export default function AdvertiserHeader() {
   }, [userMenuOpen, setUserMenuOpen]);
 
   const handleLogout = () => {
-    localStorage.clear();
-    router.push('/login');
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/login';
+    }
   };
 
   const handleSwitchRole = async (targetRole) => {
