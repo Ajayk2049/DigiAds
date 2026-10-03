@@ -82,6 +82,28 @@ export const useOrderStore = create((set, get) => ({
     }
   },
 
+  fetchPaymentOrders: async (token, queryParams = {}, signal = null) => {
+    if (!token) return;
+    try {
+      const params = { limit: 1000, ...queryParams };
+      const res = await axios.get(`${getApiBase()}/host/orders`, {
+        params,
+        signal,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const allOrders = res.data?.data || [];
+      const completed = allOrders.filter(
+        ord => ord.paymentStatus === 'completed' && ((ord.totalAmount || 0) > 0 || (ord.items && ord.items.length > 0))
+      );
+      set({ paymentOrders: completed });
+    } catch (err) {
+      if (axios.isCancel(err) || err.name === 'CanceledError' || err.name === 'AbortError') {
+        return;
+      }
+      console.error('fetchPaymentOrders error:', err);
+    }
+  },
+
   connectWebSocket: (token, onDeviceStatusChanged) => {
     if (!token || typeof window === 'undefined') return;
 

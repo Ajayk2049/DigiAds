@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer } from 'lucide-react';
 import { usePaymentStore } from '@/stores/usePaymentStore';
 import { useOrderStore } from '@/stores/useOrderStore';
@@ -33,10 +33,62 @@ export default function PaymentTab(props) {
   const setPasswordVerifyError = props.setPasswordVerifyError ?? payment.setPasswordVerifyError;
   const setShowPasswordModal = props.setShowPasswordModal ?? payment.setShowPasswordModal;
   const isSearchingPayments = props.isSearchingPayments ?? payment.isSearchingPayments;
+  const setIsSearchingPayments = props.setIsSearchingPayments ?? payment.setIsSearchingPayments;
   const paymentSearchInput = props.paymentSearchInput ?? payment.paymentSearchInput;
   const setPaymentSearchInput = props.setPaymentSearchInput ?? payment.setPaymentSearchInput;
   const setDebouncedSearchQuery = props.setDebouncedSearchQuery ?? payment.setDebouncedSearchQuery;
   const openPrintBillModal = props.openPrintBillModal ?? ((ord) => order.openPrintBillModal(ord, selectedOutletId, token));
+
+  const searchAbortControllerRef = useRef(null);
+
+  // 1. Debounce search input changes by 300ms to avoid request spamming
+  useEffect(() => {
+    if (!paymentSearchInput.trim()) {
+      setDebouncedSearchQuery('');
+      setIsSearchingPayments(false);
+      return;
+    }
+
+    setIsSearchingPayments(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(paymentSearchInput);
+      setIsSearchingPayments(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [paymentSearchInput, setDebouncedSearchQuery, setIsSearchingPayments]);
+
+  // 2. Fetch payment orders from backend when calendar date picker, selected outlet, or debounced search query changes
+  useEffect(() => {
+    if (!token) return;
+
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    searchAbortControllerRef.current = controller;
+
+    const queryParams = {};
+    if (selectedOutletId) queryParams.hostApplicationId = selectedOutletId;
+
+    const q = (payment.debouncedSearchQuery || '').trim();
+    if (q) {
+      queryParams.search = q;
+    } else if (paymentCustomDate) {
+      queryParams.startDate = paymentCustomDate;
+      queryParams.endDate = paymentCustomDate;
+    }
+
+    setIsSearchingPayments(true);
+    const fetcher = order.fetchPaymentOrders || order.fetchLiveOrders;
+    fetcher(token, queryParams, controller.signal).finally(() => {
+      setIsSearchingPayments(false);
+    });
+
+    return () => {
+      controller.abort();
+    };
+  }, [token, selectedOutletId, paymentCustomDate, payment.debouncedSearchQuery, setIsSearchingPayments]);
 
   // Compute sorted & filtered payment orders internally if not provided via props
   const computedOrders = useMemo(() => {
@@ -48,7 +100,8 @@ export default function PaymentTab(props) {
       return timeB - timeA;
     });
 
-    const isSearching = !!payment.debouncedSearchQuery.trim();
+    const activeQuery = (paymentSearchInput || payment.debouncedSearchQuery || '').trim();
+    const isSearching = !!activeQuery;
 
     return sorted.filter(ord => {
       const ordDate = new Date(ord.createdAt || ord.updatedAt || Date.now());
@@ -59,7 +112,7 @@ export default function PaymentTab(props) {
       }
 
       if (isSearching) {
-        const q = payment.debouncedSearchQuery.trim().toLowerCase();
+        const q = activeQuery.toLowerCase();
         const orderIdMatch = (ord.orderId || '').toLowerCase().includes(q);
         const tableMatch = (ord.orderType === 'TAKEOUT' || ord.tableNumber === 'TAKEOUT' ? 'takeout' : `table ${ord.tableNumber}`).toLowerCase().includes(q);
         const paymentTypeMatch = (ord.paymentType || 'UPI').toLowerCase().includes(q);
@@ -77,7 +130,7 @@ export default function PaymentTab(props) {
 
       return true;
     });
-  }, [props.sortedAndFilteredPaymentOrders, order.paymentOrders, paymentCustomDate, payment.debouncedSearchQuery]);
+  }, [props.sortedAndFilteredPaymentOrders, order.paymentOrders, paymentCustomDate, paymentSearchInput, payment.debouncedSearchQuery]);
 
   const sortedAndFilteredPaymentOrders = props.sortedAndFilteredPaymentOrders ?? computedOrders;
 
