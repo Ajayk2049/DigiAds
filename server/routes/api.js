@@ -1,10 +1,22 @@
 const authController = require('../controllers/authController');
 const deviceAuthController = require('../controllers/deviceAuthController');
-const hostController = require('../controllers/hostController');
-const adController = require('../controllers/adController');
 const adminController = require('../controllers/adminController');
 const releaseController = require('../controllers/releaseController');
 const publicController = require('../controllers/publicController');
+
+// Host Domain Controllers
+const venueController = require('../controllers/host/venueController');
+const menuController = require('../controllers/host/menuController');
+const orderController = require('../controllers/host/orderController');
+const billingController = require('../controllers/host/billingController');
+const venuePromoController = require('../controllers/host/venuePromoController');
+const venueAnalyticsController = require('../controllers/host/venueAnalyticsController');
+
+// Advertiser Domain Controllers
+const adDiscoveryController = require('../controllers/ad/adDiscoveryController');
+const adBookingController = require('../controllers/ad/adBookingController');
+const adMediaController = require('../controllers/ad/adMediaController');
+const adAnalyticsController = require('../controllers/ad/adAnalyticsController');
 const { authenticate, authorize } = require('../utils/authMiddleware');
 const { validate } = require('../utils/validate');
 const {
@@ -154,7 +166,7 @@ function registerRoutes(fastify, options, done) {
   fastify.post('/auth/switch-role', { preHandler: authenticate }, authController.switchRole);
 
   // PhonePe Webhook callback (public)
-  fastify.post('/payments/callback', callbackRateLimitConfig, adController.paymentCallback);
+  fastify.post('/payments/callback', callbackRateLimitConfig, adBookingController.paymentCallback.bind(adBookingController));
   fastify.get('/payments/callback', async (request, reply) => ({ status: 'ok', message: 'Callback endpoint is online' }));
 
   // Public Venue Directory & Map Discovery
@@ -165,39 +177,39 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.addHook('preHandler', authenticate);
     merchantRoutes.addHook('preHandler', authorize(['merchant']));
 
-    merchantRoutes.post('/host/apply', { preHandler: validate({ body: hostApplySchema }) }, hostController.applyForHost.bind(hostController));
-    merchantRoutes.get('/host/applications', hostController.getMyApplications.bind(hostController));
-    merchantRoutes.put('/host/applications/:applicationId', hostController.updateApplication.bind(hostController));
-    merchantRoutes.get('/host/menu', hostController.getMenu.bind(hostController));
-    merchantRoutes.post('/host/menu', { preHandler: validate({ body: menuUpdateSchema }) }, hostController.updateMenu.bind(hostController));
-    merchantRoutes.post('/host/menu/switch-shift', hostController.switchShift.bind(hostController));
-    merchantRoutes.post('/host/menu/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, hostController.uploadImage.bind(hostController));
-    merchantRoutes.get('/host/devices', hostController.getMyDevices.bind(hostController));
-    merchantRoutes.put('/host/payment-config', { preHandler: validate({ body: paymentConfigSchema }) }, hostController.savePaymentConfig.bind(hostController));
-    merchantRoutes.get('/host/payment-config', hostController.getPaymentConfig.bind(hostController));
-    merchantRoutes.post('/host/payment-config/upload-qr', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, hostController.uploadQrCode.bind(hostController));
-    merchantRoutes.get('/host/orders', hostController.getMyOrders.bind(hostController));
-    merchantRoutes.post('/host/orders/update-status', hostController.updateOrderStatus.bind(hostController));
-    merchantRoutes.post('/host/orders/confirm', hostController.confirmOrder.bind(hostController));
-    merchantRoutes.post('/host/orders/close-table', hostController.closeTable.bind(hostController));
-    merchantRoutes.post('/host/orders/payment-received', hostController.markPaymentReceived.bind(hostController));
-    merchantRoutes.post('/host/orders/takeout', hostController.createTakeoutOrder.bind(hostController));
-    merchantRoutes.post('/host/orders/toggle-gst', hostController.toggleGstExemption.bind(hostController));
-    merchantRoutes.post('/host/orders/toggle-service-tax', hostController.toggleServiceTaxExemption.bind(hostController));
-    merchantRoutes.post('/host/orders/service-waiter', hostController.serviceWaiter.bind(hostController));
-    merchantRoutes.post('/host/request-more-devices', hostController.requestMoreDevices.bind(hostController));
-    merchantRoutes.post('/host/verify-password', hostController.verifyPassword.bind(hostController));
-    merchantRoutes.get('/host/promos', hostController.getHostPromos.bind(hostController));
-    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES, ...uploadRateLimitConfig }, hostController.uploadHostPromoMedia.bind(hostController));
-    merchantRoutes.post('/host/promos/stream', hostController.streamHostPromos.bind(hostController));
-    merchantRoutes.post('/host/promos/delete-slot', hostController.deleteHostPromoSlot.bind(hostController));
-    merchantRoutes.get('/host/analytics', hostController.getVenueAnalytics.bind(hostController));
-    merchantRoutes.get('/host/bill-config/:applicationId', hostController.getBillConfig.bind(hostController));
-    merchantRoutes.put('/host/bill-config/:applicationId', hostController.updateBillConfig.bind(hostController));
-    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, hostController.uploadBillImage.bind(hostController));
-    merchantRoutes.post('/host/bill-config/delete-image', hostController.deleteBillImage.bind(hostController));
-    merchantRoutes.post('/host/applications/request-mode-change', { preHandler: validate({ body: modeChangeRequestSchema }) }, hostController.requestModeChange.bind(hostController));
-    merchantRoutes.get('/host/applications/mode-change-status', hostController.getModeChangeStatus.bind(hostController));
+    merchantRoutes.post('/host/apply', { preHandler: validate({ body: hostApplySchema }) }, venueController.applyForHost.bind(venueController));
+    merchantRoutes.get('/host/applications', venueController.getMyApplications.bind(venueController));
+    merchantRoutes.put('/host/applications/:applicationId', venueController.updateApplication.bind(venueController));
+    merchantRoutes.get('/host/menu', menuController.getMenu.bind(menuController));
+    merchantRoutes.post('/host/menu', { preHandler: validate({ body: menuUpdateSchema }) }, menuController.updateMenu.bind(menuController));
+    merchantRoutes.post('/host/menu/switch-shift', menuController.switchShift.bind(menuController));
+    merchantRoutes.post('/host/menu/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, menuController.uploadImage.bind(menuController));
+    merchantRoutes.get('/host/devices', venueController.getMyDevices.bind(venueController));
+    merchantRoutes.put('/host/payment-config', { preHandler: validate({ body: paymentConfigSchema }) }, billingController.savePaymentConfig.bind(billingController));
+    merchantRoutes.get('/host/payment-config', billingController.getPaymentConfig.bind(billingController));
+    merchantRoutes.post('/host/payment-config/upload-qr', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, billingController.uploadQrCode.bind(billingController));
+    merchantRoutes.get('/host/orders', orderController.getMyOrders.bind(orderController));
+    merchantRoutes.post('/host/orders/update-status', orderController.updateOrderStatus.bind(orderController));
+    merchantRoutes.post('/host/orders/confirm', orderController.confirmOrder.bind(orderController));
+    merchantRoutes.post('/host/orders/close-table', orderController.closeTable.bind(orderController));
+    merchantRoutes.post('/host/orders/payment-received', orderController.markPaymentReceived.bind(orderController));
+    merchantRoutes.post('/host/orders/takeout', orderController.createTakeoutOrder.bind(orderController));
+    merchantRoutes.post('/host/orders/toggle-gst', orderController.toggleGstExemption.bind(orderController));
+    merchantRoutes.post('/host/orders/toggle-service-tax', orderController.toggleServiceTaxExemption.bind(orderController));
+    merchantRoutes.post('/host/orders/service-waiter', orderController.serviceWaiter.bind(orderController));
+    merchantRoutes.post('/host/request-more-devices', venueController.requestMoreDevices.bind(venueController));
+    merchantRoutes.post('/host/verify-password', venueController.verifyPassword.bind(venueController));
+    merchantRoutes.get('/host/promos', venuePromoController.getHostPromos.bind(venuePromoController));
+    merchantRoutes.post('/host/promos/upload-media', { bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES, ...uploadRateLimitConfig }, venuePromoController.uploadHostPromoMedia.bind(venuePromoController));
+    merchantRoutes.post('/host/promos/stream', venuePromoController.streamHostPromos.bind(venuePromoController));
+    merchantRoutes.post('/host/promos/delete-slot', venuePromoController.deleteHostPromoSlot.bind(venuePromoController));
+    merchantRoutes.get('/host/analytics', venueAnalyticsController.getVenueAnalytics.bind(venueAnalyticsController));
+    merchantRoutes.get('/host/bill-config/:applicationId', billingController.getBillConfig.bind(billingController));
+    merchantRoutes.put('/host/bill-config/:applicationId', billingController.updateBillConfig.bind(billingController));
+    merchantRoutes.post('/host/bill-config/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, billingController.uploadBillImage.bind(billingController));
+    merchantRoutes.post('/host/bill-config/delete-image', billingController.deleteBillImage.bind(billingController));
+    merchantRoutes.post('/host/applications/request-mode-change', { preHandler: validate({ body: modeChangeRequestSchema }) }, venuePromoController.requestModeChange.bind(venuePromoController));
+    merchantRoutes.get('/host/applications/mode-change-status', venuePromoController.getModeChangeStatus.bind(venuePromoController));
     next();
   });
 
@@ -206,25 +218,25 @@ function registerRoutes(fastify, options, done) {
     advertiserRoutes.addHook('preHandler', authenticate);
     advertiserRoutes.addHook('preHandler', authorize(['advertiser']));
 
-    advertiserRoutes.get('/ads/locations/states', adController.getStates.bind(adController));
-    advertiserRoutes.get('/ads/locations/cities', adController.getCities.bind(adController));
-    advertiserRoutes.get('/ads/locations/outlets', adController.getOutlets.bind(adController));
-    advertiserRoutes.get('/ads/book', adController.bookAd.bind(adController)); // initiates payment url
-    advertiserRoutes.post('/ads/book', { preHandler: validate({ body: adBookingSchema }) }, adController.bookAd.bind(adController)); // supports post fallback
-    advertiserRoutes.get('/ads/bookings', adController.getMyBookings.bind(adController));
-    advertiserRoutes.post('/ads/verify-payment/:bookingId', adController.verifyPayment.bind(adController));
-    advertiserRoutes.post('/ads/retry-payment/:bookingId', adController.retryPayment.bind(adController));
-    advertiserRoutes.post('/ads/cancel-booking/:bookingId', adController.cancelBooking.bind(adController));
-    advertiserRoutes.post('/ads/upload', { bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES, ...uploadRateLimitConfig }, adController.uploadVideo.bind(adController));
-    advertiserRoutes.post('/ads/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, adController.uploadImage.bind(adController));
+    advertiserRoutes.get('/ads/locations/states', adDiscoveryController.getStates.bind(adDiscoveryController));
+    advertiserRoutes.get('/ads/locations/cities', adDiscoveryController.getCities.bind(adDiscoveryController));
+    advertiserRoutes.get('/ads/locations/outlets', adDiscoveryController.getOutlets.bind(adDiscoveryController));
+    advertiserRoutes.get('/ads/book', adBookingController.bookAd.bind(adBookingController));
+    advertiserRoutes.post('/ads/book', { preHandler: validate({ body: adBookingSchema }) }, adBookingController.bookAd.bind(adBookingController));
+    advertiserRoutes.get('/ads/bookings', adBookingController.getMyBookings.bind(adBookingController));
+    advertiserRoutes.post('/ads/verify-payment/:bookingId', adBookingController.verifyPayment.bind(adBookingController));
+    advertiserRoutes.post('/ads/retry-payment/:bookingId', adBookingController.retryPayment.bind(adBookingController));
+    advertiserRoutes.post('/ads/cancel-booking/:bookingId', adBookingController.cancelBooking.bind(adBookingController));
+    advertiserRoutes.post('/ads/upload', { bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES, ...uploadRateLimitConfig }, adMediaController.uploadVideo.bind(adMediaController));
+    advertiserRoutes.post('/ads/upload-image', { bodyLimit: UPLOAD_LIMITS.IMAGE_MAX_SIZE_BYTES, ...uploadRateLimitConfig }, adMediaController.uploadImage.bind(adMediaController));
     next();
   });
 
   // Common Ad Routes (accessible by authenticated users)
   fastify.register((commonRoutes, opts, next) => {
     commonRoutes.addHook('preHandler', authenticate);
-    commonRoutes.get('/ads/rates', adController.getRates.bind(adController));
-    commonRoutes.get('/ads/analytics/:bookingId', adController.getCampaignAnalytics.bind(adController));
+    commonRoutes.get('/ads/rates', adDiscoveryController.getRates.bind(adDiscoveryController));
+    commonRoutes.get('/ads/analytics/:bookingId', adAnalyticsController.getCampaignAnalytics.bind(adAnalyticsController));
     next();
   });
 
