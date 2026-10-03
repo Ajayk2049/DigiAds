@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, Edit, Trash2, Settings } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function UsersTab({
   users: propUsers,
@@ -33,6 +34,12 @@ export default function UsersTab({
   const searchQuery = propSearchQuery ?? storeSearchQuery ?? '';
   const selectedUser = propSelectedUser || storeSelectedUser;
   const setSelectedUser = onSelectUser || propSetSelectedUser || storeSetSelectedUser;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [userSubTab, searchQuery]);
+
   const filteredUsers = users.filter((u) => {
     const userRoles = u.roles || (u.role ? [u.role] : []);
 
@@ -135,7 +142,9 @@ export default function UsersTab({
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user) => {
+              filteredUsers
+                .slice((currentPage - 1) * 7, currentPage * 7)
+                .map((user) => {
                 const userRoles = user.roles || (user.role ? [user.role] : []);
                 const isMerchant = userRoles.includes('merchant') || user.role === 'merchant';
                 const isAdvertiser = userRoles.includes('advertiser') || user.role === 'advertiser';
@@ -267,6 +276,12 @@ export default function UsersTab({
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredUsers.length}
+          pageSize={7}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </motion.div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer } from 'lucide-react';
+import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePaymentStore } from '@/stores/usePaymentStore';
 import { useOrderStore } from '@/stores/useOrderStore';
 import { useOutletStore } from '@/stores/useOutletStore';
@@ -21,6 +21,8 @@ export default function PaymentTab(props) {
   const outlet = useOutletStore();
   const auth = useAuthStore();
   const token = auth.token;
+
+  const paymentPagination = order.paymentPagination || { page: 1, limit: 40, total: 0, totalPages: 1 };
 
   const paymentCustomDate = props.paymentCustomDate ?? payment.paymentCustomDate;
   const setPaymentCustomDate = props.setPaymentCustomDate ?? payment.setPaymentCustomDate;
@@ -89,6 +91,25 @@ export default function PaymentTab(props) {
       controller.abort();
     };
   }, [token, selectedOutletId, paymentCustomDate, payment.debouncedSearchQuery, setIsSearchingPayments]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > (paymentPagination.totalPages || 1)) return;
+    order.setPaymentPage?.(newPage);
+    const queryParams = { page: newPage, limit: 40 };
+    if (selectedOutletId) queryParams.hostApplicationId = selectedOutletId;
+    const q = (payment.debouncedSearchQuery || '').trim();
+    if (q) {
+      queryParams.search = q;
+    } else if (paymentCustomDate) {
+      queryParams.startDate = paymentCustomDate;
+      queryParams.endDate = paymentCustomDate;
+    }
+    setIsSearchingPayments(true);
+    const fetcher = order.fetchPaymentOrders || order.fetchLiveOrders;
+    fetcher(token, queryParams).finally(() => {
+      setIsSearchingPayments(false);
+    });
+  };
 
   // Compute sorted & filtered payment orders internally if not provided via props
   const computedOrders = useMemo(() => {
@@ -265,7 +286,7 @@ export default function PaymentTab(props) {
                 return (
                   <tr key={ord.orderId || idx} className="border-b border-border/60 hover:bg-muted/15 transition-colors">
                     <td className="py-4 px-4 text-center font-bold text-muted-foreground text-xs">
-                      {idx + 1}
+                      {((paymentPagination.page || 1) - 1) * 40 + idx + 1}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`font-black px-3.5 py-1.5 rounded-xl text-xs whitespace-nowrap shadow-sm inline-block ${ord.orderType === 'TAKEOUT' || ord.tableNumber === 'TAKEOUT'
@@ -318,6 +339,38 @@ export default function PaymentTab(props) {
               })}
             </tbody>
           </table>
+
+          {/* Fastify Pagination Controls (40 orders per page) */}
+          {(paymentPagination.totalPages > 1 || (paymentPagination.total || 0) > 40) && (
+            <div className="flex items-center justify-between border-t border-border/40 px-4 py-3 bg-card/20 rounded-b-2xl mt-2 flex-wrap gap-3">
+              <div className="text-xs text-muted-foreground font-semibold">
+                Showing <span className="font-bold text-foreground">{((paymentPagination.page || 1) - 1) * 40 + 1}</span> to <span className="font-bold text-foreground">{Math.min((paymentPagination.page || 1) * 40, paymentPagination.total || sortedAndFilteredPaymentOrders.length)}</span> of <span className="font-bold text-foreground">{paymentPagination.total || sortedAndFilteredPaymentOrders.length}</span> completed orders (40 / page)
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handlePageChange((paymentPagination.page || 1) - 1)}
+                  disabled={(paymentPagination.page || 1) <= 1}
+                  className="p-2 rounded-xl bg-card border border-border/40 hover:bg-muted text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="text-xs font-bold text-foreground px-2">
+                  Page {paymentPagination.page || 1} of {paymentPagination.totalPages || 1}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePageChange((paymentPagination.page || 1) + 1)}
+                  disabled={(paymentPagination.page || 1) >= (paymentPagination.totalPages || 1)}
+                  className="p-2 rounded-xl bg-card border border-border/40 hover:bg-muted text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

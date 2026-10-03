@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Mail, Phone, KeyRound, Tv, Sun, Moon, ShieldAlert, Check, Eye, EyeOff, Megaphone, X, ShieldCheck } from 'lucide-react';
 import { config } from '@/config';
 import { useOutletStore } from '@/stores/useOutletStore';
@@ -360,7 +361,7 @@ export default function LoginPage() {
 
             {/* Logo and Brand - Compact Side-by-Side Layout */}
             <div className="flex items-center justify-center space-x-3 mb-6">
-              <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-10 h-10 object-contain shrink-0" />
+              <Image src="/digiads-icon.svg" alt="DigiAds Logo" width={40} height={40} className="w-10 h-10 object-contain shrink-0" priority />
               <div className="text-left">
                 <h2 className="font-outfit text-lg font-bold tracking-tight brandLogo">
                   Digi<span className="text-primary">Ads</span> Console

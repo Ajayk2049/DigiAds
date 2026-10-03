@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserCheck, Check, X, Video, Upload, Trash2 } from 'lucide-react';
+import Pagination from '@/components/common/Pagination';
 
 export default function CampaignsRequestSubTab({
   filteredCampaigns,
@@ -14,6 +15,11 @@ export default function CampaignsRequestSubTab({
   onViewCreative,
   onViewCampaignDetails
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [adFilter]);
   if (filteredCampaigns.length === 0) {
     return (
       <div className="p-12 text-center text-muted-foreground border border-dashed border-border rounded-2xl bg-card/10 text-xs">
@@ -42,7 +48,9 @@ export default function CampaignsRequestSubTab({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/40">
-          {filteredCampaigns.map((booking) => (
+          {filteredCampaigns
+            .slice((currentPage - 1) * 7, currentPage * 7)
+            .map((booking) => (
             <tr key={booking.bookingId} className="hover:bg-card/20 transition-colors duration-200">
               <td className="p-4 pl-6 font-bold text-foreground">
                 <div>{booking.advertiserId?.name || booking.advertiserId?.phone || 'Advertiser'}</div>
@@ -138,6 +146,12 @@ export default function CampaignsRequestSubTab({
           ))}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredCampaigns.length}
+        pageSize={7}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

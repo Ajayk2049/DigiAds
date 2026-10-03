@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Building, Check, X } from 'lucide-react';
+import Pagination from '@/components/common/Pagination';
 
 export default function ModeChangeRequestSubTab({
   filteredModeReqs,
   onReviewModeChange
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
   return (
     <div className="w-full mx-1 mt-2 overflow-x-auto animate-fade-in">
       <table className="w-full text-left border-collapse text-xs">
@@ -28,7 +30,9 @@ export default function ModeChangeRequestSubTab({
               </td>
             </tr>
           ) : (
-            filteredModeReqs.map((req) => (
+            filteredModeReqs
+              .slice((currentPage - 1) * 7, currentPage * 7)
+              .map((req) => (
               <tr key={req._id} className="hover:bg-card/20 transition-colors duration-200">
                 <td className="p-4 pl-6 font-mono font-bold text-primary">{req.requestId}</td>
                 <td className="p-4 font-bold text-foreground">
@@ -103,6 +107,12 @@ export default function ModeChangeRequestSubTab({
           )}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredModeReqs.length}
+        pageSize={7}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

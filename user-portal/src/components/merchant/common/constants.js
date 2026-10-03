@@ -36,31 +36,7 @@ import {
 
 export const API_BASE = config.apiUrl;
 
-export const resolveMediaUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('data:')) return url;
-  const base = API_BASE.split('/api/v1')[0];
-  let subpath = url;
-  if (url.includes('/uploads/')) {
-    subpath = `/uploads/${url.split('/uploads/')[1]}`;
-  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    subpath = url.startsWith('/') ? url : `/${url}`;
-  } else {
-    try {
-      const parsed = new URL(url);
-      subpath = parsed.pathname;
-    } catch (e) {
-      subpath = url;
-    }
-  }
-  if (subpath.includes('/uploads/ads/')) {
-    subpath = subpath.replace('/uploads/ads/', '/uploads/creative/');
-  }
-  if (subpath.startsWith('http://') || subpath.startsWith('https://')) {
-    return subpath;
-  }
-  return `${base}${subpath}`;
-};
+export { resolveMediaUrl } from '@/utils/mediaResolver';
 
 export const INDIAN_STATES = [
   "Andaman and Nicobar Islands",

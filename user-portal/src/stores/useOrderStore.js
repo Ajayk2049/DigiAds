@@ -82,20 +82,31 @@ export const useOrderStore = create((set, get) => ({
     }
   },
 
+  paymentPagination: { page: 1, limit: 40, total: 0, totalPages: 1 },
+  setPaymentPage: (page) => set(state => ({ paymentPagination: { ...state.paymentPagination, page } })),
+
   fetchPaymentOrders: async (token, queryParams = {}, signal = null) => {
     if (!token) return;
     try {
-      const params = { limit: 1000, ...queryParams };
+      const currentPage = queryParams.page || get().paymentPagination?.page || 1;
+      const params = { limit: 40, page: currentPage, paymentStatus: 'completed', ...queryParams };
       const res = await axios.get(`${getApiBase()}/host/orders`, {
         params,
         signal,
         headers: { Authorization: `Bearer ${token}` }
       });
       const allOrders = res.data?.data || [];
+      const pagination = res.data?.pagination || {
+        page: currentPage,
+        limit: 40,
+        total: allOrders.length,
+        totalPages: Math.ceil(allOrders.length / 40) || 1
+      };
+      // Keep safety filter for zero amount/empty items if any
       const completed = allOrders.filter(
-        ord => ord.paymentStatus === 'completed' && ((ord.totalAmount || 0) > 0 || (ord.items && ord.items.length > 0))
+        ord => (ord.totalAmount || 0) > 0 || (ord.items && ord.items.length > 0)
       );
-      set({ paymentOrders: completed });
+      set({ paymentOrders: completed, paymentPagination: pagination });
     } catch (err) {
       if (axios.isCancel(err) || err.name === 'CanceledError' || err.name === 'AbortError') {
         return;

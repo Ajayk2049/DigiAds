@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Building, Eye } from 'lucide-react';
+import Pagination from '@/components/common/Pagination';
 
 export default function DeviceRequestSubTab({
   filteredDeviceReqs,
   onViewDeviceReqModal
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
   return (
     <div className="w-full mx-1 mt-2 overflow-x-auto animate-fade-in">
       <table className="w-full text-left border-collapse text-xs">
@@ -28,7 +30,9 @@ export default function DeviceRequestSubTab({
               </td>
             </tr>
           ) : (
-            filteredDeviceReqs.map((req) => (
+            filteredDeviceReqs
+              .slice((currentPage - 1) * 7, currentPage * 7)
+              .map((req) => (
               <tr
                 key={req._id}
                 onClick={() => onViewDeviceReqModal && onViewDeviceReqModal(req)}
@@ -83,6 +87,12 @@ export default function DeviceRequestSubTab({
           )}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredDeviceReqs.length}
+        pageSize={7}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

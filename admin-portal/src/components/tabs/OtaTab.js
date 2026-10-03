@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function OtaTab({
   onOpenReleaseModal,
@@ -18,6 +19,14 @@ export default function OtaTab({
   const setOtaSubTab = useAdminStore((s) => s.setOtaSubTab);
   const releases = useAdminStore((s) => s.releases);
   const devices = useAdminStore((s) => s.devices);
+
+  const [telemetryPage, setTelemetryPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+
+  useEffect(() => {
+    setTelemetryPage(1);
+    setHistoryPage(1);
+  }, [otaSubTab]);
 
   const updatedDevices = devices.filter(
     (d) => d.lastKnownVersionCode >= 2 || (d.lastKnownAppVersion && d.lastKnownAppVersion !== '1.0.0')
@@ -99,7 +108,9 @@ export default function OtaTab({
                     </td>
                   </tr>
                 ) : (
-                  updatedDevices.map((d) => (
+                  updatedDevices
+                    .slice((telemetryPage - 1) * 7, telemetryPage * 7)
+                    .map((d) => (
                     <tr key={d._id} className="hover:bg-card/20 transition-colors">
                       <td className="p-3 pl-4 font-mono font-bold text-primary">{d.deviceId}</td>
                       <td className="p-3 text-foreground font-bold">
@@ -128,6 +139,12 @@ export default function OtaTab({
                 )}
               </tbody>
             </table>
+            <Pagination
+              currentPage={telemetryPage}
+              totalItems={updatedDevices.length}
+              pageSize={7}
+              onPageChange={setTelemetryPage}
+            />
           </div>
         </div>
       )}
@@ -164,7 +181,9 @@ export default function OtaTab({
                     </td>
                   </tr>
                 ) : (
-                  releases.map((rel) => {
+                  releases
+                    .slice((historyPage - 1) * 7, historyPage * 7)
+                    .map((rel) => {
                     const isActive = rel.status === 'active';
                     return (
                       <tr key={rel._id} className="hover:bg-card/20 transition-colors">
@@ -231,6 +250,12 @@ export default function OtaTab({
                 )}
               </tbody>
             </table>
+            <Pagination
+              currentPage={historyPage}
+              totalItems={releases.length}
+              pageSize={7}
+              onPageChange={setHistoryPage}
+            />
           </div>
         </div>
       )}

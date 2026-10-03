@@ -10,6 +10,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function RatesTab({
   onSaveRate,
@@ -18,6 +19,7 @@ export default function RatesTab({
   onOpenDurationModal
 }) {
   const [rateSubTab, setRateSubTab] = useState('tablet'); // 'tablet' | 'screen'
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingRateId, setEditingRateId] = useState(null);
   const [frequencyOption, setFrequencyOption] = useState('hourly');
   const [customMinutes, setCustomMinutes] = useState('');
@@ -43,6 +45,7 @@ export default function RatesTab({
 
   const handleTabChange = (tab) => {
     setRateSubTab(tab);
+    setCurrentPage(1);
     if (!editingRateId) {
       setForm((prev) => ({ ...prev, deviceType: tab }));
     }
@@ -322,6 +325,7 @@ export default function RatesTab({
                 ) : (
                   rates
                     .filter((r) => r.deviceType === rateSubTab)
+                    .slice((currentPage - 1) * 7, currentPage * 7)
                     .map((rate) => (
                       <tr key={rate._id} className="hover:bg-card/20 transition-colors duration-200">
                         <td className="p-4 pl-6 font-bold text-foreground">
@@ -390,6 +394,12 @@ export default function RatesTab({
                 )}
               </tbody>
             </table>
+            <Pagination
+              currentPage={currentPage}
+              totalItems={rates.filter((r) => r.deviceType === rateSubTab).length}
+              pageSize={7}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       </div>

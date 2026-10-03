@@ -1,12 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Building, Eye } from 'lucide-react';
+import Pagination from '@/components/common/Pagination';
 
 export default function VenuesRequestSubTab({
   filteredHosts,
   onSelectHost
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
   return (
     <div className="mx-1 mt-2 overflow-x-auto animate-fade-in">
       <table className="w-full text-left border-collapse text-xs">
@@ -29,7 +31,9 @@ export default function VenuesRequestSubTab({
               </td>
             </tr>
           ) : (
-            filteredHosts.map((app) => (
+            filteredHosts
+              .slice((currentPage - 1) * 7, currentPage * 7)
+              .map((app) => (
               <tr
                 key={app._id}
                 onClick={() => onSelectHost && onSelectHost(app)}
@@ -87,6 +91,12 @@ export default function VenuesRequestSubTab({
           )}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalItems={filteredHosts.length}
+        pageSize={7}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }

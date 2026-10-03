@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   TrendingUp,
@@ -120,7 +121,7 @@ export default function AdminSidebar() {
               aria-label="Toggle Sidebar"
             >
               <div className="transition-all duration-300 transform group-hover:scale-0 group-hover:opacity-0 flex items-center justify-center">
-                <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-6 h-6 object-contain" />
+                <Image src="/digiads-icon.svg" alt="DigiAds Logo" width={24} height={24} className="w-6 h-6 object-contain" priority />
               </div>
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100">
                 {sidebarCollapsed ? (
@@ -198,7 +199,7 @@ export default function AdminSidebar() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-border/50">
                   <div className="flex items-center space-x-2">
-                    <img src="/digiads-icon.svg" alt="DigiAds" className="w-6 h-6" />
+                    <Image src="/digiads-icon.svg" alt="DigiAds Logo" width={24} height={24} className="w-6 h-6 object-contain" priority />
                     <span className="font-outfit text-sm font-bold tracking-tight">
                       Digi<span className="text-primary">Ads</span>
                     </span>

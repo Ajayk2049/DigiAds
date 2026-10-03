@@ -52,6 +52,18 @@ async function createFastifyApp() {
 
   await fastify.register(websocket);
 
+  // Register fastify-pagination with 40 items per page default strategy
+  try {
+    const fastifyPagination = require('fastify-pagination');
+    const limitOffsetStrategy = require('fastify-pagination/dist/strategies/limit-offset')({
+      defaultLimit: 40,
+      maximumLimit: 100
+    });
+    await fastify.register(fastifyPagination, { strategy: limitOffsetStrategy });
+  } catch (err) {
+    logger.warn({ err }, 'Failed to initialize fastify-pagination plugin');
+  }
+
   // Clean API route logger (skips OPTIONS and device sync polls)
   fastify.addHook('onRequest', (request, reply, done) => {
     const url = request.raw.url || '';

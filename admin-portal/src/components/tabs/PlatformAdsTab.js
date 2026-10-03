@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Tv,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
 import { resolveMediaUrl } from '@/components/common/MediaResolver';
+import Pagination from '@/components/common/Pagination';
 
 export default function PlatformAdsTab({
   onCreateAd,
@@ -29,6 +30,11 @@ export default function PlatformAdsTab({
   const handleCreateAd = onCreateAd || onOpenCreateModal;
   const [subTab, setSubTab] = useState('fallback'); // 'fallback' | 'platform'
   const [localSearch, setLocalSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [subTab, localSearch]);
 
   const platformAds = useAdminStore((s) => s.platformAds);
   const hosts = useAdminStore((s) => s.hosts);
@@ -203,7 +209,9 @@ export default function PlatformAdsTab({
                   </td>
                 </tr>
               ) : (
-                currentAds.map((ad) => (
+                currentAds
+                  .slice((currentPage - 1) * 7, currentPage * 7)
+                  .map((ad) => (
                   <tr key={ad._id} className="hover:bg-muted/20 transition-colors">
                     <td className="p-4 pl-6">
                       <div className="flex items-center space-x-3">
@@ -300,6 +308,12 @@ export default function PlatformAdsTab({
               )}
             </tbody>
           </table>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={currentAds.length}
+            pageSize={7}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </motion.div>

@@ -102,6 +102,7 @@ export const useAdminStore = create((set, get) => ({
   setActiveTab: (activeTab) => {
     localStorage.setItem('adminActiveTab', activeTab);
     set({ activeTab });
+    get().fetchTabData(activeTab);
   },
   setSidebarCollapsed: (sidebarCollapsed) => {
     localStorage.setItem('adminSidebarCollapsed', String(sidebarCollapsed));
@@ -209,7 +210,11 @@ export const useAdminStore = create((set, get) => ({
 
     if (token && role === 'admin') {
       set({ token, isAuthenticated: true });
-      get().fetchDashboardData(token);
+      const targetTab = savedTab || 'stats';
+      get().fetchTabData(targetTab, token);
+      if (targetTab !== 'stats') {
+        get().fetchStats(token);
+      }
     }
   },
 
@@ -279,7 +284,131 @@ export const useAdminStore = create((set, get) => ({
     get().showNotification('Logged out securely.', 'info');
   },
 
-  // Data Fetchers
+  // Data Fetchers - Granular per-tab fetchers (No more 10-way request burst)
+  fetchStats: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/stats`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ stats: res.data?.data || null });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchHosts: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/hosts`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ hosts: res.data?.data || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchCampaigns: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/bookings`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ campaigns: res.data?.data || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchRates: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/rates`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ rates: res.data?.data || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchDevices: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/devices`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ devices: res.data?.data || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchUsers: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/users`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ users: res.data?.data || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchRequests: async (authToken = get().token) => {
+    if (!authToken) return;
+    const headers = { Authorization: `Bearer ${authToken}` };
+    try {
+      const [devReqs, modeReqs] = await Promise.all([
+        axios.get(`${API_BASE}/admin/device-requests`, { headers }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${API_BASE}/admin/mode-change-requests`, { headers }).catch(() => ({ data: { data: [] } }))
+      ]);
+      set({
+        deviceRequests: devReqs.data?.data || [],
+        modeChangeRequests: modeReqs.data?.data || []
+      });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchReleases: async (authToken = get().token) => {
+    if (!authToken) return;
+    try {
+      const res = await axios.get(`${API_BASE}/admin/releases`, { headers: { Authorization: `Bearer ${authToken}` } });
+      set({ releases: res.data?.releases || [] });
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+    }
+  },
+
+  fetchTabData: (tab, authToken = get().token) => {
+    if (!authToken) return;
+    const target = tab || get().activeTab;
+    switch (target) {
+      case 'stats':
+        get().fetchStats(authToken);
+        break;
+      case 'venues':
+        get().fetchHosts(authToken);
+        break;
+      case 'advertisers':
+        get().fetchCampaigns(authToken);
+        break;
+      case 'devices':
+        get().fetchDevices(authToken);
+        break;
+      case 'rates':
+        get().fetchRates(authToken);
+        break;
+      case 'users':
+        get().fetchUsers(authToken);
+        break;
+      case 'requests':
+        get().fetchRequests(authToken);
+        break;
+      case 'ota':
+        get().fetchReleases(authToken);
+        break;
+      case 'platform-ads':
+        get().fetchPlatformAds(authToken);
+        break;
+      default:
+        get().fetchStats(authToken);
+        break;
+    }
+  },
+
   fetchDashboardData: async (authToken = get().token) => {
     if (!authToken) return;
     const headers = { Authorization: `Bearer ${authToken}` };

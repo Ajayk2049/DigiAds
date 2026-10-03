@@ -14,24 +14,48 @@ class OrderController {
    */
   async getMyOrders(req, res) {
     try {
-      const { hostApplicationId, startDate, endDate, search, limit } = req.query || {};
+      const { hostApplicationId, startDate, endDate, search, limit, page, offset: reqOffset, paymentStatus, tableStatus } = req.query || {};
       let appIds = [];
 
       if (hostApplicationId) {
-        const app = await HostApplication.findOne({ _id: hostApplicationId, userId: req.user.uid, status: 'approved' });
+        const app = await HostApplication.findOne({ _id: hostApplicationId, userId: req.user.uid, status: 'approved' }).select('_id').lean();
         if (app) appIds = [app._id];
       } else {
-        const apps = await HostApplication.find({ userId: req.user.uid, status: 'approved' });
+        const apps = await HostApplication.find({ userId: req.user.uid, status: 'approved' }).select('_id').lean();
         appIds = apps.map(app => app._id);
       }
 
       const matchStage = { hostApplicationId: { $in: appIds } };
-      const queryLimit = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+      if (paymentStatus) {
+        matchStage.paymentStatus = paymentStatus;
+      }
+      if (tableStatus) {
+        matchStage.tableStatus = tableStatus;
+      }
+      const parsedLimit = parseInt(limit, 10);
+      const queryLimit = !isNaN(parsedLimit) ? Math.min(200, Math.max(1, parsedLimit)) : 40;
+      const pageNum = parseInt(page, 10) || 1;
+      const skipOffset = reqOffset !== undefined
+        ? Math.max(0, parseInt(reqOffset, 10))
+        : Math.max(0, (pageNum - 1) * queryLimit);
 
       if (search && search.trim()) {
-        const pipeline = buildOrderSearchPipeline(matchStage, search, queryLimit);
-        const orders = await Order.aggregate(pipeline);
-        return res.status(200).send({ success: true, data: orders });
+        const pipeline = buildOrderSearchPipeline(matchStage, search, queryLimit + skipOffset);
+        const allMatching = await Order.aggregate(pipeline);
+        const totalCount = allMatching.length;
+        const pagedOrders = allMatching.slice(skipOffset, skipOffset + queryLimit);
+
+        res.header('X-Total-Count', totalCount);
+        return res.status(200).send({
+          success: true,
+          data: pagedOrders,
+          pagination: {
+            page: pageNum,
+            limit: queryLimit,
+            total: totalCount,
+            totalPages: Math.ceil(totalCount / queryLimit)
+          }
+        });
       }
 
       if (startDate || endDate) {
@@ -48,8 +72,24 @@ class OrderController {
         }
       }
 
-      const orders = await Order.find(matchStage).sort({ createdAt: -1 }).limit(queryLimit);
-      return res.status(200).send({ success: true, data: orders });
+      const totalCount = await Order.countDocuments(matchStage);
+      const orders = await Order.find(matchStage)
+        .sort({ createdAt: -1 })
+        .skip(skipOffset)
+        .limit(queryLimit)
+        .lean();
+
+      res.header('X-Total-Count', totalCount);
+      return res.status(200).send({
+        success: true,
+        data: orders,
+        pagination: {
+          page: pageNum,
+          limit: queryLimit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / queryLimit)
+        }
+      });
     } catch (error) {
       req.log.error({ err: error }, 'getMyOrders Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch orders: ' + error.message });

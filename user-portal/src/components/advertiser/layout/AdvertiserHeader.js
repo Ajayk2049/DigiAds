@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import {
@@ -78,7 +79,7 @@ export default function AdvertiserHeader() {
     <>
       <header className="border-b border-border/40 bg-card px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
         <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
-          <img src="/digiads-icon.svg" alt="DigiAds Logo" className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0" />
+          <Image src="/digiads-icon.svg" alt="DigiAds Logo" width={32} height={32} className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0" priority />
           <span className="font-outfit text-sm sm:text-md font-bold text-foreground brandLogo truncate">Advertiser Portal</span>
         </div>
 

@@ -1,15 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { UserCheck, Tv } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function AdvertisersTab({ onSelectAdvertiser }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const users = useAdminStore((s) => s.users);
   const campaigns = useAdminStore((s) => s.campaigns);
   const stats = useAdminStore((s) => s.stats);
   const searchQuery = useAdminStore((s) => s.searchQuery);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const getAdvertiserCampaigns = (advId) => {
     return campaigns.filter(
@@ -112,7 +118,9 @@ export default function AdvertisersTab({ onSelectAdvertiser }) {
                 </td>
               </tr>
             ) : (
-              approvedAdvertisersList.map((adv) => {
+              approvedAdvertisersList
+                .slice((currentPage - 1) * 7, currentPage * 7)
+                .map((adv) => {
                 const advCampaigns = getAdvertiserCampaigns(adv._id);
                 const totalSpend = getAdvertiserTotalSpend(adv._id);
 
@@ -163,6 +171,12 @@ export default function AdvertisersTab({ onSelectAdvertiser }) {
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={approvedAdvertisersList.length}
+          pageSize={7}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </motion.div>
   );

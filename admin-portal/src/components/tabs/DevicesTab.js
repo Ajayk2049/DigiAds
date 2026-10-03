@@ -1,15 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function DevicesTab({ onOpenDeployModal }) {
   const [deviceSubTab, setDeviceSubTab] = useState('tablet'); // 'tablet' | 'screen'
+  const [currentPage, setCurrentPage] = useState(1);
 
   const devices = useAdminStore((s) => s.devices);
   const searchQuery = useAdminStore((s) => s.searchQuery);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deviceSubTab, searchQuery]);
 
   const tablets = devices.filter((d) => d.deviceType === 'tablet');
   const screens = devices.filter((d) => d.deviceType === 'screen');
@@ -115,7 +121,9 @@ export default function DevicesTab({ onOpenDeployModal }) {
                 </td>
               </tr>
             ) : (
-              filteredDevices.map((d) => {
+              filteredDevices
+                .slice((currentPage - 1) * 7, currentPage * 7)
+                .map((d) => {
                 const isNeverUsed = (!d.isActivated && !d.hardwareId) || d.status === 'never_used';
                 return (
                   <tr key={d._id} className="hover:bg-card/20 transition-colors duration-200">
@@ -167,6 +175,12 @@ export default function DevicesTab({ onOpenDeployModal }) {
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredDevices.length}
+          pageSize={7}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </motion.div>
   );

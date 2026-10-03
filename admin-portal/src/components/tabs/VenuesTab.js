@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building,
@@ -11,6 +11,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
+import Pagination from '@/components/common/Pagination';
 
 export default function VenuesTab({
   onSelectVenue,
@@ -18,11 +19,16 @@ export default function VenuesTab({
   onOpenWatermarkModal,
   onOpenPromoDurations
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const hosts = useAdminStore((s) => s.hosts);
   const devices = useAdminStore((s) => s.devices);
   const venueStatusFilter = useAdminStore((s) => s.venueStatusFilter);
   const setVenueStatusFilter = useAdminStore((s) => s.setVenueStatusFilter);
   const searchQuery = useAdminStore((s) => s.searchQuery);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [venueStatusFilter, searchQuery]);
   const setSelectedHostApp = useAdminStore((s) => s.setSelectedHostApp);
   const setShowVenueModal = useAdminStore((s) => s.setShowVenueModal);
   const setIsPromoDurationsModalOpen = useAdminStore((s) => s.setIsPromoDurationsModalOpen);
@@ -186,7 +192,9 @@ export default function VenuesTab({
                 </td>
               </tr>
             ) : (
-              approvedVenuesList.map((app) => {
+              approvedVenuesList
+                .slice((currentPage - 1) * 7, currentPage * 7)
+                .map((app) => {
                 const isClosed = app.allowOpenAds === false || app.adMode === 'closed';
                 const vMax = app.customMaxVideoSlots ?? (isClosed ? 3 : 2);
                 const vDaily = app.customDailyVideoQuota ?? (isClosed ? 6 : 4);
@@ -274,6 +282,12 @@ export default function VenuesTab({
             )}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={approvedVenuesList.length}
+          pageSize={7}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </motion.div>
   );
