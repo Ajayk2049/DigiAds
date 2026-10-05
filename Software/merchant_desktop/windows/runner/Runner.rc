@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.digiads" "\0"
-            VALUE "FileDescription", "merchant_desktop" "\0"
+            VALUE "CompanyName", "AibotINK pvt ltd" "\0"
+            VALUE "FileDescription", "DigiAds POS" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "merchant_desktop" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.digiads. All rights reserved." "\0"
-            VALUE "OriginalFilename", "merchant_desktop.exe" "\0"
-            VALUE "ProductName", "merchant_desktop" "\0"
+            VALUE "InternalName", "DigiAdsPOS" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 AibotINK pvt ltd. All rights reserved." "\0"
+            VALUE "OriginalFilename", "DigiAdsPOS.exe" "\0"
+            VALUE "ProductName", "DigiAds POS" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
