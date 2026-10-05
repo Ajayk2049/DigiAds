@@ -14,7 +14,7 @@ class OrderController {
    */
   async getMyOrders(req, res) {
     try {
-      const { hostApplicationId, startDate, endDate, search, limit, page, offset: reqOffset, paymentStatus, tableStatus } = req.query || {};
+      const { hostApplicationId, startDate, endDate, search, limit, page, offset: reqOffset, paymentStatus, tableStatus, isLive, export: isExport } = req.query || {};
       let appIds = [];
 
       if (hostApplicationId) {
@@ -26,14 +26,32 @@ class OrderController {
       }
 
       const matchStage = { hostApplicationId: { $in: appIds } };
-      if (paymentStatus) {
-        matchStage.paymentStatus = paymentStatus;
+      const isLiveMode = isLive === 'true' || tableStatus === 'active';
+      const isExportMode = isExport === 'true' || isExport === true;
+
+      if (isLiveMode) {
+        matchStage.tableStatus = { $nin: ['completed', 'completed_acked'] };
+        matchStage.orderStatus = { $ne: 'cancelled' };
+        matchStage.paymentStatus = { $ne: 'completed' };
+      } else {
+        if (paymentStatus) {
+          matchStage.paymentStatus = paymentStatus;
+        }
+        if (tableStatus) {
+          matchStage.tableStatus = tableStatus;
+        }
       }
-      if (tableStatus) {
-        matchStage.tableStatus = tableStatus;
-      }
+
       const parsedLimit = parseInt(limit, 10);
-      const queryLimit = !isNaN(parsedLimit) ? Math.min(200, Math.max(1, parsedLimit)) : 40;
+      let queryLimit;
+      if (isExportMode) {
+        queryLimit = !isNaN(parsedLimit) ? Math.min(2000, Math.max(1, parsedLimit)) : 2000;
+      } else if (isLiveMode) {
+        queryLimit = !isNaN(parsedLimit) ? Math.min(200, Math.max(1, parsedLimit)) : 100;
+      } else {
+        queryLimit = !isNaN(parsedLimit) ? Math.min(200, Math.max(1, parsedLimit)) : 40;
+      }
+
       const pageNum = parseInt(page, 10) || 1;
       const skipOffset = reqOffset !== undefined
         ? Math.max(0, parseInt(reqOffset, 10))

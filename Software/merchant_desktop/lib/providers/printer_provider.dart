@@ -15,9 +15,12 @@ class PrinterProvider extends ChangeNotifier {
   String? get selectedKotPrinter => _service.selectedKotPrinter;
   String get paperWidthFormat => _service.paperWidthFormat;
   String get colorMode => _service.colorMode;
+  String get kotPrintTrigger => _service.kotPrintTrigger;
   bool get autoPrintKot => _service.autoPrintKot;
   bool get silentPrintEnabled => _service.silentPrintEnabled;
   bool get isLoading => _isLoading;
+
+  bool hasKotBeenPrinted(String orderId) => _service.hasKotBeenPrinted(orderId);
 
   Future<void> init() async {
     await _service.init();
@@ -54,8 +57,13 @@ class PrinterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateKotPrintTrigger(String trigger) async {
+    await _service.saveSettings(kotPrintTrigger: trigger);
+    notifyListeners();
+  }
+
   Future<void> toggleAutoPrintKot(bool enabled) async {
-    await _service.saveSettings(autoPrintKot: enabled);
+    await _service.saveSettings(kotPrintTrigger: enabled ? 'arrival' : 'manual');
     notifyListeners();
   }
 
@@ -68,8 +76,10 @@ class PrinterProvider extends ChangeNotifier {
     return _service.printCustomerBill(order: order, billConfig: billConfig);
   }
 
-  Future<bool> printKitchenKot({required OrderModel order}) {
-    return _service.printKitchenKot(order: order);
+  Future<bool> printKitchenKot({required OrderModel order, bool isAutomatic = false}) {
+    final res = _service.printKitchenKot(order: order, isAutomatic: isAutomatic);
+    notifyListeners();
+    return res;
   }
 
   Future<bool> printTestReceipt() async {

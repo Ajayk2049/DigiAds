@@ -1,8 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import '../config.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -10,7 +8,6 @@ import '../providers/venue_provider.dart';
 import '../providers/orders_provider.dart';
 import '../providers/menu_provider.dart';
 import '../providers/printer_provider.dart';
-import '../services/api_service.dart';
 import '../services/tray_notification_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/connection_status_banner.dart';
@@ -123,7 +120,7 @@ class _MainLayoutState extends State<MainLayout> {
               border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.04),
+                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -232,108 +229,109 @@ class _MainLayoutState extends State<MainLayout> {
                       color: isDark ? AppColors.darkCardElevated : Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                        side: BorderSide.none,
+                        side: BorderSide(color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0), width: 0.8),
                       ),
                       padding: EdgeInsets.zero,
                       onSelected: (value) async {
-                        if (value == 'printers') {
+                        if (value == 'settings') {
                           setState(() => _activeTab = 'printers');
-                        } else if (value == 'autostart') {
-                          final isEnabled = await TrayNotificationService.isAutoStartEnabled();
-                          await TrayNotificationService.toggleAutoStart(!isEnabled);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(!isEnabled
-                                    ? 'DigiAds POS will now start automatically on Windows boot'
-                                    : 'Start with Windows disabled'),
-                              ),
-                            );
-                          }
-                        } else if (value == 'exit_app') {
-                          await TrayNotificationService.forceExit();
                         } else if (value == 'logout') {
                           auth.logout();
+                        } else if (value == 'exit_app') {
+                          await TrayNotificationService.forceExit();
                         }
                       },
                       itemBuilder: (context) => [
+                        // 1. Account Header (Non-clickable)
                         PopupMenuItem(
                           enabled: false,
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.person,
+                                size: 16,
+                                color: isDark ? AppColors.darkText : AppColors.lightText,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      user?.name.isNotEmpty == true ? user!.name : 'Merchant Workstation',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: isDark ? AppColors.darkText : AppColors.lightText,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      user?.phone ?? '9876543210',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isDark ? AppColors.darkMuted : AppColors.lightMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // 2. Settings (Rotating gear icon, user clicks then goes directly to settings page)
+                        PopupMenuItem(
+                          value: 'settings',
                           height: 36,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          child: Row(
                             children: [
-                              Text(
-                                user?.name.isNotEmpty == true ? user!.name : 'Merchant Workstation',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: isDark ? AppColors.darkText : AppColors.lightText,
-                                ),
-                              ),
-                              Text(
-                                user?.phone ?? '9876543210',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isDark ? AppColors.darkMuted : AppColors.lightMuted,
-                                ),
+                              Icon(Icons.settings, size: 16, color: isDark ? AppColors.darkText : AppColors.lightText),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Settings',
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
                               ),
                             ],
                           ),
                         ),
-                        PopupMenuItem(
-                          value: 'printers',
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          child: Row(
-                            children: [
-                              Icon(Icons.print, size: 14, color: isDark ? AppColors.darkText : AppColors.lightText),
-                              const SizedBox(width: 8),
-                              const Text('POS Printers Setup', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'autostart',
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          child: Row(
-                            children: [
-                              Icon(Icons.power_settings_new, size: 14, color: isDark ? AppColors.darkText : AppColors.lightText),
-                              const SizedBox(width: 8),
-                              const Text('Start with Windows', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuDivider(height: 6),
+
+                        // 3. Logout
                         PopupMenuItem(
                           value: 'logout',
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                           child: Row(
                             children: [
-                              Icon(Icons.logout, size: 14, color: AppColors.danger),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Logout Workstation',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.danger),
+                              const Icon(Icons.logout, size: 16, color: AppColors.danger),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Logout',
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.danger),
                               ),
                             ],
                           ),
                         ),
+
+                        // 4. Exit Application
                         PopupMenuItem(
                           value: 'exit_app',
-                          height: 34,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                           child: Row(
                             children: [
-                              Icon(Icons.cancel_outlined, size: 14, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
-                              const SizedBox(width: 8),
+                              Icon(Icons.cancel_outlined, size: 16, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
+                              const SizedBox(width: 10),
                               Text(
                                 'Exit Application',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
+                                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
                               ),
                             ],
                           ),

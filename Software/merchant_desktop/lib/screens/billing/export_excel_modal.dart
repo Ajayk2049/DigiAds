@@ -8,10 +8,12 @@ import '../../models/order_model.dart';
 import '../../providers/venue_provider.dart';
 import '../../services/excel_export_service.dart';
 
-class ExportExcelModal extends StatefulWidget {
-  final List<OrderModel> allOrders;
+import '../../providers/orders_provider.dart';
 
-  const ExportExcelModal({super.key, required this.allOrders});
+class ExportExcelModal extends StatefulWidget {
+  final List<OrderModel>? allOrders;
+
+  const ExportExcelModal({super.key, this.allOrders});
 
   @override
   State<ExportExcelModal> createState() => _ExportExcelModalState();
@@ -22,6 +24,8 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   bool _isExporting = false;
+  bool _isLoadingOrders = false;
+  List<OrderModel> _rangeOrders = [];
 
   @override
   void initState() {
@@ -37,16 +41,37 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
         _startDate = DateTime(now.year, now.month, now.day);
         _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
       } else if (preset == '7d') {
-        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
+        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
         _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
       } else if (preset == '15d') {
-        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 15));
+        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 14));
         _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
       } else if (preset == '30d') {
-        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 30));
+        _startDate = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
         _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchOrdersForRange();
+    });
+  }
+
+  Future<void> _fetchOrdersForRange() async {
+    if (!mounted) return;
+    setState(() => _isLoadingOrders = true);
+    final venueId = context.read<VenueProvider>().selectedVenue?.id;
+    final fmt = DateFormat('yyyy-MM-dd');
+    final fetched = await context.read<OrdersProvider>().fetchOrdersForExport(
+      hostApplicationId: venueId,
+      startDate: fmt.format(_startDate),
+      endDate: fmt.format(_endDate),
+    );
+    if (mounted) {
+      setState(() {
+        _rangeOrders = fetched.where((ord) => ord.items.isNotEmpty || ord.totalAmount > 0).toList();
+        _isLoadingOrders = false;
+      });
+    }
   }
 
   @override
@@ -54,12 +79,7 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
     final venueName = context.watch<VenueProvider>().selectedVenue?.outletName ?? 'Venue';
     final dateFormat = DateFormat('dd-MMM-yyyy');
 
-    // Filter matching orders in range
-    final matchingOrders = widget.allOrders.where((ord) {
-      if (ord.items.isEmpty && ord.totalAmount == 0) return false;
-      return ord.createdAt.isAfter(_startDate.subtract(const Duration(seconds: 1))) &&
-          ord.createdAt.isBefore(_endDate.add(const Duration(seconds: 1)));
-    }).toList();
+    final matchingOrders = _rangeOrders;
 
     return Dialog(
       backgroundColor: Theme.of(context).cardColor,
@@ -126,6 +146,7 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
                               _preset = 'custom';
                               _startDate = DateTime(picked.year, picked.month, picked.day);
                             });
+                            _fetchOrdersForRange();
                           }
                         },
                         child: Container(
@@ -160,6 +181,7 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
                               _preset = 'custom';
                               _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
                             });
+                            _fetchOrdersForRange();
                           }
                         },
                         child: Container(
@@ -191,7 +213,9 @@ class _ExportExcelModalState extends State<ExportExcelModal> {
                   const Icon(LucideIcons.fileSpreadsheet, size: 20, color: AppColors.primary),
                   const SizedBox(width: 10),
                   Text(
-                    '${matchingOrders.length} transaction orders found for export',
+                    _isLoadingOrders
+                        ? 'Fetching records for date range...'
+                        : '${matchingOrders.length} transaction orders found for export',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ],

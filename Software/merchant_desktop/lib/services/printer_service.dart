@@ -21,15 +21,20 @@ class PrinterService {
   String? _selectedKotPrinter;
   String _paperWidthFormat = '80mm'; // '80mm' | '58mm'
   String _colorMode = 'monochrome'; // 'monochrome' | 'color'
-  bool _autoPrintKot = false;
+  String _kotPrintTrigger = 'arrival'; // 'arrival' | 'accepted' | 'manual'
   bool _silentPrintEnabled = true;
+
+  final Set<String> _autoPrintedKotIds = {};
 
   String? get selectedReceiptPrinter => _selectedReceiptPrinter;
   String? get selectedKotPrinter => _selectedKotPrinter;
   String get paperWidthFormat => _paperWidthFormat;
   String get colorMode => _colorMode;
-  bool get autoPrintKot => _autoPrintKot;
+  String get kotPrintTrigger => _kotPrintTrigger;
+  bool get autoPrintKot => _kotPrintTrigger != 'manual';
   bool get silentPrintEnabled => _silentPrintEnabled;
+
+  bool hasKotBeenPrinted(String orderId) => _autoPrintedKotIds.contains(orderId);
 
   final Map<String, Uint8List> _imageCache = {};
 
@@ -114,7 +119,13 @@ class PrinterService {
     _selectedKotPrinter = prefs.getString('pos_kot_printer');
     _paperWidthFormat = prefs.getString('pos_paper_width') ?? '80mm';
     _colorMode = prefs.getString('pos_print_color_mode') ?? 'monochrome';
-    _autoPrintKot = prefs.getBool('pos_auto_print_kot') ?? false;
+    final savedTrigger = prefs.getString('pos_kot_print_trigger');
+    if (savedTrigger != null && (savedTrigger == 'arrival' || savedTrigger == 'accepted' || savedTrigger == 'manual')) {
+      _kotPrintTrigger = savedTrigger;
+    } else {
+      final legacyAuto = prefs.getBool('pos_auto_print_kot');
+      _kotPrintTrigger = (legacyAuto == false) ? 'manual' : 'arrival';
+    }
     _silentPrintEnabled = prefs.getBool('pos_silent_print') ?? true;
   }
 
@@ -124,6 +135,7 @@ class PrinterService {
     String? paperWidth,
     String? colorMode,
     bool? autoPrintKot,
+    String? kotPrintTrigger,
     bool? silentPrint,
   }) async {
     final prefs = await SharedPreferences.getInstance();
@@ -143,8 +155,13 @@ class PrinterService {
       _colorMode = colorMode;
       await prefs.setString('pos_print_color_mode', colorMode);
     }
-    if (autoPrintKot != null) {
-      _autoPrintKot = autoPrintKot;
+    if (kotPrintTrigger != null) {
+      _kotPrintTrigger = kotPrintTrigger;
+      await prefs.setString('pos_kot_print_trigger', kotPrintTrigger);
+      await prefs.setBool('pos_auto_print_kot', kotPrintTrigger != 'manual');
+    } else if (autoPrintKot != null) {
+      _kotPrintTrigger = autoPrintKot ? 'arrival' : 'manual';
+      await prefs.setString('pos_kot_print_trigger', _kotPrintTrigger);
       await prefs.setBool('pos_auto_print_kot', autoPrintKot);
     }
     if (silentPrint != null) {
@@ -211,25 +228,39 @@ class PrinterService {
   Future<bool> printKitchenKot({
     required OrderModel order,
     String? overridePrinterName,
+    bool isAutomatic = false,
   }) async {
+    if (isAutomatic && _autoPrintedKotIds.contains(order.orderId)) {
+      if (kDebugMode) {
+        print('[PrinterService] KOT already printed for order ${order.orderId}, skipping auto-print.');
+      }
+      return true;
+    }
+
     try {
       final targetPrinterName = overridePrinterName ?? _selectedKotPrinter ?? _selectedReceiptPrinter;
       final printer = await _findPrinter(targetPrinterName);
 
       final pdfBytes = await generateKotPdf(order: order);
 
+      bool success;
       if (printer != null && _silentPrintEnabled) {
-        return await Printing.directPrintPdf(
+        success = await Printing.directPrintPdf(
           printer: printer,
           onLayout: (_) => pdfBytes,
           name: 'KOT_${order.orderId}',
         );
       } else {
-        return await Printing.layoutPdf(
+        success = await Printing.layoutPdf(
           onLayout: (_) => pdfBytes,
           name: 'KOT_${order.orderId}',
         );
       }
+
+      if (success) {
+        _autoPrintedKotIds.add(order.orderId);
+      }
+      return success;
     } catch (e) {
       if (kDebugMode) print('[PrinterService] KOT Print Error: $e');
       return false;

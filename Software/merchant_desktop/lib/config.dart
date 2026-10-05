@@ -8,8 +8,8 @@ class AppConfig {
   static const String devApiHost = '127.0.0.1:4000';
   static const String prodApiHost = 'test-api.digiads.space';
 
-  static String _activeHost = prodApiHost;
-  static bool _isExplicitHttps = true;
+  static String _activeHost = isProduction ? prodApiHost : devApiHost;
+  static bool _isExplicitHttps = isProduction;
 
   static String get serverHost => _activeHost;
   static bool get isCustomHostSet => _activeHost != prodApiHost;
@@ -32,12 +32,12 @@ class AppConfig {
         }
         _activeHost = cleaned;
       } else {
-        _activeHost = prodApiHost;
-        _isExplicitHttps = true;
+        _activeHost = isProduction ? prodApiHost : devApiHost;
+        _isExplicitHttps = isProduction;
       }
     } catch (_) {
-      _activeHost = prodApiHost;
-      _isExplicitHttps = true;
+      _activeHost = isProduction ? prodApiHost : devApiHost;
+      _isExplicitHttps = isProduction;
     }
   }
 

@@ -8,6 +8,7 @@ import '../../models/bill_config_model.dart';
 import '../../models/order_model.dart';
 import '../../providers/venue_provider.dart';
 import '../../widgets/thermal_receipt_preview.dart';
+import '../../widgets/thermal_kot_preview.dart';
 
 class BillConfigScreen extends StatefulWidget {
   const BillConfigScreen({super.key});
@@ -26,7 +27,6 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
   final _fssaiController = TextEditingController();
   final _prefixController = TextEditingController();
   final _thankYouController = TextEditingController();
-  final _watermarkController = TextEditingController();
   final _qrCaptionController = TextEditingController();
   final _cgstController = TextEditingController();
   final _sgstController = TextEditingController();
@@ -38,7 +38,6 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
   bool _showKOTNumbers = true;
   bool _showCustomerDetail = true;
   bool _showThankYou = true;
-  bool _showPoweredBy = true;
   bool _enableAutoRoundOff = true;
 
   bool _isUploadingLogo = false;
@@ -63,7 +62,6 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
     _fssaiController.text = config.fssaiNo;
     _prefixController.text = config.billPrefix;
     _thankYouController.text = config.thankYouMessage;
-    _watermarkController.text = config.customWatermark;
     _qrCaptionController.text = config.qrCaption;
     _cgstController.text = config.cgstPercent.toString();
     _sgstController.text = config.sgstPercent.toString();
@@ -72,7 +70,6 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
     _showKOTNumbers = config.showKOTNumbers;
     _showCustomerDetail = config.showCustomerDetail;
     _showThankYou = config.showThankYouMessage;
-    _showPoweredBy = config.showPoweredBy;
     _enableAutoRoundOff = config.enableAutoRoundOff;
   }
 
@@ -87,7 +84,6 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
     _fssaiController.dispose();
     _prefixController.dispose();
     _thankYouController.dispose();
-    _watermarkController.dispose();
     _qrCaptionController.dispose();
     _cgstController.dispose();
     _sgstController.dispose();
@@ -107,7 +103,7 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
       fssaiNo: _fssaiController.text.trim(),
       billPrefix: _prefixController.text.trim(),
       thankYouMessage: _thankYouController.text.trim(),
-      customWatermark: _watermarkController.text.trim(),
+      customWatermark: 'POWERED BY - DIGIADS',
       qrImageUrl: _qrImageUrl,
       qrCaption: _qrCaptionController.text.trim(),
       cgstPercent: double.tryParse(_cgstController.text.trim()) ?? 2.5,
@@ -117,7 +113,7 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
       showKOTNumbers: _showKOTNumbers,
       showCustomerDetail: _showCustomerDetail,
       showThankYouMessage: _showThankYou,
-      showPoweredBy: _showPoweredBy,
+      showPoweredBy: true,
       enableAutoRoundOff: _enableAutoRoundOff,
     );
   }
@@ -126,6 +122,7 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
     final venueId = context.read<VenueProvider>().selectedVenue?.id;
     if (venueId == null) return;
 
+    final venueProv = context.read<VenueProvider>();
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
@@ -137,13 +134,14 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
       setState(() => _isUploadingLogo = true);
 
       final mimeType = file.extension == 'png' ? 'image/png' : 'image/jpeg';
-      final url = await context.read<VenueProvider>().uploadBillImage(
+      final url = await venueProv.uploadBillImage(
         venueId,
         file.bytes!,
         file.name,
         mimeType,
       );
 
+      if (!mounted) return;
       setState(() {
         _isUploadingLogo = false;
         if (url != null && url.isNotEmpty) {
@@ -167,6 +165,7 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
     final venueId = context.read<VenueProvider>().selectedVenue?.id;
     if (venueId == null) return;
 
+    final venueProv = context.read<VenueProvider>();
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
@@ -178,13 +177,14 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
       setState(() => _isUploadingQr = true);
 
       final mimeType = file.extension == 'png' ? 'image/png' : 'image/jpeg';
-      final url = await context.read<VenueProvider>().uploadBillImage(
+      final url = await venueProv.uploadBillImage(
         venueId,
         file.bytes!,
         file.name,
         mimeType,
       );
 
+      if (!mounted) return;
       setState(() {
         _isUploadingQr = false;
         if (url != null && url.isNotEmpty) {
@@ -207,32 +207,91 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
   void _showSampleReceiptPreview() {
     final sampleOrder = OrderModel(
       id: 'sample_id',
-      orderId: 'ORD_SAMPLE_101',
+      orderId: 'INV-873',
       hostApplicationId: 'sample_host',
-      tableNumber: '4',
+      tableNumber: '17',
       items: [
-        OrderItemModel(itemId: '1', name: 'Paneer Butter Masala', quantity: 2, price: 28000),
-        OrderItemModel(itemId: '2', name: 'Butter Naan', quantity: 4, price: 4500),
-        OrderItemModel(itemId: '3', name: 'Fresh Lime Soda', quantity: 2, price: 6000),
+        OrderItemModel(itemId: '1', name: 'Empire Special Porota', quantity: 2, price: 4900),
+        OrderItemModel(itemId: '2', name: 'Green Salad', quantity: 1, price: 7500),
+        OrderItemModel(itemId: '3', name: 'Chilly Chicken (Half)', quantity: 1, price: 26000),
       ],
-      subtotalAmount: 86000,
-      cgstAmount: 2150,
-      sgstAmount: 2150,
+      subtotalAmount: 43300,
+      cgstAmount: 1083,
+      sgstAmount: 1083,
       serviceTaxAmount: 0,
-      roundOffAmount: 0,
+      roundOffAmount: 35,
       cgstPercent: double.tryParse(_cgstController.text) ?? 2.5,
       sgstPercent: double.tryParse(_sgstController.text) ?? 2.5,
       serviceTaxPercent: double.tryParse(_serviceTaxController.text) ?? 0.0,
-      totalAmount: 90300,
-      paymentStatus: 'completed',
-      paymentType: 'UPI',
+      totalAmount: 45500,
+      paymentStatus: 'pending',
+      paymentType: 'CASH / PENDING',
       orderStatus: 'served',
-      createdAt: DateTime.now(),
+      createdAt: DateTime(2026, 8, 1, 14, 30),
     );
 
     showDialog(
       context: context,
       builder: (ctx) => ThermalReceiptPreview(
+        order: sampleOrder,
+        billConfig: _getCurrentModel(),
+      ),
+    );
+  }
+
+  void _showSampleKotPreview() {
+    final sampleOrder = OrderModel(
+      id: 'sample_id',
+      orderId: 'ORD_110E7',
+      hostApplicationId: 'sample_host',
+      tableNumber: '3',
+      items: [
+        OrderItemModel(
+          itemId: '1',
+          name: 'Paneer Butter Masala',
+          quantity: 2,
+          price: 28000,
+          customization: 'Medium spicy, extra butter',
+        ),
+        OrderItemModel(
+          itemId: '2',
+          name: 'Dal Makhani Special',
+          quantity: 1,
+          price: 22000,
+        ),
+        OrderItemModel(
+          itemId: '3',
+          name: 'Butter Naan',
+          quantity: 4,
+          price: 4500,
+        ),
+        OrderItemModel(
+          itemId: '4',
+          name: 'Veg Dum Biryani',
+          quantity: 1,
+          price: 26000,
+          isPacked: true,
+          customization: 'Pack raita separately',
+        ),
+      ],
+      subtotalAmount: 94000,
+      cgstAmount: 2350,
+      sgstAmount: 2350,
+      serviceTaxAmount: 0,
+      roundOffAmount: 0,
+      cgstPercent: double.tryParse(_cgstController.text) ?? 2.5,
+      sgstPercent: double.tryParse(_sgstController.text) ?? 2.5,
+      serviceTaxPercent: double.tryParse(_serviceTaxController.text) ?? 0.0,
+      totalAmount: 98700,
+      paymentStatus: 'completed',
+      paymentType: 'UPI',
+      orderStatus: 'placed',
+      createdAt: DateTime.now(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => ThermalKotPreview(
         order: sampleOrder,
         billConfig: _getCurrentModel(),
       ),
@@ -272,11 +331,19 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
                 ),
                 const Spacer(),
 
-                // Live Preview Button
+                // Live Receipt Preview Button
                 OutlinedButton.icon(
                   onPressed: _showSampleReceiptPreview,
                   icon: const Icon(LucideIcons.eye, size: 14),
                   label: const Text('PREVIEW SAMPLE BILL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+
+                // Live KOT Preview Button
+                OutlinedButton.icon(
+                  onPressed: _showSampleKotPreview,
+                  icon: const Icon(LucideIcons.chefHat, size: 14),
+                  label: const Text('PREVIEW SAMPLE KOT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 10),
 
@@ -497,11 +564,37 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // CARD 3: FOOTER, QR CODE & THANK YOU MESSAGE
+                // CARD 3: THANK YOU & GREETINGS SECTION
+                _buildCard(
+                  context: context,
+                  icon: LucideIcons.sparkles,
+                  title: 'THANK YOU & GREETINGS SECTION',
+                  children: [
+                    SwitchListTile(
+                      title: const Text('Print Thank You Greeting', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Print customer appreciation greeting on bill footer', style: TextStyle(fontSize: 11)),
+                      value: _showThankYou,
+                      onChanged: (val) => setState(() => _showThankYou = val),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _thankYouController,
+                      enabled: _showThankYou,
+                      decoration: const InputDecoration(
+                        labelText: 'Greeting / Thank You Message',
+                        hintText: 'Thank You & Visit Again !',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // CARD 4: CUSTOM FOOTER QR CODE (FEEDBACK / REVIEWS / UPI)
                 _buildCard(
                   context: context,
                   icon: LucideIcons.qrCode,
-                  title: 'FOOTER, QR CODE & THANK YOU MESSAGE',
+                  title: 'CUSTOM FOOTER QR CODE',
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,23 +676,16 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
 
                     TextField(
                       controller: _qrCaptionController,
-                      decoration: const InputDecoration(labelText: 'QR Caption (e.g. Scan to Review Us on Google)'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _thankYouController,
-                      decoration: const InputDecoration(labelText: 'Thank You Message'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _watermarkController,
-                      decoration: const InputDecoration(labelText: 'Custom Watermark'),
+                      decoration: const InputDecoration(
+                        labelText: 'QR Caption Text (e.g. Scan QR to provide feedback)',
+                        helperText: 'Text printed directly underneath the QR code image',
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // CARD 4: THERMAL PRINTER FORMAT & OUTPUT TOGGLES
+                // CARD 5: THERMAL PRINTER FORMAT & OUTPUT TOGGLES
                 _buildCard(
                   context: context,
                   icon: LucideIcons.printer,
@@ -643,15 +729,10 @@ class _BillConfigScreenState extends State<BillConfigScreen> {
                       contentPadding: EdgeInsets.zero,
                     ),
                     SwitchListTile(
-                      title: const Text('Show Thank You Message', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      value: _showThankYou,
-                      onChanged: (val) => setState(() => _showThankYou = val),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    SwitchListTile(
-                      title: const Text('Show Powered By Footer Note', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      value: _showPoweredBy,
-                      onChanged: (val) => setState(() => _showPoweredBy = val),
+                      title: const Text('Show Customer Details on Bill', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Print customer name and mobile number on the bill', style: TextStyle(fontSize: 11)),
+                      value: _showCustomerDetail,
+                      onChanged: (val) => setState(() => _showCustomerDetail = val),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ],

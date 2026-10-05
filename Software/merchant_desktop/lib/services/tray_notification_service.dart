@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TrayNotificationService with TrayListener, WindowListener {
   static final TrayNotificationService _instance = TrayNotificationService._internal();
@@ -45,6 +46,9 @@ class TrayNotificationService with TrayListener, WindowListener {
       );
       await trayManager.setContextMenu(menu);
       await trayManager.setToolTip('DigiAds Merchant POS');
+
+      // Ensure Start with Windows is pre-configured and enabled by default on all installs
+      await ensureDefaultAutoStart();
     } catch (e) {
       if (kDebugMode) print('[TrayService] Init error: $e');
     }
@@ -115,18 +119,45 @@ class TrayNotificationService with TrayListener, WindowListener {
     }
   }
 
-  /// Check if Start with Windows is enabled
+  /// Ensure Start with Windows is pre-configured and enabled by default on initial install/launch
+  static Future<void> ensureDefaultAutoStart() async {
+    if (!Platform.isWindows) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isExplicitlyDisabled = prefs.getBool('pos_autostart_disabled') ?? false;
+      if (!isExplicitlyDisabled) {
+        // Pre-configure and enable in Windows Registry automatically
+        await toggleAutoStart(true);
+      }
+    } catch (e) {
+      if (kDebugMode) print('[TrayService] Default autostart error: $e');
+    }
+  }
+
+  /// Check if Start with Windows is enabled (Defaults to TRUE on all installs)
   static Future<bool> isAutoStartEnabled() async {
     if (!Platform.isWindows) return false;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final isExplicitlyDisabled = prefs.getBool('pos_autostart_disabled') ?? false;
+      if (isExplicitlyDisabled) {
+        return false;
+      }
+
+      // Check Windows Registry; if not yet in registry, write it now (default enabled)
       final res = await Process.run('powershell', [
         '-NoProfile',
         '-Command',
         'Get-ItemPropertyValue -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" -Name "DigiAdsMerchantPOS" -ErrorAction SilentlyContinue'
       ]);
-      return res.stdout.toString().trim().isNotEmpty;
+      final inRegistry = res.stdout.toString().trim().isNotEmpty;
+      if (!inRegistry) {
+        await toggleAutoStart(true);
+      }
+      return true;
     } catch (_) {
-      return false;
+      final prefs = await SharedPreferences.getInstance();
+      return !(prefs.getBool('pos_autostart_disabled') ?? false);
     }
   }
 
@@ -134,6 +165,9 @@ class TrayNotificationService with TrayListener, WindowListener {
   static Future<void> toggleAutoStart(bool enable) async {
     if (!Platform.isWindows) return;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('pos_autostart_disabled', !enable);
+
       final exePath = Platform.resolvedExecutable;
       if (enable) {
         await Process.run('powershell', [

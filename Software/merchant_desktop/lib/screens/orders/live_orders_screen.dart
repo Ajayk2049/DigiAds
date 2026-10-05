@@ -285,6 +285,7 @@ class LiveOrdersScreen extends StatelessWidget {
     bool isDark,
   ) {
     final isPlaced = order.orderStatus == 'placed';
+    final printerProv = context.watch<PrinterProvider>();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -355,38 +356,42 @@ class LiveOrdersScreen extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier'),
                 ),
                 const SizedBox(height: 6),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final printerProv = context.read<PrinterProvider>();
-                    final success = await printerProv.printKitchenKot(order: order);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            success
-                                ? 'Kitchen KOT sent to printer (${order.orderId})'
-                                : 'Failed to print KOT. Please check printer configuration.',
+                Builder(builder: (context) {
+                  final wasKotPrinted = printerProv.hasKotBeenPrinted(order.orderId);
+                  return ElevatedButton.icon(
+                    onPressed: () async {
+                      final success = await printerProv.printKitchenKot(order: order, isAutomatic: false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              success
+                                  ? 'Kitchen KOT sent to printer (${order.orderId})'
+                                  : 'Failed to print KOT. Please check printer configuration.',
+                            ),
+                            backgroundColor: success ? AppColors.success : AppColors.danger,
+                            duration: const Duration(seconds: 2),
                           ),
-                          backgroundColor: success ? AppColors.success : AppColors.danger,
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(LucideIcons.printer, size: 11),
-                  label: const Text(
-                    'PRINT KOT',
-                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: const Size(0, 24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    elevation: 1,
-                  ),
-                ),
+                        );
+                      }
+                    },
+                    icon: Icon(wasKotPrinted ? LucideIcons.check : LucideIcons.printer, size: 11),
+                    label: Text(
+                      wasKotPrinted ? 'REPRINT KOT' : 'PRINT KOT',
+                      style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: wasKotPrinted
+                          ? (isDark ? AppColors.darkCardElevated : Colors.grey.shade700)
+                          : AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: const Size(0, 24),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      elevation: 1,
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -650,7 +655,7 @@ class LiveOrdersScreen extends StatelessWidget {
                   : OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.danger,
-                        side: BorderSide(color: AppColors.danger.withOpacity(0.4)),
+                        side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                       onPressed: (order.orderStatus == 'served' || order.items.isEmpty)
@@ -760,7 +765,7 @@ class LiveOrdersScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: _getStatusBgColor(order.orderStatus),
         borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-        border: Border.all(color: _getStatusColor(order.orderStatus).withOpacity(0.5)),
+        border: Border.all(color: _getStatusColor(order.orderStatus).withValues(alpha: 0.5)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(

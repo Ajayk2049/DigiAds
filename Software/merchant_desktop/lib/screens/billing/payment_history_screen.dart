@@ -26,6 +26,57 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   final _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPaymentHistory();
+    });
+  }
+
+  void _loadPaymentHistory({int page = 1}) {
+    final venue = context.read<VenueProvider>().selectedVenue;
+    if (venue == null) return;
+
+    String? sDate;
+    String? eDate;
+    final now = DateTime.now();
+    final fmt = DateFormat('yyyy-MM-dd');
+
+    if (_historyPreset == 'today') {
+      sDate = fmt.format(now);
+      eDate = fmt.format(now);
+    } else if (_historyPreset == 'custom_date') {
+      sDate = fmt.format(_selectedDate);
+      eDate = fmt.format(_selectedDate);
+    } else if (_historyPreset == '3d') {
+      sDate = fmt.format(now.subtract(const Duration(days: 2)));
+      eDate = fmt.format(now);
+    } else if (_historyPreset == '7d') {
+      sDate = fmt.format(now.subtract(const Duration(days: 6)));
+      eDate = fmt.format(now);
+    } else if (_historyPreset == '15d') {
+      sDate = fmt.format(now.subtract(const Duration(days: 14)));
+      eDate = fmt.format(now);
+    } else if (_historyPreset == '30d') {
+      sDate = fmt.format(now.subtract(const Duration(days: 29)));
+      eDate = fmt.format(now);
+    } else if (_historyPreset == 'all') {
+      sDate = null;
+      eDate = null;
+    }
+
+    final query = _searchController.text.trim();
+    context.read<OrdersProvider>().fetchPaymentHistory(
+      hostApplicationId: venue.id,
+      page: page,
+      limit: 40,
+      startDate: sDate,
+      endDate: eDate,
+      search: query.isNotEmpty ? query : null,
+    );
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -198,8 +249,6 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     final dateFormat = DateFormat('dd-MMM-yyyy');
     final dateTimeFormat = DateFormat('dd-MMM-yyyy hh:mm a');
 
-    final isHistoryRangeActive = _historyPreset != 'today' && _historyPreset != 'custom_date';
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
@@ -233,6 +282,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         _selectedDate = picked;
                         _historyPreset = 'custom_date';
                       });
+                      _loadPaymentHistory(page: 1);
                     }
                   },
                   borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
@@ -294,6 +344,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         _selectedDate = DateTime.now();
                       }
                     });
+                    _loadPaymentHistory(page: 1);
                   },
                   itemBuilder: (ctx) => [
                     _buildHistoryMenuItem(
@@ -388,7 +439,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     onPressed: () {
                       showDialog(
                         context: context,
-                        builder: (_) => ExportExcelModal(allOrders: allOrders),
+                        builder: (_) => const ExportExcelModal(),
                       );
                     },
                     icon: const Icon(LucideIcons.download, size: 14),
@@ -451,6 +502,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: (val) => setState(() => _searchQuery = val),
+                    onSubmitted: (_) => _loadPaymentHistory(page: 1),
                     style: const TextStyle(fontSize: 12),
                     decoration: InputDecoration(
                       hintText: 'Search order, table, dish, UPI...',
@@ -476,6 +528,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() => _searchQuery = '');
+                                _loadPaymentHistory(page: 1);
                               },
                             )
                           : null,
@@ -488,148 +541,205 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
           // Transactions Table
           Expanded(
-            child: filtered.isEmpty
-                ? Center(
+            child: ordersProv.isLoadingPayments
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(LucideIcons.receipt, size: 44, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
-                        const SizedBox(height: 12),
-                        const Text('No completed payment transactions found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        Text('Adjust search parameters or date filters to locate specific orders.', style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMuted : AppColors.lightMuted)),
+                        CircularProgressIndicator(strokeWidth: 2.5),
+                        SizedBox(height: 12),
+                        Text('Loading transaction history...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final order = filtered[index];
-                      final itemsSummary = order.items.map((i) => '${i.name}${i.isPacked ? " [PACK]" : ""} (x${i.quantity})').join(', ');
-
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                          border: Border.all(color: Theme.of(context).dividerColor),
-                        ),
-                        child: Row(
+                : filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('${index + 1}.', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            const SizedBox(width: 12),
-
-                            // Table / Takeout Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: order.isTakeout ? AppColors.warningBg : AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                              ),
-                              child: Text(
-                                order.isTakeout ? '🛍️ TAKEOUT' : 'TABLE ${order.tableNumber}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  color: order.isTakeout ? AppColors.warning : AppColors.primary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // Order ID
-                            SizedBox(
-                              width: 130,
-                              child: Text(order.orderId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier')),
-                            ),
-
-                            // Items Summary
-                            Expanded(
-                              child: Text(
-                                itemsSummary,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // Amount
-                            SizedBox(
-                              width: 110,
-                              child: Text(
-                                'Rs. ${order.totalInRupees.toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, fontFamily: 'Courier'),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-
-                            // Payment Mode
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.successBg,
-                                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                              ),
-                              child: Text(
-                                'PAID (${order.paymentType ?? "UPI"})',
-                                style: const TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w900),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-
-                            // Timestamp
-                            SizedBox(
-                              width: 150,
-                              child: Text(
-                                dateTimeFormat.format(order.createdAt),
-                                style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-
-                            // SILENT PRINT RECEIPT
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              ),
-                              onPressed: () async {
-                                final success = await printerProv.printCustomerBill(
-                                  order: order,
-                                  billConfig: venueProv.billConfig,
-                                );
-                                if (context.mounted && success) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Receipt sent to printer (${order.orderId})')),
-                                  );
-                                }
-                              },
-                              icon: const Icon(LucideIcons.printer, size: 13),
-                              label: const Text('PRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                            ),
-
-                            const SizedBox(width: 4),
-
-                            // PREVIEW
-                            IconButton(
-                              icon: const Icon(LucideIcons.eye, size: 15),
-                              tooltip: 'Preview Bill',
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => ThermalReceiptPreview(order: order, billConfig: venueProv.billConfig),
-                                );
-                              },
-                            ),
+                            Icon(LucideIcons.receipt, size: 44, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
+                            const SizedBox(height: 12),
+                            const Text('No completed payment transactions found', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text('Adjust search parameters or date filters to locate specific orders.', style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMuted : AppColors.lightMuted)),
                           ],
                         ),
-                      );
-                    },
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(20),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final order = filtered[index];
+                          final itemsSummary = order.items.map((i) => '${i.name}${i.isPacked ? " [PACK]" : ""} (x${i.quantity})').join(', ');
+                          final rowNumber = (ordersProv.paymentPage - 1) * 40 + index + 1;
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardColor,
+                              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                              border: Border.all(color: Theme.of(context).dividerColor),
+                            ),
+                            child: Row(
+                              children: [
+                                Text('$rowNumber.', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                const SizedBox(width: 12),
+
+                                // Table / Takeout Pill
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: order.isTakeout ? AppColors.warningBg : AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                  ),
+                                  child: Text(
+                                    order.isTakeout ? '🛍️ TAKEOUT' : 'TABLE ${order.tableNumber}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      color: order.isTakeout ? AppColors.warning : AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Order ID
+                                SizedBox(
+                                  width: 130,
+                                  child: Text(order.orderId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier')),
+                                ),
+
+                                // Items Summary
+                                Expanded(
+                                  child: Text(
+                                    itemsSummary,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Amount
+                                SizedBox(
+                                  width: 110,
+                                  child: Text(
+                                    'Rs. ${order.totalInRupees.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, fontFamily: 'Courier'),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+
+                                // Payment Mode
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.successBg,
+                                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                  ),
+                                  child: Text(
+                                    'PAID (${order.paymentType ?? "UPI"})',
+                                    style: const TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+
+                                // Timestamp
+                                SizedBox(
+                                  width: 150,
+                                  child: Text(
+                                    dateTimeFormat.format(order.createdAt),
+                                    style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkMuted : AppColors.lightMuted),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+
+                                // SILENT PRINT RECEIPT
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  ),
+                                  onPressed: () async {
+                                    final success = await printerProv.printCustomerBill(
+                                      order: order,
+                                      billConfig: venueProv.billConfig,
+                                    );
+                                    if (context.mounted && success) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Receipt sent to printer (${order.orderId})')),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(LucideIcons.printer, size: 13),
+                                  label: const Text('PRINT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+
+                                const SizedBox(width: 4),
+
+                                // PREVIEW
+                                IconButton(
+                                  icon: const Icon(LucideIcons.eye, size: 15),
+                                  tooltip: 'Preview Bill',
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (_) => ThermalReceiptPreview(order: order, billConfig: venueProv.billConfig),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+          ),
+
+          // Pagination Footer Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Showing ${filtered.length} of ${ordersProv.totalPaymentCount} completed transactions',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppColors.darkMuted : AppColors.lightMuted,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Page ${ordersProv.paymentPage} of ${ordersProv.totalPaymentPages}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 18),
+                      tooltip: 'Previous Page',
+                      onPressed: (ordersProv.paymentPage > 1 && !ordersProv.isLoadingPayments)
+                          ? () => _loadPaymentHistory(page: ordersProv.paymentPage - 1)
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 18),
+                      tooltip: 'Next Page',
+                      onPressed: (ordersProv.paymentPage < ordersProv.totalPaymentPages && !ordersProv.isLoadingPayments)
+                          ? () => _loadPaymentHistory(page: ordersProv.paymentPage + 1)
+                          : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

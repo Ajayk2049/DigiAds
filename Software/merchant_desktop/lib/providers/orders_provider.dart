@@ -19,10 +19,22 @@ class OrdersProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  int _paymentPage = 1;
+  int _totalPaymentPages = 1;
+  int _totalPaymentCount = 0;
+  bool _isLoadingPayments = false;
+  String? _paymentError;
+
   List<OrderModel> get liveOrders => _liveOrders;
   List<OrderModel> get paymentOrders => _paymentOrders;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  int get paymentPage => _paymentPage;
+  int get totalPaymentPages => _totalPaymentPages;
+  int get totalPaymentCount => _totalPaymentCount;
+  bool get isLoadingPayments => _isLoadingPayments;
+  String? get paymentError => _paymentError;
 
   OrdersProvider() {
     _setupWebSocketListeners();
@@ -47,9 +59,9 @@ class OrdersProvider extends ChangeNotifier {
         body: '${order.items.length} items - Rs. ${order.totalInRupees.toStringAsFixed(2)}',
       );
 
-      // Automated KOT Print (if enabled in settings)
-      if (_printer.autoPrintKot) {
-        _printer.printKitchenKot(order: order);
+      // Automated KOT Print: trigger on order arrival
+      if (_printer.kotPrintTrigger == 'arrival') {
+        _printer.printKitchenKot(order: order, isAutomatic: true);
       }
     }
   }
@@ -58,7 +70,17 @@ class OrdersProvider extends ChangeNotifier {
     final orderJson = data['data'] ?? data['order'];
     if (orderJson != null && orderJson is Map<String, dynamic>) {
       final order = OrderModel.fromJson(orderJson);
+      final existingIndex = _liveOrders.indexWhere((o) => o.orderId == order.orderId);
+      final prevStatus = existingIndex != -1 ? _liveOrders[existingIndex].orderStatus : null;
+
       _upsertOrder(order);
+
+      // Automated KOT Print: trigger when order is accepted from remote/kiosk
+      if (_printer.kotPrintTrigger == 'accepted' &&
+          order.orderStatus == 'cooking' &&
+          prevStatus == 'placed') {
+        _printer.printKitchenKot(order: order, isAutomatic: true);
+      }
     }
   }
 
@@ -102,10 +124,12 @@ class OrdersProvider extends ChangeNotifier {
         _paymentOrders[payIndex] = order;
       } else {
         _paymentOrders.insert(0, order);
+        _totalPaymentCount++;
       }
     } else {
       if (payIndex >= 0) {
         _paymentOrders.removeAt(payIndex);
+        if (_totalPaymentCount > 0) _totalPaymentCount--;
       }
     }
 
@@ -118,35 +142,107 @@ class OrdersProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final query = <String, dynamic>{};
+      final query = <String, dynamic>{
+        'tableStatus': 'active',
+      };
       if (hostApplicationId != null && hostApplicationId.isNotEmpty) {
         query['hostApplicationId'] = hostApplicationId;
       }
 
       final res = await _api.get('/host/orders', queryParameters: query);
       if (res.data['success'] == true && res.data['data'] != null) {
-        final list = (res.data['data'] as List<dynamic>)
+        _liveOrders = (res.data['data'] as List<dynamic>)
             .map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
             .toList();
-
-        // Separate active live orders from historical completed payments (matching web portal)
-        _liveOrders = list.where((o) =>
-          o.tableStatus != 'completed' &&
-          o.tableStatus != 'completed_acked' &&
-          o.orderStatus != 'cancelled' &&
-          o.paymentStatus != 'completed'
-        ).toList();
-
-        _paymentOrders = list.where((o) =>
-          o.paymentStatus == 'completed' &&
-          (o.totalAmount > 0 || o.items.isNotEmpty)
-        ).toList();
       }
     } catch (e) {
       _error = ErrorUtils.parseError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> fetchPaymentHistory({
+    String? hostApplicationId,
+    int page = 1,
+    int limit = 40,
+    String? startDate,
+    String? endDate,
+    String? search,
+  }) async {
+    _isLoadingPayments = true;
+    _paymentError = null;
+    notifyListeners();
+
+    try {
+      final query = <String, dynamic>{
+        'paymentStatus': 'completed',
+        'page': page,
+        'limit': limit,
+      };
+      if (hostApplicationId != null && hostApplicationId.isNotEmpty) {
+        query['hostApplicationId'] = hostApplicationId;
+      }
+      if (startDate != null && startDate.isNotEmpty) {
+        query['startDate'] = startDate;
+      }
+      if (endDate != null && endDate.isNotEmpty) {
+        query['endDate'] = endDate;
+      }
+      if (search != null && search.trim().isNotEmpty) {
+        query['search'] = search.trim();
+      }
+
+      final res = await _api.get('/host/orders', queryParameters: query);
+      if (res.data['success'] == true && res.data['data'] != null) {
+        _paymentOrders = (res.data['data'] as List<dynamic>)
+            .map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+
+        final pagination = res.data['pagination'];
+        if (pagination != null && pagination is Map<String, dynamic>) {
+          _paymentPage = (pagination['page'] as num?)?.toInt() ?? page;
+          _totalPaymentPages = (pagination['totalPages'] as num?)?.toInt() ?? 1;
+          _totalPaymentCount = (pagination['total'] as num?)?.toInt() ?? _paymentOrders.length;
+        } else {
+          _paymentPage = page;
+          _totalPaymentPages = 1;
+          _totalPaymentCount = _paymentOrders.length;
+        }
+      }
+    } catch (e) {
+      _paymentError = ErrorUtils.parseError(e);
+    } finally {
+      _isLoadingPayments = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<OrderModel>> fetchOrdersForExport({
+    String? hostApplicationId,
+    required String startDate,
+    required String endDate,
+  }) async {
+    try {
+      final query = <String, dynamic>{
+        'paymentStatus': 'completed',
+        'startDate': startDate,
+        'endDate': endDate,
+        'export': 'true',
+      };
+      if (hostApplicationId != null && hostApplicationId.isNotEmpty) {
+        query['hostApplicationId'] = hostApplicationId;
+      }
+      final res = await _api.get('/host/orders', queryParameters: query);
+      if (res.data['success'] == true && res.data['data'] != null) {
+        return (res.data['data'] as List<dynamic>)
+            .map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 
@@ -159,6 +255,11 @@ class OrdersProvider extends ChangeNotifier {
       if (res.data['success'] == true && res.data['data'] != null) {
         final updated = OrderModel.fromJson(res.data['data']);
         _upsertOrder(updated);
+
+        // Automated KOT Print: trigger when merchant accepts order
+        if (_printer.kotPrintTrigger == 'accepted' && newStatus == 'cooking') {
+          _printer.printKitchenKot(order: updated, isAutomatic: true);
+        }
       }
     } catch (e) {
       // Handle error
