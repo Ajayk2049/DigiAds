@@ -50,4 +50,9 @@ const ModeChangeRequestSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// High-performance compound indexes for admin review and merchant status lookups
+ModeChangeRequestSchema.index({ status: 1, createdAt: -1 });
+ModeChangeRequestSchema.index({ hostApplicationId: 1, createdAt: -1 });
+ModeChangeRequestSchema.index({ userId: 1, createdAt: -1 });
+
 module.exports = mongoose.model('ModeChangeRequest', ModeChangeRequestSchema);

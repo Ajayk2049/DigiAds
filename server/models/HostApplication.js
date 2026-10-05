@@ -233,6 +233,8 @@ HostApplicationSchema.pre('save', function (next) {
 // High-performance compound indexes for merchant dashboards, auth validation, and advertiser venue search
 HostApplicationSchema.index({ userId: 1, status: 1 });
 HostApplicationSchema.index({ userId: 1, createdAt: -1 });
+HostApplicationSchema.index({ status: 1, createdAt: -1 });
+HostApplicationSchema.index({ createdAt: -1 });
 HostApplicationSchema.index({ status: 1, allowOpenAds: 1, city: 1 });
 HostApplicationSchema.index({ status: 1, allowOpenAds: 1, state: 1 });
 

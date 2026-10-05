@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/config');
 const AppRelease = require('../models/AppRelease');
 const Device = require('../models/Device');
+const logger = require('../utils/logger');
 
 // Canonical releases upload directory within server/uploads/releases
 const RELEASES_DIR = path.resolve(__dirname, '../uploads/releases');
@@ -74,7 +75,7 @@ class ReleaseController {
         if (rel.fileName) {
           const filePath = path.join(RELEASES_DIR, rel.fileName);
           await fs.promises.unlink(filePath).catch(() => {});
-          console.log(`[OTA Disk Cleanup] Unlinked 15d+ old revoked release binary: ${rel.fileName}`);
+          logger.info(`[OTA Disk Cleanup] Unlinked 15d+ old revoked release binary: ${rel.fileName}`);
         }
         rel.isDiskCleaned = true;
         rel.cleanedAt = new Date();
@@ -83,10 +84,10 @@ class ReleaseController {
       }
 
       if (cleanedCount > 0) {
-        console.log(`[OTA Disk Cleanup] Auto-cleaned ${cleanedCount} revoked/inactive APK binary file(s) older than 15 days.`);
+        logger.info(`[OTA Disk Cleanup] Auto-cleaned ${cleanedCount} revoked/inactive APK binary file(s) older than 15 days.`);
       }
     } catch (err) {
-      console.error('[OTA Disk Cleanup] Sweep error:', err.message);
+      logger.error({ err: err.message }, '[OTA Disk Cleanup] Sweep error');
     }
   }
 

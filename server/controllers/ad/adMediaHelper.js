@@ -1,6 +1,7 @@
 const AdBooking = require('../../models/AdBooking');
 const { probeVideoMetadata } = require('../../utils/videoUtils');
 const fs = require('fs');
+const logger = require('../../utils/logger');
 
 /**
  * Validates target booking existence, ownership, payment completion, and expected media type
@@ -56,7 +57,7 @@ async function checkVideoDuration(tempPath, allowedMaxDuration) {
     }
     return { isValid: true, durationSeconds };
   } catch (probeErr) {
-    console.warn('ffprobe duration check warning:', probeErr.message);
+    logger.warn({ err: probeErr.message }, 'ffprobe duration check warning');
     return { isValid: true, durationSeconds: 0 };
   }
 }

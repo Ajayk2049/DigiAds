@@ -185,8 +185,10 @@ OrderSchema.pre('save', function (next) {
 // High-performance compound indexes for merchant POS live streams, billing history, and analytics
 OrderSchema.index({ hostApplicationId: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, paymentStatus: 1, createdAt: -1 });
+OrderSchema.index({ hostApplicationId: 1, paymentStatus: 1, tableStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, tableStatus: 1, createdAt: -1 });
 OrderSchema.index({ hostApplicationId: 1, waiterCallStatus: 1 });
+OrderSchema.index({ merchantId: 1, createdAt: -1 });
 OrderSchema.index({ deviceId: 1, tableStatus: 1 });
 OrderSchema.index({ deviceId: 1, tableStatus: 1, createdAt: -1 });
 

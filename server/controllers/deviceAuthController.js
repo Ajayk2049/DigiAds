@@ -4,6 +4,7 @@ const config = require('../config/config');
 const Device = require('../models/Device');
 const AdBooking = require('../models/AdBooking');
 const { deviceActivationSchema } = require('../utils/zodSchemas');
+const logger = require('../utils/logger');
 
 const resolveMediaUrl = (mediaUrl, host) => {
   if (!mediaUrl) return '';
@@ -98,7 +99,7 @@ class DeviceAuthController {
         }
       });
     } catch (error) {
-      console.error('activateDevice Error:', error.message);
+      logger.error({ err: error.message }, 'activateDevice Error');
       return res.status(500).send({ success: false, message: 'Activation failed due to server error' });
     }
   }

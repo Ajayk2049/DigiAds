@@ -166,6 +166,81 @@ const adBookingSchema = z.object({
   redirectUrl: z.string({ required_error: 'redirectUrl is required' }).url('Valid redirect URL is required')
 });
 
+const switchRoleSchema = z.object({
+  role: z.enum(['merchant', 'advertiser', 'admin'], {
+    errorMap: () => ({ message: 'Role must be merchant, advertiser, or admin' })
+  })
+});
+
+const requestMoreDevicesSchema = z.object({
+  hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId cannot be empty'),
+  requestTablet: z.boolean().optional().default(false),
+  tabletQuantity: z.union([z.number(), z.string()]).optional().default(0),
+  requestScreen: z.boolean().optional().default(false),
+  screenQuantity: z.union([z.number(), z.string()]).optional().default(0)
+}).refine(data => data.requestTablet || data.requestScreen, {
+  message: 'You must select at least one device type (Tablet or Screen)',
+  path: ['requestTablet']
+});
+
+const verifyPasswordSchema = z.object({
+  password: z.string({ required_error: 'Password is required' }).min(1, 'Password cannot be empty')
+});
+
+const createDeviceSchema = z.object({
+  deviceType: z.enum(['tablet', 'screen'], {
+    errorMap: () => ({ message: 'Device type must be tablet or screen' })
+  }),
+  hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId cannot be empty')
+});
+
+const reviewHostApplicationSchema = z.object({
+  applicationId: z.string({ required_error: 'applicationId is required' }).min(1, 'applicationId cannot be empty'),
+  action: z.enum(['approve', 'reject'], {
+    errorMap: () => ({ message: 'Action must be approve or reject' })
+  })
+});
+
+const reviewDeviceRequestSchema = z.object({
+  requestId: z.string({ required_error: 'requestId is required' }).min(1, 'requestId cannot be empty'),
+  action: z.enum(['approve', 'reject'], {
+    errorMap: () => ({ message: 'Action must be approve or reject' })
+  })
+});
+
+const reviewAdBookingSchema = z.object({
+  bookingId: z.string({ required_error: 'bookingId is required' }).min(1, 'bookingId cannot be empty'),
+  action: z.enum(['approve', 'reject'], {
+    errorMap: () => ({ message: 'Action must be approve or reject' })
+  }),
+  denialReason: z.string().optional(),
+  adCategory: z.string().optional()
+}).refine(data => {
+  if (data.action === 'reject') {
+    return typeof data.denialReason === 'string' && data.denialReason.trim().length > 0;
+  }
+  return true;
+}, {
+  message: 'Reason for denial is required when rejecting a campaign',
+  path: ['denialReason']
+});
+
+const reviewModeChangeRequestSchema = z.object({
+  action: z.enum(['approved', 'rejected'], {
+    errorMap: () => ({ message: 'Action must be approved or rejected' })
+  }),
+  adminNotes: z.string().optional().default('')
+});
+
+const adminResetPasswordSchema = z.object({
+  newPassword: z.string({ required_error: 'New password is required' })
+    .min(8, 'New password must be 8-12 characters')
+    .max(12, 'New password must be 8-12 characters')
+    .refine((val) => /[A-Za-z]/.test(val) && /\d/.test(val), {
+      message: 'New password must contain both letters and numbers'
+    })
+});
+
 module.exports = {
   deviceActivationSchema,
   registerSchema,
@@ -179,6 +254,15 @@ module.exports = {
   menuUpdateSchema,
   paymentConfigSchema,
   modeChangeRequestSchema,
-  adBookingSchema
+  adBookingSchema,
+  switchRoleSchema,
+  requestMoreDevicesSchema,
+  verifyPasswordSchema,
+  createDeviceSchema,
+  reviewHostApplicationSchema,
+  reviewDeviceRequestSchema,
+  reviewAdBookingSchema,
+  reviewModeChangeRequestSchema,
+  adminResetPasswordSchema
 };
 

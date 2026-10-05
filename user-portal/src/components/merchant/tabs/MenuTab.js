@@ -8,6 +8,32 @@ import { useMenuStore } from '@/stores/useMenuStore';
 import { useOutletStore } from '@/stores/useOutletStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 
+function MenuItemImage({ imageUrl, altName }) {
+  const [loadFailed, setLoadFailed] = React.useState(false);
+  const resolved = React.useMemo(() => resolveMediaUrl(imageUrl), [imageUrl]);
+
+  if (!imageUrl || loadFailed) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center text-[10px] text-muted-foreground font-bold uppercase p-4 text-center">
+        <UtensilsCrossed className="w-8 h-8 mb-2 opacity-40" />
+        No Image
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={resolved}
+      alt={altName || 'Dish Photo'}
+      fill
+      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+      className="object-cover transition-transform duration-300 group-hover:scale-105"
+      unoptimized
+      onError={() => setLoadFailed(true)}
+    />
+  );
+}
+
 export default function MenuTab(props) {
   const menu = useMenuStore();
   const outlet = useOutletStore();
@@ -269,21 +295,7 @@ export default function MenuTab(props) {
                                 CUSTOMISABLE
                               </div>
                             )}
-                            {item.imageUrl ? (
-                              <Image
-                                src={resolveMediaUrl(item.imageUrl)}
-                                alt={item.name}
-                                fill
-                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
-                                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                unoptimized={resolveMediaUrl(item.imageUrl).startsWith('data:')}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center text-[10px] text-muted-foreground font-bold uppercase p-4 text-center">
-                                <UtensilsCrossed className="w-8 h-8 mb-2 opacity-40" />
-                                No Image
-                              </div>
-                            )}
+                            <MenuItemImage imageUrl={item.imageUrl} altName={item.name} />
                           </div>
 
                           <h4 className="font-outfit text-xs font-black text-foreground uppercase tracking-wider mb-2 line-clamp-1">{item.name}</h4>

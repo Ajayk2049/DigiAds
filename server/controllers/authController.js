@@ -16,6 +16,7 @@ const {
 } = require('../utils/zodSchemas');
 
 const passwordUtils = require('../utils/password');
+const logger = require('../utils/logger');
 
 async function verifyPassword(password, storedPassword) {
   const result = await passwordUtils.comparePassword(password, storedPassword);
@@ -88,7 +89,7 @@ class AuthController {
         }
       });
     } catch (error) {
-      console.error('checkAvailability Error:', error.message);
+      logger.error({ err: error.message }, 'checkAvailability Error');
       return res.status(500).send({ success: false, message: 'Failed to check availability' });
     }
   }
@@ -206,7 +207,7 @@ class AuthController {
       recordOtpCooldown(`phone:${formattedPhone}`);
       recordOtpCooldown(`ip:${ip}`);
     } catch (err) {
-      console.error('OTP rate limiting check failed:', err.message);
+      logger.error({ err: err.message }, 'OTP rate limiting check failed');
       // Fallback: don't block server if DB checks fail, but log it
     }
 
@@ -237,7 +238,7 @@ class AuthController {
 
       return res.status(200).send(responseData);
     } catch (error) {
-      console.error('sendOtp Error:', error.message);
+      logger.error({ err: error.message }, 'sendOtp Error');
       return res.status(500).send({ success: false, message: 'Failed to send OTP' });
     }
   }
@@ -346,7 +347,7 @@ class AuthController {
         }
       });
     } catch (error) {
-      console.error('register Error:', error.message);
+      logger.error({ err: error.message }, 'register Error');
       return res.status(500).send({ success: false, message: 'Registration failed due to server error' });
     }
   }
@@ -410,7 +411,7 @@ class AuthController {
 
       return res.status(200).send({ success: true, message: 'OTP verified successfully' });
     } catch (error) {
-      console.error('verifyOtp Error:', error.message);
+      logger.error({ err: error.message }, 'verifyOtp Error');
       return res.status(500).send({ success: false, message: 'Verification failed due to server error' });
     }
   }
@@ -505,7 +506,7 @@ class AuthController {
         }
       });
     } catch (error) {
-      console.error('login Error:', error.message);
+      logger.error({ err: error.message }, 'login Error');
       return res.status(500).send({ success: false, message: 'Authentication failed due to server error' });
     }
   }
@@ -555,7 +556,7 @@ class AuthController {
         }
       });
     } catch (error) {
-      console.error('switchRole Error:', error.message);
+      logger.error({ err: error.message }, 'switchRole Error');
       return res.status(500).send({ success: false, message: 'Failed to switch role due to server error' });
     }
   }
@@ -636,7 +637,7 @@ class AuthController {
         message: 'Password reset successfully. You can now login with your new password.'
       });
     } catch (error) {
-      console.error('resetPassword Error:', error.message);
+      logger.error({ err: error.message }, 'resetPassword Error');
       return res.status(500).send({ success: false, message: 'Password reset failed due to server error' });
     }
   }

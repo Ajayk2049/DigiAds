@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const releaseController = require('../controllers/releaseController');
+const logger = require('../utils/logger');
 
 /**
  * Comprehensive non-blocking cleanup of orphaned upload scratch files across /tmp and uploads staging
@@ -50,10 +51,10 @@ async function cleanupOrphanedTempFiles(maxAgeMs = 6 * 60 * 60 * 1000) {
     }
 
     if (count > 0) {
-      console.log(`[CLEANUP] Pruned ${count} orphaned upload scratch file(s) older than ${Math.round(maxAgeMs / 3600000)}h.`);
+      logger.info(`[CLEANUP] Pruned ${count} orphaned upload scratch file(s) older than ${Math.round(maxAgeMs / 3600000)}h.`);
     }
   } catch (err) {
-    console.warn('[CLEANUP] Temp scratch cleaner notice:', err.message);
+    logger.warn({ err: err.message }, '[CLEANUP] Temp scratch cleaner notice');
   }
 }
 
@@ -61,7 +62,7 @@ async function cleanupOrphanedTempFiles(maxAgeMs = 6 * 60 * 60 * 1000) {
  * Start background OTA revoked releases disk cleanup task (runs on boot & every 24 hours)
  */
 function startOtaDiskCleanupTask() {
-  console.log('[OTA Disk Cleanup] Initializing background revoked releases cleanup task (24h)...');
+  logger.info('[OTA Disk Cleanup] Initializing background revoked releases cleanup task (24h)...');
   releaseController.cleanupOldRevokedReleases().catch(() => { });
   const otaTimer = setInterval(() => {
     releaseController.cleanupOldRevokedReleases().catch(() => { });

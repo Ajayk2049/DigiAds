@@ -5,6 +5,7 @@ const AdBooking = require('../../models/AdBooking');
 const PhonePeTransaction = require('../../models/PhonePeTransaction');
 const Order = require('../../models/Order');
 const phonePeService = require('../../services/phonePeService');
+const logger = require('../../utils/logger');
 
 const resolveMediaUrl = (mediaUrl, host) => {
   if (!mediaUrl) return '';
@@ -35,7 +36,7 @@ const deleteMediaFile = async (mediaUrl) => {
       if (localFilePath.startsWith(uploadsDir)) {
         await fs.promises.unlink(localFilePath).catch(() => {});
       } else {
-        console.warn(`[Security Warning] Blocked attempt to delete path outside uploads directory: ${localFilePath}`);
+        logger.warn({ localFilePath }, '[Security Warning] Blocked attempt to delete path outside uploads directory');
       }
     }
   }
@@ -58,7 +59,7 @@ const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => 
     return;
   }
   if (activePollTimers.size >= 50 && !activePollTimers.has(bookingId)) {
-    console.warn(`[Auto-Polling] Max capacity reached (50). Booking ${bookingId} will be settled via webhook.`);
+    logger.warn({ bookingId }, '[Auto-Polling] Max capacity reached (50). Booking will be settled via webhook.');
     return;
   }
 
@@ -110,7 +111,7 @@ const pollTransactionStatus = (bookingId, transactionId, initialAttempt = 0) => 
         activePollTimers.set(bookingId, timer);
       }
     } catch (err) {
-      console.error(`[Auto-Polling] Error for ${bookingId}:`, err.message);
+      logger.error({ err: err.message, bookingId }, '[Auto-Polling] Error');
       if (attempts < maxAttempts) {
         const timer = setTimeout(runPollStep, pollIntervalMs);
         if (typeof timer.unref === 'function') timer.unref();
@@ -310,7 +311,7 @@ async function reconcilePendingTransactions() {
 
     const totalPending = await AdBooking.countDocuments(filter);
     if (totalPending > 50) {
-      console.warn(`[Reconciler] Total pending bookings (${totalPending}) exceeds batch limit 50.`);
+      logger.warn({ totalPending }, '[Reconciler] Total pending bookings exceeds batch limit 50.');
     }
 
     const pendingBookings = await AdBooking.find(filter)
@@ -319,7 +320,7 @@ async function reconcilePendingTransactions() {
       .limit(50);
 
     if (pendingBookings.length > 0) {
-      console.log(`[Reconciler] Reconciling ${pendingBookings.length} pending booking(s)...`);
+      logger.info(`[Reconciler] Reconciling ${pendingBookings.length} pending booking(s)...`);
       for (const b of pendingBookings) {
         if (!activePollTimers.has(b.bookingId)) {
           pollTransactionStatus(b.bookingId, b.transactionId);
@@ -327,7 +328,7 @@ async function reconcilePendingTransactions() {
       }
     }
   } catch (err) {
-    console.warn('[Reconciler] Error reconciling pending transactions:', err.message);
+    logger.warn({ err: err.message }, '[Reconciler] Error reconciling pending transactions');
   } finally {
     isReconciling = false;
   }

@@ -1,5 +1,6 @@
 const HostApplication = require('../models/HostApplication');
 const geocodeService = require('../services/geocodeService');
+const logger = require('../utils/logger');
 
 class PublicController {
   /**
@@ -99,7 +100,7 @@ class PublicController {
         }
       });
     } catch (error) {
-      console.error('getPublicVenues Error:', error.message);
+      logger.error({ err: error.message }, 'getPublicVenues Error');
       return res.status(500).send({
         success: false,
         message: 'Failed to fetch public venues directory'

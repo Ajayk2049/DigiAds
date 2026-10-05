@@ -24,7 +24,23 @@ const {
   menuUpdateSchema,
   paymentConfigSchema,
   modeChangeRequestSchema,
-  adBookingSchema
+  adBookingSchema,
+  deviceActivationSchema,
+  registerSchema,
+  loginSchema,
+  verifyOtpSchema,
+  sendOtpSchema,
+  checkAvailabilitySchema,
+  resetPasswordSchema,
+  switchRoleSchema,
+  requestMoreDevicesSchema,
+  verifyPasswordSchema,
+  createDeviceSchema,
+  reviewHostApplicationSchema,
+  reviewDeviceRequestSchema,
+  reviewAdBookingSchema,
+  reviewModeChangeRequestSchema,
+  adminResetPasswordSchema
 } = require('../utils/zodSchemas');
 const { UPLOAD_LIMITS } = require('../config/constants');
 
@@ -155,15 +171,15 @@ function registerRoutes(fastify, options, done) {
   };
 
   // Public Auth Routes
-  fastify.post('/auth/check-availability', authRateLimitConfig, authController.checkAvailability);
-  fastify.post('/auth/send-otp', otpRateLimitConfig, authController.sendOtp);
-  fastify.post('/auth/verify-otp', otpRateLimitConfig, authController.verifyOtp);
-  fastify.post('/auth/register', authRateLimitConfig, authController.register);
-  fastify.post('/auth/login', loginRateLimitConfig, authController.login);
-  fastify.post('/auth/reset-password', otpRateLimitConfig, authController.resetPassword);
-  fastify.post('/auth/device/activate', activateRateLimitConfig, deviceAuthController.activateDevice);
+  fastify.post('/auth/check-availability', { preHandler: validate({ body: checkAvailabilitySchema }), ...authRateLimitConfig }, authController.checkAvailability);
+  fastify.post('/auth/send-otp', { preHandler: validate({ body: sendOtpSchema }), ...otpRateLimitConfig }, authController.sendOtp);
+  fastify.post('/auth/verify-otp', { preHandler: validate({ body: verifyOtpSchema }), ...otpRateLimitConfig }, authController.verifyOtp);
+  fastify.post('/auth/register', { preHandler: validate({ body: registerSchema }), ...authRateLimitConfig }, authController.register);
+  fastify.post('/auth/login', { preHandler: validate({ body: loginSchema }), ...loginRateLimitConfig }, authController.login);
+  fastify.post('/auth/reset-password', { preHandler: validate({ body: resetPasswordSchema }), ...otpRateLimitConfig }, authController.resetPassword);
+  fastify.post('/auth/device/activate', { preHandler: validate({ body: deviceActivationSchema }), ...activateRateLimitConfig }, deviceAuthController.activateDevice);
   fastify.get('/auth/device/ads', { preHandler: authenticate, ...deviceAdsRateLimitConfig }, deviceAuthController.getDeviceAds);
-  fastify.post('/auth/switch-role', { preHandler: authenticate }, authController.switchRole);
+  fastify.post('/auth/switch-role', { preHandler: [authenticate, validate({ body: switchRoleSchema })] }, authController.switchRole);
 
   // PhonePe Webhook callback (public)
   fastify.post('/payments/callback', callbackRateLimitConfig, adBookingController.paymentCallback.bind(adBookingController));
@@ -197,8 +213,8 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/orders/toggle-gst', orderController.toggleGstExemption.bind(orderController));
     merchantRoutes.post('/host/orders/toggle-service-tax', orderController.toggleServiceTaxExemption.bind(orderController));
     merchantRoutes.post('/host/orders/service-waiter', orderController.serviceWaiter.bind(orderController));
-    merchantRoutes.post('/host/request-more-devices', venueController.requestMoreDevices.bind(venueController));
-    merchantRoutes.post('/host/verify-password', venueController.verifyPassword.bind(venueController));
+    merchantRoutes.post('/host/request-more-devices', { preHandler: validate({ body: requestMoreDevicesSchema }) }, venueController.requestMoreDevices.bind(venueController));
+    merchantRoutes.post('/host/verify-password', { preHandler: validate({ body: verifyPasswordSchema }) }, venueController.verifyPassword.bind(venueController));
     merchantRoutes.get('/host/promos', venuePromoController.getHostPromos.bind(venuePromoController));
     merchantRoutes.post('/host/promos/upload-media', { bodyLimit: UPLOAD_LIMITS.DEFAULT_BODY_LIMIT_BYTES, ...uploadRateLimitConfig }, venuePromoController.uploadHostPromoMedia.bind(venuePromoController));
     merchantRoutes.post('/host/promos/stream', venuePromoController.streamHostPromos.bind(venuePromoController));
@@ -246,12 +262,12 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.addHook('preHandler', authorize(['admin']));
 
     adminRoutes.get('/admin/hosts', adminController.getHostApplications.bind(adminController));
-    adminRoutes.post('/admin/hosts/review', adminController.reviewHostApplication.bind(adminController));
+    adminRoutes.post('/admin/hosts/review', { preHandler: validate({ body: reviewHostApplicationSchema }) }, adminController.reviewHostApplication.bind(adminController));
     adminRoutes.put('/admin/hosts/:hostApplicationId/status', adminController.updateHostStatusAndQuotas.bind(adminController));
     adminRoutes.post('/admin/hosts/:hostApplicationId/reset-quota', adminController.resetHostQuotaNow.bind(adminController));
     adminRoutes.put('/admin/hosts/:hostApplicationId/watermark', adminController.updateVenueWatermark.bind(adminController));
     adminRoutes.get('/admin/bookings', adminController.getAdBookings.bind(adminController));
-    adminRoutes.post('/admin/bookings/review', adminController.reviewAdBooking.bind(adminController));
+    adminRoutes.post('/admin/bookings/review', { preHandler: validate({ body: reviewAdBookingSchema }) }, adminController.reviewAdBooking.bind(adminController));
     adminRoutes.put('/admin/bookings/:bookingId/category', adminController.updateBookingCategory.bind(adminController));
     adminRoutes.put('/admin/bookings/revoke/:bookingId', adminController.revokeBooking.bind(adminController));
     adminRoutes.post('/admin/bookings/:bookingId/refund', adminController.refundBooking.bind(adminController));
@@ -261,17 +277,17 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.delete('/admin/rates/:rateId', adminController.deleteAdsRate.bind(adminController));
     adminRoutes.get('/admin/stats', adminController.getStats.bind(adminController));
     adminRoutes.get('/admin/devices', adminController.getDevices.bind(adminController));
-    adminRoutes.post('/admin/devices', adminController.createDevice.bind(adminController));
-    adminRoutes.post('/admin/devices/deploy', adminController.createDevice.bind(adminController));
+    adminRoutes.post('/admin/devices', { preHandler: validate({ body: createDeviceSchema }) }, adminController.createDevice.bind(adminController));
+    adminRoutes.post('/admin/devices/deploy', { preHandler: validate({ body: createDeviceSchema }) }, adminController.createDevice.bind(adminController));
     adminRoutes.get('/admin/users', adminController.getUsers.bind(adminController));
     adminRoutes.put('/admin/users/:userId', adminController.updateUser.bind(adminController));
-    adminRoutes.post('/admin/users/:userId/reset-password', adminController.adminResetPassword.bind(adminController));
+    adminRoutes.post('/admin/users/:userId/reset-password', { preHandler: validate({ body: adminResetPasswordSchema }) }, adminController.adminResetPassword.bind(adminController));
     adminRoutes.delete('/admin/users/:userId', adminController.deleteUser.bind(adminController));
 
     adminRoutes.get('/admin/device-requests', adminController.getDeviceRequests.bind(adminController));
-    adminRoutes.post('/admin/device-requests/review', adminController.reviewDeviceRequest.bind(adminController));
+    adminRoutes.post('/admin/device-requests/review', { preHandler: validate({ body: reviewDeviceRequestSchema }) }, adminController.reviewDeviceRequest.bind(adminController));
     adminRoutes.get('/admin/mode-change-requests', adminController.getModeChangeRequests.bind(adminController));
-    adminRoutes.put('/admin/mode-change-requests/:requestId/review', adminController.reviewModeChangeRequest.bind(adminController));
+    adminRoutes.put('/admin/mode-change-requests/:requestId/review', { preHandler: validate({ body: reviewModeChangeRequestSchema }) }, adminController.reviewModeChangeRequest.bind(adminController));
 
     // Admin Platform Ads & Global Fallback Ads
     adminRoutes.get('/admin/platform-ads', adminController.getPlatformAds.bind(adminController));

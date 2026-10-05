@@ -5,6 +5,7 @@ const HostApplication = require('../../models/HostApplication');
 const VenuePromo = require('../../models/VenuePromo');
 const videoQueue = require('../../utils/videoQueue');
 const { probeVideoMetadata } = require('../../utils/videoUtils');
+const logger = require('../../utils/logger');
 
 /**
  * Returns quota limits and defaults for a venue based on adMode and custom overrides.
@@ -88,7 +89,7 @@ async function validateVideoDuration(tempPath, hostApp) {
       };
     }
   } catch (probeErr) {
-    console.warn('[uploadHostPromoMedia] ffprobe duration check warning:', probeErr.message);
+    logger.warn({ err: probeErr.message }, '[uploadHostPromoMedia] ffprobe duration check warning');
   }
   return { isValid: true };
 }
@@ -145,7 +146,7 @@ async function enqueuePromoTranscode({ hostApp, savedPromo, slot, mediaUrl }) {
     resolvedTemp.startsWith(allowedUploads + path.sep);
 
   if (!isAllowedPath) {
-    console.warn(`[Security Warning] Blocked path traversal attempt in streamHostPromos: ${slot.tempPath}`);
+    logger.warn({ tempPath: slot.tempPath }, '[Security Warning] Blocked path traversal attempt in streamHostPromos');
     return false;
   }
 
@@ -156,7 +157,7 @@ async function enqueuePromoTranscode({ hostApp, savedPromo, slot, mediaUrl }) {
   } catch (_) {}
 
   if (!tempFileExists) {
-    console.warn(`[streamHostPromos] Temp file does not exist or is empty: ${resolvedTemp}`);
+    logger.warn({ resolvedTemp }, '[streamHostPromos] Temp file does not exist or is empty');
     savedPromo.transcodeStatus = 'completed';
     savedPromo.isStreaming = true;
     await savedPromo.save();

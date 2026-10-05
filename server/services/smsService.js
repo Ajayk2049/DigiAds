@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config/config');
+const logger = require('../utils/logger');
 
 class SMSService {
   /**
@@ -13,7 +14,7 @@ class SMSService {
 
     // Demo Mode bypass
     if (config.demoMode) {
-      console.log(`[SMS DEMO MODE] OTP for ${phone.slice(0, 6)}**** is ${otp}`);
+      logger.info(`[SMS DEMO MODE] OTP for ${phone.slice(0, 6)}**** is ${otp}`);
       return true;
     }
 
@@ -38,7 +39,7 @@ class SMSService {
 
       return response.status === 200 || response.status === 201;
     } catch (error) {
-      console.error('StartMessaging SMS Service Error:', error.response?.data || error.message);
+      logger.error({ err: error.response?.data || error.message }, 'StartMessaging SMS Service Error');
       // Determine failure details
       if (error.response) {
         const status = error.response.status;
@@ -71,7 +72,7 @@ class SMSService {
       );
       return response.data.status;
     } catch (error) {
-      console.error('StartMessaging SMS Status Fetch Error:', error.message);
+      logger.error({ err: error.message }, 'StartMessaging SMS Status Fetch Error');
       return 'failed';
     }
   }

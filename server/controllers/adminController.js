@@ -14,6 +14,7 @@ const phonePeService = require('../services/phonePeService');
 const crypto = require('crypto');
 const validator = require('../utils/validation');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../utils/logger');
 
 const resolveMediaUrl = (mediaUrl, host) => {
   if (!mediaUrl) return '';
@@ -68,7 +69,7 @@ class AdminController {
         .lean();
       return res.status(200).send({ success: true, data: apps, page, limit });
     } catch (error) {
-      console.error('admin getHostApplications Error:', error.message);
+      logger.error({ err: error.message }, 'admin getHostApplications Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch host applications' });
     }
   }
@@ -152,7 +153,7 @@ class AdminController {
         });
       }
     } catch (error) {
-      console.error('reviewHostApplication Error:', error.message);
+      logger.error({ err: error.message }, 'reviewHostApplication Error');
       return res.status(500).send({ success: false, message: 'Failed to review host application' });
     }
   }
@@ -212,7 +213,7 @@ class AdminController {
         data: app
       });
     } catch (error) {
-      console.error('updateHostStatusAndQuotas Error:', error.message);
+      logger.error({ err: error.message }, 'updateHostStatusAndQuotas Error');
       return res.status(500).send({ success: false, message: 'Failed to update host status & quotas' });
     }
   }
@@ -245,7 +246,7 @@ class AdminController {
         data: app
       });
     } catch (error) {
-      console.error('resetHostQuotaNow Error:', error.message);
+      logger.error({ err: error.message }, 'resetHostQuotaNow Error');
       return res.status(500).send({ success: false, message: 'Failed to reset daily host quotas' });
     }
   }
@@ -293,7 +294,7 @@ class AdminController {
 
       return res.status(200).send({ success: true, data: mappedBookings });
     } catch (error) {
-      console.error('admin getAdBookings Error:', error.message);
+      logger.error({ err: error.message }, 'admin getAdBookings Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch bookings' });
     }
   }
@@ -361,7 +362,7 @@ class AdminController {
               const relativePath = urlParts[1];
               const localFilePath = path.join(__dirname, '..', 'uploads', relativePath);
               await fs.promises.unlink(localFilePath).catch(() => {});
-              console.log(`[REJECTION CLEANUP] Unlinked rejected media file: ${localFilePath}`);
+              logger.info(`[REJECTION CLEANUP] Unlinked rejected media file: ${localFilePath}`);
             }
           }
 
@@ -395,7 +396,7 @@ class AdminController {
         data: obj
       });
     } catch (error) {
-      console.error('reviewAdBooking Error:', error.message);
+      logger.error({ err: error.message }, 'reviewAdBooking Error');
       return res.status(500).send({ success: false, message: 'Failed to review booking' });
     }
   }
@@ -411,7 +412,7 @@ class AdminController {
       const rates = await AdsRates.find({}).sort({ deviceType: 1, mediaType: 1, durationDays: 1 });
       return res.status(200).send({ success: true, data: rates });
     } catch (error) {
-      console.error('getAdsRates Error:', error.message);
+      logger.error({ err: error.message }, 'getAdsRates Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch rate plans' });
     }
   }
@@ -490,7 +491,7 @@ class AdminController {
         data: rate
       });
     } catch (error) {
-      console.error('manageAdsRates Error:', error.message);
+      logger.error({ err: error.message }, 'manageAdsRates Error');
       return res.status(500).send({ success: false, message: 'Failed to update pricing plan' });
     }
   }
@@ -522,7 +523,7 @@ class AdminController {
         message: 'Pricing plan deleted successfully'
       });
     } catch (error) {
-      console.error('deleteAdsRate Error:', error.message);
+      logger.error({ err: error.message }, 'deleteAdsRate Error');
       return res.status(500).send({ success: false, message: 'Failed to delete pricing plan' });
     }
   }
@@ -575,7 +576,7 @@ class AdminController {
         }
       });
     } catch (error) {
-      console.error('getStats Error:', error.message);
+      logger.error({ err: error.message }, 'getStats Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch admin stats' });
     }
   }
@@ -615,7 +616,7 @@ class AdminController {
 
       return res.status(200).send({ success: true, data: sanitized, page, limit });
     } catch (error) {
-      console.error('getDevices Error:', error.message);
+      logger.error({ err: error.message }, 'getDevices Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch devices' });
     }
   }
@@ -668,7 +669,7 @@ class AdminController {
         data: device
       });
     } catch (error) {
-      console.error('createDevice Error:', error.message);
+      logger.error({ err: error.message }, 'createDevice Error');
       return res.status(500).send({ success: false, message: 'Failed to deploy device' });
     }
   }
@@ -731,7 +732,7 @@ class AdminController {
 
       return res.status(200).send({ success: true, data: enrichedUsers });
     } catch (error) {
-      console.error('getUsers Error:', error.message);
+      logger.error({ err: error.message }, 'getUsers Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch users' });
     }
   }
@@ -808,7 +809,7 @@ class AdminController {
         }
       });
     } catch (error) {
-      console.error('updateUser Error:', error.message);
+      logger.error({ err: error.message }, 'updateUser Error');
       return res.status(500).send({ success: false, message: 'Failed to update user' });
     }
   }
@@ -860,7 +861,7 @@ class AdminController {
         message: 'User and all related assets deleted successfully'
       });
     } catch (error) {
-      console.error('deleteUser Error:', error.message);
+      logger.error({ err: error.message }, 'deleteUser Error');
       return res.status(500).send({ success: false, message: 'Failed to delete user' });
     }
   }
@@ -895,7 +896,7 @@ class AdminController {
         message: 'User password reset successfully'
       });
     } catch (error) {
-      console.error('adminResetPassword Error:', error.message);
+      logger.error({ err: error.message }, 'adminResetPassword Error');
       return res.status(500).send({ success: false, message: 'Failed to reset user password' });
     }
   }
@@ -964,7 +965,7 @@ class AdminController {
             const relativePath = urlParts[1];
             const targetPath = path.join(__dirname, '..', 'uploads', relativePath);
             await fs.promises.unlink(targetPath).catch(() => {});
-            console.log(`[REVOCATION CLEANUP] Unlinked revoked media file: ${targetPath}`);
+            logger.info(`[REVOCATION CLEANUP] Unlinked revoked media file: ${targetPath}`);
             localFilePath = targetPath;
           }
         }
@@ -989,7 +990,7 @@ class AdminController {
         data: booking
       });
     } catch (error) {
-      console.error('revokeBooking Error:', error.message);
+      logger.error({ err: error.message }, 'revokeBooking Error');
       return res.status(500).send({ success: false, message: 'Failed to revoke booking: ' + error.message });
     }
   }
@@ -1012,7 +1013,7 @@ class AdminController {
         .sort({ createdAt: -1 });
       return res.status(200).send({ success: true, data: reqs });
     } catch (error) {
-      console.error('admin getDeviceRequests Error:', error.message);
+      logger.error({ err: error.message }, 'admin getDeviceRequests Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch device requests' });
     }
   }
@@ -1109,7 +1110,7 @@ class AdminController {
         });
       }
     } catch (error) {
-      console.error('reviewDeviceRequest Error:', error.message);
+      logger.error({ err: error.message }, 'reviewDeviceRequest Error');
       return res.status(500).send({ success: false, message: 'Failed to review device request: ' + error.message });
     }
   }
@@ -1148,7 +1149,7 @@ class AdminController {
         data: app
       });
     } catch (error) {
-      console.error('updateVenueWatermark Error:', error.message);
+      logger.error({ err: error.message }, 'updateVenueWatermark Error');
       return res.status(500).send({ success: false, message: 'Failed to update venue watermark: ' + error.message });
     }
   }
@@ -1169,7 +1170,7 @@ class AdminController {
         data: requests
       });
     } catch (error) {
-      console.error('getModeChangeRequests Error:', error.message);
+      logger.error({ err: error.message }, 'getModeChangeRequests Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch mode change requests' });
     }
   }
@@ -1240,7 +1241,7 @@ class AdminController {
         data: modeReq
       });
     } catch (error) {
-      console.error('reviewModeChangeRequest Error:', error.message);
+      logger.error({ err: error.message }, 'reviewModeChangeRequest Error');
       return res.status(500).send({ success: false, message: 'Failed to review mode change request: ' + error.message });
     }
   }
@@ -1274,7 +1275,7 @@ class AdminController {
         data: booking
       });
     } catch (error) {
-      console.error('updateBookingCategory Error:', error.message);
+      logger.error({ err: error.message }, 'updateBookingCategory Error');
       return res.status(500).send({ success: false, message: 'Failed to update ad category: ' + error.message });
     }
   }
@@ -1293,7 +1294,7 @@ class AdminController {
         data: ads
       });
     } catch (error) {
-      console.error('getPlatformAds Error:', error.message);
+      logger.error({ err: error.message }, 'getPlatformAds Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch platform ads' });
     }
   }
@@ -1378,7 +1379,7 @@ class AdminController {
             durationSeconds = Math.round(metadata.format.duration);
           }
         } catch (probeErr) {
-          console.warn('[uploadPlatformAdMedia] ffprobe warning:', probeErr.message);
+          logger.warn({ err: probeErr.message }, '[uploadPlatformAdMedia] ffprobe warning');
         }
 
         // Copy raw file asynchronously so media is immediately available without blocking event loop
@@ -1410,7 +1411,7 @@ class AdminController {
         });
       }
     } catch (error) {
-      console.error('uploadPlatformAdMedia Error:', error.message);
+      logger.error({ err: error.message }, 'uploadPlatformAdMedia Error');
       if (tempPath) {
         try { await fs.promises.unlink(tempPath); } catch (_) {}
       }
@@ -1501,7 +1502,7 @@ class AdminController {
         data: newAd
       });
     } catch (error) {
-      console.error('createPlatformAd Error:', error.message);
+      logger.error({ err: error.message }, 'createPlatformAd Error');
       return res.status(500).send({ success: false, message: 'Failed to create platform ad: ' + error.message });
     }
   }
@@ -1559,7 +1560,7 @@ class AdminController {
         data: ad
       });
     } catch (error) {
-      console.error('updatePlatformAd Error:', error.message);
+      logger.error({ err: error.message }, 'updatePlatformAd Error');
       return res.status(500).send({ success: false, message: 'Failed to update platform ad: ' + error.message });
     }
   }
@@ -1592,7 +1593,7 @@ class AdminController {
 
           if (fullPath.startsWith(uploadsDir)) {
             await fs.promises.unlink(fullPath).catch(() => {});
-            console.log(`\x1b[33m[PlatformAd]\x1b[0m Immediately unlinked physical file: ${fullPath}`);
+            logger.info(`[PlatformAd] Immediately unlinked physical file: ${fullPath}`);
           }
         }
       }
@@ -1609,7 +1610,7 @@ class AdminController {
         message: 'Platform ad and disk media files deleted successfully'
       });
     } catch (error) {
-      console.error('deletePlatformAd Error:', error.message);
+      logger.error({ err: error.message }, 'deletePlatformAd Error');
       return res.status(500).send({ success: false, message: 'Failed to delete platform ad: ' + error.message });
     }
   }
@@ -1632,7 +1633,7 @@ class AdminController {
         }
       });
     } catch (error) {
-      console.error('getPromoDurations Error:', error.message);
+      logger.error({ err: error.message }, 'getPromoDurations Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch promo durations: ' + error.message });
     }
   }
@@ -1686,7 +1687,7 @@ class AdminController {
         data: updated.value
       });
     } catch (error) {
-      console.error('updatePromoDurations Error:', error.message);
+      logger.error({ err: error.message }, 'updatePromoDurations Error');
       return res.status(500).send({ success: false, message: 'Failed to update promo durations: ' + error.message });
     }
   }
@@ -1707,7 +1708,7 @@ class AdminController {
         }
       });
     } catch (error) {
-      console.error('getAdvertiserImageDuration Error:', error.message);
+      logger.error({ err: error.message }, 'getAdvertiserImageDuration Error');
       return res.status(500).send({ success: false, message: 'Failed to fetch advertiser image duration: ' + error.message });
     }
   }
@@ -1751,7 +1752,7 @@ class AdminController {
         data: updated.value
       });
     } catch (error) {
-      console.error('updateAdvertiserImageDuration Error:', error.message);
+      logger.error({ err: error.message }, 'updateAdvertiserImageDuration Error');
       return res.status(500).send({ success: false, message: 'Failed to update advertiser image duration: ' + error.message });
     }
   }
