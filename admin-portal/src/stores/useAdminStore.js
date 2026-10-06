@@ -384,6 +384,7 @@ export const useAdminStore = create((set, get) => ({
         break;
       case 'advertisers':
         get().fetchCampaigns(authToken);
+        get().fetchUsers(authToken);
         break;
       case 'devices':
         get().fetchDevices(authToken);

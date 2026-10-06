@@ -13,9 +13,20 @@ export default function AdvertisersTab({ onSelectAdvertiser }) {
   const stats = useAdminStore((s) => s.stats);
   const searchQuery = useAdminStore((s) => s.searchQuery);
 
+  const token = useAdminStore((s) => s.token);
+  const fetchUsers = useAdminStore((s) => s.fetchUsers);
+  const fetchCampaigns = useAdminStore((s) => s.fetchCampaigns);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  useEffect(() => {
+    if (token) {
+      if (!users || users.length === 0) fetchUsers(token);
+      if (!campaigns || campaigns.length === 0) fetchCampaigns(token);
+    }
+  }, [token, fetchUsers, fetchCampaigns, users?.length, campaigns?.length]);
 
   const getAdvertiserCampaigns = (advId) => {
     return campaigns.filter(
@@ -28,7 +39,7 @@ export default function AdvertisersTab({ onSelectAdvertiser }) {
     const advCampaigns = getAdvertiserCampaigns(advId);
     return advCampaigns
       .filter((c) => c.paymentStatus === 'completed')
-      .reduce((sum, c) => sum + (c.totalAmount || 0), 0);
+      .reduce((sum, c) => sum + ((c.amount || c.totalAmount || 0) / 100), 0);
   };
 
   // Filter approved advertisers matching role and query
@@ -79,7 +90,7 @@ export default function AdvertisersTab({ onSelectAdvertiser }) {
         <div className="glassmorphism p-5 rounded-2xl bg-card/30 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total Ad Spend</p>
           <h3 className="font-outfit text-2xl font-black mt-2 text-emerald-500">
-            ₹{stats?.revenue?.totalINR || 0}
+            ₹{stats?.revenue?.totalINR || campaigns.filter((c) => c.paymentStatus === 'completed').reduce((sum, c) => sum + ((c.amount || c.totalAmount || 0) / 100), 0)}
           </h3>
           <p className="text-[10px] text-muted-foreground font-semibold mt-1">Collected advertiser revenue</p>
         </div>
