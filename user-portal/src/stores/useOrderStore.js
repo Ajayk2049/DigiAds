@@ -11,6 +11,7 @@ let reconnectTimer = null;
 let pingTimer = null;
 let reconnectAttempts = 0;
 let isExplicitlyDisconnected = false;
+const cancelledOrderHold = new Map();
 
 export const useOrderStore = create((set, get) => ({
   orders: [],
@@ -73,6 +74,13 @@ export const useOrderStore = create((set, get) => ({
       const live = allOrders.filter(
         ord => ord.tableStatus !== 'completed' && ord.tableStatus !== 'completed_acked' && ord.orderStatus !== 'cancelled'
       );
+      if (cancelledOrderHold.size > 0) {
+        cancelledOrderHold.forEach((heldOrder, heldId) => {
+          if (!live.some(o => o.orderId === heldId)) {
+            live.unshift(heldOrder);
+          }
+        });
+      }
       set({ paymentOrders: completed, orders: live });
     } catch (err) {
       if (axios.isCancel(err) || err.name === 'CanceledError' || err.name === 'AbortError') {
@@ -241,13 +249,37 @@ export const useOrderStore = create((set, get) => ({
   },
 
   updateOrderStatus: async (token, orderId, newStatus) => {
+    if (newStatus === 'cancelled') {
+      const existing = get().orders.find((o) => o.orderId === orderId);
+      if (existing) {
+        cancelledOrderHold.set(orderId, { ...existing, orderStatus: 'cancelled' });
+      }
+      set((state) => ({
+        orders: state.orders.map((o) =>
+          o.orderId === orderId ? { ...o, orderStatus: 'cancelled' } : o
+        ),
+      }));
+
+      setTimeout(() => {
+        cancelledOrderHold.delete(orderId);
+        set((state) => ({
+          orders: state.orders.filter((o) => o.orderId !== orderId),
+        }));
+      }, 2000);
+    }
+
     try {
       await axios.post(`${getApiBase()}/host/orders/update-status`, { orderId, orderStatus: newStatus }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      get().fetchLiveOrders(token);
+      if (newStatus !== 'cancelled') {
+        get().fetchLiveOrders(token);
+      }
     } catch (err) {
       console.error('updateOrderStatus error:', err);
+      if (newStatus !== 'cancelled') {
+        get().fetchLiveOrders(token);
+      }
     }
   },
 

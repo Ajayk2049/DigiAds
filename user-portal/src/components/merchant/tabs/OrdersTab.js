@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Building, Clock, ShoppingBag, Bell, Receipt, CheckCircle, Printer } from 'lucide-react';
 
 const PrintKotModal = dynamic(() => import('../modals/PrintKotModal'), { ssr: false });
+const CancelOrderModal = dynamic(() => import('../modals/CancelOrderModal'), { ssr: false });
 import { useOrderStore } from '@/stores/useOrderStore';
 import { useOutletStore } from '@/stores/useOutletStore';
 import { useMenuStore } from '@/stores/useMenuStore';
@@ -37,6 +38,7 @@ export default function OrdersTab(props) {
   const closeTable = props.closeTable ?? ((orderId) => order.closeTable(token, orderId));
 
   const [kotOrder, setKotOrder] = React.useState(null);
+  const [cancellingOrder, setCancellingOrder] = React.useState(null);
 
   const selectedOutletId = outlet.selectedOutletId;
   const activeVenueId = activeOrderVenueTab || selectedOutletId || approvedOutlets[0]?._id;
@@ -313,7 +315,12 @@ export default function OrdersTab(props) {
                       disabled={ord.orderStatus === 'served' || ord.orderStatus === 'cancelled'}
                       onChange={(e) => {
                         e.stopPropagation();
-                        updateOrderStatus(ord.orderId, e.target.value);
+                        const val = e.target.value;
+                        if (val === 'cancelled') {
+                          setCancellingOrder(ord);
+                        } else {
+                          updateOrderStatus(ord.orderId, val);
+                        }
                       }}
                       className={`text-xs font-black uppercase px-3.5 py-2.5 rounded-xl border focus:outline-none w-fit shadow-sm tracking-wide ${ord.orderStatus === 'placed'
                         ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 cursor-pointer'
@@ -445,6 +452,18 @@ export default function OrdersTab(props) {
           isOpen={Boolean(kotOrder)}
           order={kotOrder}
           onClose={() => setKotOrder(null)}
+        />
+      )}
+
+      {cancellingOrder && (
+        <CancelOrderModal
+          order={cancellingOrder}
+          onClose={() => setCancellingOrder(null)}
+          onConfirm={() => {
+            const ordToCancel = cancellingOrder;
+            setCancellingOrder(null);
+            updateOrderStatus(ordToCancel.orderId, 'cancelled');
+          }}
         />
       )}
     </div>
