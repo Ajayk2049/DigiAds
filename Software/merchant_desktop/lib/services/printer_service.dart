@@ -21,7 +21,7 @@ class PrinterService {
   String? _selectedKotPrinter;
   String _paperWidthFormat = '80mm'; // '80mm' | '58mm'
   String _colorMode = 'monochrome'; // 'monochrome' | 'color'
-  String _kotPrintTrigger = 'arrival'; // 'arrival' | 'accepted' | 'manual'
+  String _kotPrintTrigger = 'manual'; // 'manual' | 'arrival' | 'accepted'
   bool _silentPrintEnabled = true;
 
   final Set<String> _autoPrintedKotIds = {};
@@ -124,7 +124,7 @@ class PrinterService {
       _kotPrintTrigger = savedTrigger;
     } else {
       final legacyAuto = prefs.getBool('pos_auto_print_kot');
-      _kotPrintTrigger = (legacyAuto == false) ? 'manual' : 'arrival';
+      _kotPrintTrigger = (legacyAuto == true) ? 'arrival' : 'manual';
     }
     _silentPrintEnabled = prefs.getBool('pos_silent_print') ?? true;
   }

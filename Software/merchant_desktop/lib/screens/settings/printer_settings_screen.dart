@@ -204,6 +204,18 @@ class PrinterSettingsScreen extends StatelessWidget {
                 _buildKotTriggerOption(
                   context: context,
                   isDark: isDark,
+                  title: 'Manual Only (Cashier Controlled) (Default)',
+                  subtitle: 'Never auto-print. Cashier or counter staff manually taps the "PRINT KOT" button on the live orders dashboard.',
+                  icon: LucideIcons.printer,
+                  value: 'manual',
+                  groupValue: printerProv.kotPrintTrigger,
+                  onChanged: (val) => printerProv.updateKotPrintTrigger(val),
+                ),
+                const SizedBox(height: 8),
+
+                _buildKotTriggerOption(
+                  context: context,
+                  isDark: isDark,
                   title: 'On Order Arrival (Instant)',
                   subtitle: 'Automatically print KOT immediately when customer places an order via table QR or kiosk.',
                   icon: LucideIcons.bellRing,
@@ -220,18 +232,6 @@ class PrinterSettingsScreen extends StatelessWidget {
                   subtitle: 'Automatically print KOT only after staff reviews and accepts the order (status moved to "Cooking").',
                   icon: LucideIcons.chefHat,
                   value: 'accepted',
-                  groupValue: printerProv.kotPrintTrigger,
-                  onChanged: (val) => printerProv.updateKotPrintTrigger(val),
-                ),
-                const SizedBox(height: 8),
-
-                _buildKotTriggerOption(
-                  context: context,
-                  isDark: isDark,
-                  title: 'Manual Only (Cashier Controlled)',
-                  subtitle: 'Never auto-print. Cashier or counter staff manually taps the "PRINT KOT" button on the live orders dashboard.',
-                  icon: LucideIcons.printer,
-                  value: 'manual',
                   groupValue: printerProv.kotPrintTrigger,
                   onChanged: (val) => printerProv.updateKotPrintTrigger(val),
                 ),
