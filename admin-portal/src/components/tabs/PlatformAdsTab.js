@@ -38,6 +38,18 @@ export default function PlatformAdsTab({
 
   const platformAds = useAdminStore((s) => s.platformAds);
   const hosts = useAdminStore((s) => s.hosts);
+  const token = useAdminStore((s) => s.token);
+  const fetchPlatformAds = useAdminStore((s) => s.fetchPlatformAds);
+  const fetchHosts = useAdminStore((s) => s.fetchHosts);
+
+  useEffect(() => {
+    if (token) {
+      fetchPlatformAds(token);
+      if (!hosts || hosts.length === 0) {
+        fetchHosts(token);
+      }
+    }
+  }, [token, fetchPlatformAds, fetchHosts, hosts?.length]);
 
   const fallbackAds = platformAds.filter((a) => a.type === 'fallback');
   const targetedAds = platformAds.filter((a) => a.type === 'platform');

@@ -8,7 +8,9 @@ import {
   Lock,
   Eye,
   Settings,
-  Clock
+  Clock,
+  Play,
+  Pause
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
 import Pagination from '@/components/common/Pagination';
@@ -17,7 +19,8 @@ export default function VenuesTab({
   onSelectVenue,
   onOpenQuotaModal,
   onOpenWatermarkModal,
-  onOpenPromoDurations
+  onOpenPromoDurations,
+  onTogglePauseVenue
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const hosts = useAdminStore((s) => s.hosts);
@@ -136,18 +139,17 @@ export default function VenuesTab({
         <div className="flex space-x-2 bg-muted/30 p-1 rounded-xl border border-border/60">
           {[
             { id: 'all', label: `All Outlets (${approvedCount})` },
-            { id: 'open', label: `Open Ads Network (${openCount})` },
-            { id: 'private', label: `Private Promos (${closedCount})` },
+            { id: 'open', label: `Open Ads venues (${openCount})` },
+            { id: 'private', label: `Closed AD venues (${closedCount})` },
             { id: 'paused', label: `Paused (${pausedCount})` }
           ].map((f) => (
             <button
               key={f.id}
               onClick={() => setVenueStatusFilter(f.id)}
-              className={`text-[10px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-lg transition-colors duration-200 cursor-pointer ${
-                venueStatusFilter === f.id
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              className={`text-[10px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-lg transition-colors duration-200 cursor-pointer ${venueStatusFilter === f.id
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+                }`}
             >
               {f.label}
             </button>
@@ -195,90 +197,121 @@ export default function VenuesTab({
               approvedVenuesList
                 .slice((currentPage - 1) * 7, currentPage * 7)
                 .map((app) => {
-                const isClosed = app.allowOpenAds === false || app.adMode === 'closed';
-                const vMax = app.customMaxVideoSlots ?? (isClosed ? 3 : 2);
-                const vDaily = app.customDailyVideoQuota ?? (isClosed ? 6 : 4);
-                const iMax = app.customMaxImageSlots ?? (isClosed ? 8 : 3);
-                const iDaily = app.customDailyImageQuota ?? (isClosed ? 15 : 10);
-                const sMax = app.customMaxScreenSlots ?? (isClosed ? 8 : 3);
+                  const isClosed = app.allowOpenAds === false || app.adMode === 'closed';
+                  const vMax = app.customMaxVideoSlots ?? (isClosed ? 3 : 2);
+                  const vDaily = app.customDailyVideoQuota ?? (isClosed ? 6 : 4);
+                  const iMax = app.customMaxImageSlots ?? (isClosed ? 8 : 3);
+                  const iDaily = app.customDailyImageQuota ?? (isClosed ? 15 : 10);
+                  const sMax = app.customMaxScreenSlots ?? (isClosed ? 8 : 3);
 
-                return (
-                  <tr
-                    key={app._id}
-                    onClick={() => handleSelectVenue(app)}
-                    className="hover:bg-card/20 cursor-pointer transition-colors duration-200"
-                  >
-                    <td className="p-4 pl-6 font-bold text-foreground">
-                      <div className="flex items-center space-x-2">
-                        <Building className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-outfit text-sm">{app.outletName}</span>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground font-medium pl-6">
-                        {app.requestTablet && `Tablet (${app.tabletQuantity}) `}
-                        {app.requestScreen && `Screen (${app.screenQuantity})`}
-                      </div>
-                    </td>
-                    <td className="p-4 font-semibold text-foreground">
-                      <div>{app.contactPerson}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {app.city}, {app.state} • {app.phone}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
-                          !isClosed
-                            ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                            : 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
-                        }`}
-                      >
-                        {!isClosed ? (
-                          <Unlock className="w-3 h-3 text-blue-500 shrink-0" />
-                        ) : (
-                          <Lock className="w-3 h-3 text-purple-500 shrink-0" />
-                        )}
-                        <span>{!isClosed ? 'OPEN ADS' : 'PRIVATE'}</span>
-                      </span>
-                    </td>
-                    <td className="p-4 font-mono text-[11px] font-bold">
-                      <div className="text-foreground">
-                        Vid: {vMax}/{vDaily}d
-                      </div>
-                      <div className="text-muted-foreground text-[10px]">
-                        Img: {iMax}/{iDaily}d • Scr: {sMax}
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectVenue(app);
-                        }}
-                        className="px-3 py-1.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 mx-auto cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View Form Popup</span>
-                      </button>
-                    </td>
-                    <td className="p-4 text-right pr-6">
-                      <div className="flex items-center justify-end space-x-2">
+                  return (
+                    <tr
+                      key={app._id}
+                      onClick={() => handleSelectVenue(app)}
+                      className="hover:bg-card/20 cursor-pointer transition-colors duration-200"
+                    >
+                      <td className="p-4 pl-6 font-bold text-foreground">
+                        <div className="flex items-center space-x-2">
+                          <Building className="w-4 h-4 text-primary shrink-0" />
+                          <span className="font-outfit text-sm">{app.outletName}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium pl-6">
+                          {app.requestTablet && `Tablet (${app.tabletQuantity}) `}
+                          {app.requestScreen && `Screen (${app.screenQuantity})`}
+                        </div>
+                      </td>
+                      <td className="p-4 font-semibold text-foreground">
+                        <div>{app.contactPerson}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {app.city}, {app.state} • {app.phone}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full ${!isClosed
+                              ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                              : 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+                              }`}
+                          >
+                            {!isClosed ? (
+                              <Unlock className="w-3 h-3 text-blue-500 shrink-0" />
+                            ) : (
+                              <Lock className="w-3 h-3 text-purple-500 shrink-0" />
+                            )}
+                            <span>{!isClosed ? 'OPEN ADS' : 'PRIVATE'}</span>
+                          </span>
+                          {app.isPaused && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                              <Pause className="w-2.5 h-2.5" />
+                              <span>PAUSED</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 font-mono text-[11px] font-bold">
+                        <div className="text-foreground">
+                          Vid: {vMax}/{vDaily}d
+                        </div>
+                        <div className="text-muted-foreground text-[10px]">
+                          Img: {iMax}/{iDaily}d • Scr: {sMax}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (onOpenQuotaModal) onOpenQuotaModal(app);
+                            handleSelectVenue(app);
                           }}
-                          className="px-2.5 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted-foreground/20 text-foreground border border-border rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
-                          title="Edit Custom Quotas"
-                          aria-label="Edit Quotas"
+                          className="px-3 py-1.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 mx-auto cursor-pointer"
                         >
-                          <Settings className="w-3.5 h-3.5" />
-                          <span>Quotas</span>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Form Popup</span>
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                      </td>
+                      <td className="p-4 text-right pr-6">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onTogglePauseVenue) onTogglePauseVenue(app);
+                            }}
+                            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer border ${
+                              app.isPaused
+                                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/25'
+                            }`}
+                            title={app.isPaused ? 'Resume Venue Streaming' : 'Pause Venue Streaming'}
+                          >
+                            {app.isPaused ? (
+                              <>
+                                <Play className="w-3.5 h-3.5" />
+                                <span>Resume</span>
+                              </>
+                            ) : (
+                              <>
+                                <Pause className="w-3.5 h-3.5" />
+                                <span>Pause</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenQuotaModal) onOpenQuotaModal(app);
+                            }}
+                            className="px-2.5 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted-foreground/20 text-foreground border border-border rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
+                            title="Edit Custom Quotas"
+                            aria-label="Edit Quotas"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            <span>Quotas</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
             )}
           </tbody>
         </table>

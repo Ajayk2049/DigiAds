@@ -118,6 +118,29 @@ export default function useAdminModalActions({
     }
   };
 
+  const handleTogglePauseVenue = async (venue) => {
+    const target = venue || selectedHostApp;
+    if (!target) return;
+    const newPausedState = !target.isPaused;
+    try {
+      const res = await adminService.updateHostStatus(token, target._id, { isPaused: newPausedState });
+      if (res.data?.success) {
+        showNotification(
+          newPausedState
+            ? `"${target.outletName}" has been paused.`
+            : `"${target.outletName}" streaming has been resumed.`,
+          'success'
+        );
+        if (selectedHostApp && selectedHostApp._id === target._id) {
+          setSelectedHostApp(res.data.data);
+        }
+        fetchDashboardData(token);
+      }
+    } catch (err) {
+      showNotification(err.response?.data?.message || 'Failed to update venue status', 'error');
+    }
+  };
+
   const handleReviewHost = async (hostId, status) => {
     try {
       const res = await adminService.reviewHost(token, hostId, status);
@@ -469,6 +492,7 @@ export default function useAdminModalActions({
     handleResetQuotaNow,
     handleSaveQuotas,
     handleSaveWatermark,
+    handleTogglePauseVenue,
     handleReviewHost,
     handleReviewCampaign,
     handleUpdateBookingCategory,

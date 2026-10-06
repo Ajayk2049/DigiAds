@@ -400,8 +400,10 @@ export const useAdminStore = create((set, get) => ({
       case 'ota':
         get().fetchReleases(authToken);
         break;
+      case 'platform_ads':
       case 'platform-ads':
         get().fetchPlatformAds(authToken);
+        get().fetchHosts(authToken);
         break;
       default:
         get().fetchStats(authToken);
@@ -462,12 +464,14 @@ export const useAdminStore = create((set, get) => ({
   },
 
   fetchPlatformAds: async (authToken = get().token) => {
+    if (!authToken) return;
     try {
       const res = await axios.get(`${API_BASE}/admin/platform-ads`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       set({ platformAds: res.data.data || [] });
     } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
       console.error('fetchPlatformAds Error:', err);
     }
   },

@@ -31,6 +31,7 @@ export default function AdminModalContainer({
   setShowVenueModal,
   setSelectedHostApp,
   handleReviewHost,
+  handleTogglePauseVenue,
   openQuotaModal,
   openWatermarkModal,
   handleResetQuotaNow,
@@ -173,6 +174,7 @@ export default function AdminModalContainer({
         onOpenQuota={openQuotaModal}
         onOpenWatermark={openWatermarkModal}
         onResetQuota={handleResetQuotaNow}
+        onTogglePause={handleTogglePauseVenue}
       />
 
       <VenueWatermarkModal

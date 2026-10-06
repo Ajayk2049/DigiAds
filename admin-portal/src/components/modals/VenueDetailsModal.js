@@ -13,7 +13,9 @@ import {
   Unlock,
   Lock,
   Check,
-  Settings
+  Settings,
+  Play,
+  Pause
 } from 'lucide-react';
 
 export default function VenueDetailsModal({
@@ -22,7 +24,8 @@ export default function VenueDetailsModal({
   onReview,
   onOpenQuota,
   onOpenWatermark,
-  onResetQuota
+  onResetQuota,
+  onTogglePause
 }) {
   if (!selectedHostApp) return null;
 
@@ -38,6 +41,11 @@ export default function VenueDetailsModal({
               <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full ${selectedHostApp.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : selectedHostApp.status === 'rejected' ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'}`}>
                 {selectedHostApp.status}
               </span>
+              {selectedHostApp.isPaused && (
+                <span className="text-[9px] font-black uppercase bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1">
+                  <Pause className="w-2.5 h-2.5" /> Paused
+                </span>
+              )}
             </div>
             <h3 className="font-outfit text-xl font-bold text-foreground mt-2">{selectedHostApp.outletName}</h3>
             <p className="text-xs text-muted-foreground font-medium mt-0.5">Submitted on {new Date(selectedHostApp.createdAt).toLocaleString()}</p>
@@ -215,6 +223,26 @@ export default function VenueDetailsModal({
               >
                 <Sliders className="w-4 h-4" />
                 <span>Manage Watermark</span>
+              </button>
+              <button
+                onClick={() => onTogglePause && onTogglePause(selectedHostApp)}
+                className={`px-4 py-2.5 font-bold rounded-xl transition-colors duration-200 flex items-center space-x-1.5 cursor-pointer text-xs ${
+                  selectedHostApp.isPaused
+                    ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                    : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                }`}
+              >
+                {selectedHostApp.isPaused ? (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>Resume Streaming</span>
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>Pause Streaming</span>
+                  </>
+                )}
               </button>
             </div>
           )}
