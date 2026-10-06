@@ -648,21 +648,23 @@ class LiveOrdersScreen extends StatelessWidget {
             flex: 2,
             child: Align(
               alignment: Alignment.centerRight,
-              child: (order.isTakeout || order.tableStatus == 'close_table')
-                  ? _PulsingReceiveButton(
-                      onPressed: () => _showPaymentMethodDialog(context, order, ordersProv),
-                    )
-                  : OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.danger,
-                        side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      ),
-                      onPressed: (order.orderStatus == 'served' || order.items.isEmpty)
-                          ? () => ordersProv.closeTable(order.orderId)
-                          : null,
-                      child: const Text('CLEAR TABLE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
+              child: order.orderStatus == 'cancelled'
+                  ? const SizedBox()
+                  : (order.isTakeout || order.tableStatus == 'close_table')
+                      ? _PulsingReceiveButton(
+                          onPressed: () => _showPaymentMethodDialog(context, order, ordersProv),
+                        )
+                      : OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.danger,
+                            side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                          onPressed: (order.orderStatus == 'served' || order.items.isEmpty)
+                              ? () => ordersProv.closeTable(order.orderId)
+                              : null,
+                          child: const Text('CLEAR TABLE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
             ),
           ),
         ],

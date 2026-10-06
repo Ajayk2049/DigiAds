@@ -145,13 +145,14 @@ class OrderController {
       }
       if (orderStatus === 'cancelled') {
         order.tableStatus = 'completed';
-        const isEmpty = (!order.items || order.items.length === 0) && (order.totalAmount || 0) === 0;
-        if (isEmpty) {
-          order.paymentStatus = 'cancelled';
-          notifyDeviceSessionUpdate(order);
-          await Order.deleteOne({ _id: order._id });
-          return res.status(200).send({ success: true, message: 'Empty order cancelled and session purged', data: { orderId, tableStatus: 'completed', orderStatus: 'cancelled' } });
-        }
+        order.paymentStatus = 'cancelled';
+        notifyDeviceSessionUpdate(order);
+        await Order.deleteOne({ _id: order._id });
+        return res.status(200).send({
+          success: true,
+          message: 'Order cancelled and purged from database',
+          data: { orderId, tableStatus: 'completed', orderStatus: 'cancelled' }
+        });
       } else if (order.tableStatus === 'close_table' || order.tableStatus === 'completed') {
         order.tableStatus = 'active';
       }

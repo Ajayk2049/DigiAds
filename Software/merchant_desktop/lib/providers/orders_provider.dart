@@ -98,6 +98,19 @@ class OrdersProvider extends ChangeNotifier {
   }
 
   void _upsertOrder(OrderModel order) {
+    if (order.orderStatus == 'cancelled') {
+      final liveIndex = _liveOrders.findIndexByOrderId(order.orderId);
+      if (liveIndex >= 0) {
+        _liveOrders[liveIndex] = order;
+        notifyListeners();
+        Future.delayed(const Duration(seconds: 2), () {
+          _liveOrders.removeWhere((o) => o.orderId == order.orderId);
+          notifyListeners();
+        });
+      }
+      return;
+    }
+
     final isLive = order.tableStatus != 'completed' &&
         order.tableStatus != 'completed_acked' &&
         order.orderStatus != 'cancelled' &&
@@ -144,6 +157,7 @@ class OrdersProvider extends ChangeNotifier {
     try {
       final query = <String, dynamic>{
         'tableStatus': 'active',
+        'isLive': 'true',
       };
       if (hostApplicationId != null && hostApplicationId.isNotEmpty) {
         query['hostApplicationId'] = hostApplicationId;
@@ -153,6 +167,11 @@ class OrdersProvider extends ChangeNotifier {
       if (res.data['success'] == true && res.data['data'] != null) {
         _liveOrders = (res.data['data'] as List<dynamic>)
             .map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
+            .where((order) =>
+                order.orderStatus != 'cancelled' &&
+                order.tableStatus != 'completed' &&
+                order.tableStatus != 'completed_acked' &&
+                order.paymentStatus != 'completed')
             .toList();
       }
     } catch (e) {
@@ -247,18 +266,32 @@ class OrdersProvider extends ChangeNotifier {
   }
 
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
+    if (newStatus == 'cancelled') {
+      final idx = _liveOrders.indexWhere((o) => o.orderId == orderId);
+      if (idx != -1) {
+        _liveOrders[idx] = _liveOrders[idx].copyWith(orderStatus: 'cancelled');
+        notifyListeners();
+        Future.delayed(const Duration(seconds: 2), () {
+          _liveOrders.removeWhere((o) => o.orderId == orderId);
+          notifyListeners();
+        });
+      }
+    }
+
     try {
       final res = await _api.post('/host/orders/update-status', data: {
         'orderId': orderId,
         'orderStatus': newStatus,
       });
       if (res.data['success'] == true && res.data['data'] != null) {
-        final updated = OrderModel.fromJson(res.data['data']);
-        _upsertOrder(updated);
+        if (newStatus != 'cancelled') {
+          final updated = OrderModel.fromJson(res.data['data']);
+          _upsertOrder(updated);
 
-        // Automated KOT Print: trigger when merchant accepts order
-        if (_printer.kotPrintTrigger == 'accepted' && newStatus == 'cooking') {
-          _printer.printKitchenKot(order: updated, isAutomatic: true);
+          // Automated KOT Print: trigger when merchant accepts order
+          if (_printer.kotPrintTrigger == 'accepted' && newStatus == 'cooking') {
+            _printer.printKitchenKot(order: updated, isAutomatic: true);
+          }
         }
       }
     } catch (e) {
