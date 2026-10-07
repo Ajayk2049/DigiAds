@@ -43,6 +43,23 @@ const getUserPortalUrl = () => {
   return 'http://localhost:3001';
 };
 
+const getLandingPageUrl = () => {
+  if (process.env.NEXT_PUBLIC_LANDING_PAGE_URL) {
+    return process.env.NEXT_PUBLIC_LANDING_PAGE_URL.trim().replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      if (host.includes('digiads.space')) {
+        return `${protocol}//digiads.space`;
+      }
+      return `${protocol}//${host}:4100`;
+    }
+  }
+  return 'http://localhost:4100';
+};
+
 export const config = {
   get apiUrl() {
     return getApiUrl();
@@ -53,6 +70,13 @@ export const config = {
   get userPortalUrl() {
     return getUserPortalUrl();
   },
+  get landingPageUrl() {
+    return getLandingPageUrl();
+  },
+  get downloadPageUrl() {
+    return `${getLandingPageUrl()}/download`;
+  },
+  githubDownloadUrl: 'https://github.com/Ajayk2049/DigiAds/releases/latest/download/DigiAds-POS-Setup.exe',
   maxVideoDurationSeconds: parseInt(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS, 10) || 60,
 };
 

@@ -37,6 +37,10 @@ export default function LandingHeader({ userPortalUrl }) {
               <span>Locations</span>
               <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
             </a>
+            <a href="/download" className="hover:text-foreground transition-colors hover:text-accent flex items-center space-x-1.5">
+              <span>Download POS</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent/15 text-accent border border-accent/20">Win</span>
+            </a>
             <a href="#how-it-works" className="hover:text-foreground transition-colors hover:text-accent">How It Works</a>
             <a href="#guides" className="hover:text-foreground transition-colors hover:text-accent">User Guide</a>
             <a href="#faq" className="hover:text-foreground transition-colors hover:text-accent">FAQ</a>

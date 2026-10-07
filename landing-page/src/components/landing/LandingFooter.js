@@ -18,6 +18,7 @@ export default function LandingFooter() {
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
           <a href="#demo" className="hover:text-foreground transition-colors">Devices</a>
           <a href="/locations" className="hover:text-foreground transition-colors text-accent">Locations</a>
+          <a href="/download" className="hover:text-foreground transition-colors text-accent">Download POS</a>
           <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
           <a href="#guides" className="hover:text-foreground transition-colors">User Guide</a>
           <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>

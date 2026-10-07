@@ -25,4 +25,5 @@ export const config = {
   get userPortalUrl() {
     return getUserPortalUrl();
   },
+  githubDownloadUrl: 'https://github.com/Ajayk2049/DigiAds/releases/latest/download/DigiAds-POS-Setup.exe',
 };

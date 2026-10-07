@@ -23,8 +23,11 @@ import {
   Pencil,
   Tablet,
   RefreshCw,
-  LogOut
+  LogOut,
+  Monitor,
+  Download
 } from 'lucide-react';
+import { config } from '@/config';
 
 export default function MerchantHeader(props) {
   const router = useRouter();
@@ -174,6 +177,19 @@ export default function MerchantHeader(props) {
         </nav>
 
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+          {/* Windows Desktop POS Download Button */}
+          <a
+            href={config.downloadPageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/15 border border-primary/25 rounded-xl text-xs font-bold text-primary transition-all cursor-pointer shadow-sm"
+            title="Download DigiAds Desktop POS for Windows"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Windows POS</span>
+            <Download className="w-3.5 h-3.5" />
+          </a>
+
           {/* Desktop Theme toggle */}
           <button
             onClick={toggleTheme}
@@ -285,6 +301,20 @@ export default function MerchantHeader(props) {
                     )}
                   </div>
                 )}
+
+                <div className="p-1.5 border-b border-border/40">
+                  <a
+                    href={config.downloadPageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
+                  >
+                    <Monitor className="w-4 h-4 text-primary" />
+                    <span className="flex-1">Windows POS App</span>
+                    <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                  </a>
+                </div>
 
                 <div className="p-1.5">
                   <button
@@ -425,6 +455,21 @@ export default function MerchantHeader(props) {
               )}
             </>
           )}
+
+          {/* Windows Desktop POS in Mobile Drawer */}
+          <a
+            href={config.downloadPageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setMobileMenuOpen(false)}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 transition-all mt-2"
+          >
+            <div className="flex items-center space-x-3">
+              <Monitor className="w-4 h-4 text-primary" />
+              <span>Download Windows POS</span>
+            </div>
+            <Download className="w-4 h-4" />
+          </a>
 
           {/* Theme Toggle in Mobile Drawer */}
           <div className="pt-2 mt-2 border-t border-border/40 flex items-center justify-between px-3 py-1.5">

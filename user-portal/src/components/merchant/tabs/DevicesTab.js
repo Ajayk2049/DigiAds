@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Tablet, Tv } from 'lucide-react';
+import { Tablet, Tv, Monitor, Download, ExternalLink } from 'lucide-react';
 import { useOutletStore } from '@/stores/useOutletStore';
+import { config } from '@/config';
 
 export default function DevicesTab(props) {
   const outlet = useOutletStore();
@@ -26,6 +27,46 @@ export default function DevicesTab(props) {
 
   return (
     <div className="animate-fade-in">
+      {/* Desktop POS Client Banner */}
+      <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 mb-8 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-card via-card to-primary/5">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+            <Monitor className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-foreground">DigiAds Terminal for Windows (POS Client)</h2>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                v1.0.0 Stable
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Direct ESC/POS thermal printing (80mm/58mm), loud kitchen audio chimes, and instant table order management from your Windows counter PC.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+          <a
+            href={config.githubDownloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-all cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download .exe (64-bit)</span>
+          </a>
+          <a
+            href={config.downloadPageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs font-semibold transition-all cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Features & Guide</span>
+          </a>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center mb-8 flex-wrap gap-4 border-b border-border/40 pb-4">
         <div className="space-y-3">
           <div>

@@ -2,12 +2,12 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Download, Monitor } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-export default function LocationsHeader({ userPortalUrl }) {
+export default function DownloadHeader({ userPortalUrl, downloadUrl }) {
   return (
-    <header className="h-16 bg-background px-6 border-b border-border/40 flex items-center justify-between z-30 shrink-0">
+    <header className="h-16 bg-background px-6 border-b border-border/40 flex items-center justify-between z-30 shrink-0 sticky top-0 backdrop-blur-md bg-background/90">
       <div className="w-full max-w-[1700px] mx-auto flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <a href="/" className="flex items-center space-x-3 group">
@@ -26,11 +26,8 @@ export default function LocationsHeader({ userPortalUrl }) {
           <nav className="hidden lg:flex items-center space-x-8 text-sm font-semibold text-muted-foreground">
             <a href="/#features" className="hover:text-foreground transition-colors hover:text-accent">Features</a>
             <a href="/#demo" className="hover:text-foreground transition-colors hover:text-accent">Device Demo</a>
-            <a href="/locations" className="text-foreground transition-colors hover:text-accent flex items-center space-x-1.5 font-bold">
-              <span>Locations</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
-            </a>
-            <a href="/download" className="hover:text-foreground transition-colors hover:text-accent flex items-center space-x-1.5">
+            <a href="/locations" className="hover:text-foreground transition-colors hover:text-accent">Locations</a>
+            <a href="/download" className="text-foreground transition-colors hover:text-accent flex items-center space-x-1.5 font-bold">
               <span>Download POS</span>
               <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent/15 text-accent border border-accent/20">Win</span>
             </a>
@@ -43,21 +40,21 @@ export default function LocationsHeader({ userPortalUrl }) {
 
         <div className="flex items-center space-x-3">
           <a
+            href={downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center space-x-1.5 text-xs font-bold bg-accent hover:bg-accent/90 text-white px-3.5 py-2 rounded-card transition-all shadow-card hover:shadow-pop"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download .exe</span>
+          </a>
+          <a
             href={`${userPortalUrl}/login`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-semibold px-4 py-2 rounded-card border border-border bg-card text-foreground hover:bg-muted transition-colors"
+            className="text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-card border border-border bg-card text-foreground hover:bg-muted transition-colors"
           >
             Sign In
-          </a>
-          <a
-            href={`${userPortalUrl}/register`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center space-x-1.5 text-xs font-bold bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-card transition-all shadow-card hover:shadow-pop"
-          >
-            <span>Get Started</span>
-            <ArrowRight className="w-3.5 h-3.5" />
           </a>
           <ThemeToggle />
         </div>

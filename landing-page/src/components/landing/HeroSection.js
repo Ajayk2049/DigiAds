@@ -70,6 +70,15 @@ export default function HeroSection({ userPortalUrl }) {
             </a>
           </motion.div>
 
+          {/* Desktop POS Quick Link */}
+          <motion.div variants={fadeInUp} className="flex items-center gap-2 text-xs text-muted-foreground font-medium pt-1">
+            <span>Managing counter billing?</span>
+            <a href="/download" className="text-accent font-bold hover:underline inline-flex items-center gap-1 transition-colors">
+              <span>Download Desktop POS for Windows</span>
+              <ArrowRight className="w-3 h-3" />
+            </a>
+          </motion.div>
+
           {/* Micro Trust Stats */}
           <motion.div
             variants={fadeInUp}

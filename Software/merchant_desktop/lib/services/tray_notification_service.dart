@@ -21,7 +21,7 @@ class TrayNotificationService with TrayListener, WindowListener {
 
       // Initialize local notifier for Windows Toast Notifications
       await localNotifier.setup(
-        appName: 'DigiAds Venue Admin',
+        appName: 'DigiAds POS',
         shortcutPolicy: ShortcutPolicy.requireCreate,
       );
 
