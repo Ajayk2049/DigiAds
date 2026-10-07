@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Download } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function LocationsHeader({ userPortalUrl }) {
@@ -30,10 +30,6 @@ export default function LocationsHeader({ userPortalUrl }) {
               <span>Locations</span>
               <span className="w-1.5 h-1.5 rounded-full bg-accent"></span>
             </a>
-            <a href="/download" className="hover:text-foreground transition-colors hover:text-accent flex items-center space-x-1.5">
-              <span>Download POS</span>
-              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent/15 text-accent border border-accent/20">Win</span>
-            </a>
             <a href="/#how-it-works" className="hover:text-foreground transition-colors hover:text-accent">How It Works</a>
             <a href="/#guides" className="hover:text-foreground transition-colors hover:text-accent">User Guide</a>
             <a href="/#faq" className="hover:text-foreground transition-colors hover:text-accent">FAQ</a>
@@ -41,12 +37,19 @@ export default function LocationsHeader({ userPortalUrl }) {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 sm:space-x-3">
+          <a
+            href="/download"
+            className="inline-flex items-center space-x-1.5 text-xs sm:text-sm font-semibold px-3 sm:px-3.5 py-2 rounded-card border border-border bg-card hover:bg-muted text-foreground transition-colors shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5 text-accent" />
+            <span>Download POS</span>
+          </a>
           <a
             href={`${userPortalUrl}/login`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-semibold px-4 py-2 rounded-card border border-border bg-card text-foreground hover:bg-muted transition-colors"
+            className="text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 rounded-card border border-border bg-card text-foreground hover:bg-muted transition-colors"
           >
             Sign In
           </a>

@@ -25,7 +25,9 @@ import {
   RefreshCw,
   LogOut,
   Monitor,
-  Download
+  Download,
+  User,
+  Settings
 } from 'lucide-react';
 import { config } from '@/config';
 
@@ -177,19 +179,6 @@ export default function MerchantHeader(props) {
         </nav>
 
         <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-          {/* Windows Desktop POS Download Button */}
-          <a
-            href={config.downloadPageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/15 border border-primary/25 rounded-xl text-xs font-bold text-primary transition-all cursor-pointer shadow-sm"
-            title="Download DigiAds Desktop POS for Windows"
-          >
-            <Monitor className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Windows POS</span>
-            <Download className="w-3.5 h-3.5" />
-          </a>
-
           {/* Desktop Theme toggle */}
           <button
             onClick={toggleTheme}
@@ -225,51 +214,67 @@ export default function MerchantHeader(props) {
             </button>
 
             {userMenuOpen && (
-              <div className="absolute right-0 mt-2 w-52 rounded-xl bg-card border border-border/40 shadow-lg py-1.5 z-40 animate-fade-in text-xs font-semibold">
-                <div className="px-3 py-2 border-b border-border/40">
-                  <p className="text-[10px] text-muted-foreground leading-none">Logged in as</p>
-                  <p className="text-xs font-bold text-foreground mt-1 truncate">{name || phone}</p>
+              <div className="absolute right-0 mt-2 w-56 sm:w-60 rounded-2xl bg-card border border-border/70 shadow-2xl p-2 z-40 animate-fade-in text-xs font-semibold select-none">
+                {/* User / Venue Profile Header */}
+                <div className="px-3 py-2.5 mb-1 flex items-center space-x-3 border-b border-border/40">
+                  <div className="w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center shrink-0 border border-border/50">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground truncate leading-snug">
+                      {(applications && applications[0]?.outletName) || name || 'Merchant Account'}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate leading-snug mt-0.5">
+                      {phone || (applications && applications[0]?.phone) || ''}
+                    </p>
+                  </div>
                 </div>
 
-                {applications.length > 0 && !hasApprovedVenue && (
-                  <div className="p-1.5 space-y-1 border-b border-border/40">
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        setActiveTab('my-applications');
-                      }}
-                      className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
-                    >
-                      <Form className="w-4 h-4 text-[#0069a8]" />
-                      <span>Your Applications</span>
-                    </button>
-                  </div>
-                )}
-
-                {applications.length > 0 && (
-                  <div className="p-1.5 space-y-1 border-b border-border/40">
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        setActiveTab('devices');
-                      }}
-                      className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
-                    >
-                      <MonitorSmartphone className="w-4 h-4 text-emerald-500" />
-                      <span>Devices</span>
-                    </button>
-
+                <div className="py-1 space-y-0.5">
+                  {/* Settings / Edit Venue */}
+                  {applications.length > 0 && (
                     <button
                       onClick={() => {
                         setUserMenuOpen(false);
                         if (openEditApplicationModal) openEditApplicationModal(applications[0]);
                       }}
-                      className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
                     >
-                      <Pencil className="w-4 h-4 text-blue-500" />
-                      <span>Edit Venue Details</span>
+                      <Settings className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                      <span>Settings</span>
                     </button>
+                  )}
 
+                  {/* Your Applications (if still pending) */}
+                  {applications.length > 0 && !hasApprovedVenue && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setActiveTab('my-applications');
+                      }}
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
+                    >
+                      <Form className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                      <span>Applications</span>
+                    </button>
+                  )}
+
+                  {/* Devices */}
+                  {applications.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setActiveTab('devices');
+                      }}
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
+                    >
+                      <MonitorSmartphone className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                      <span>Devices</span>
+                    </button>
+                  )}
+
+                  {/* Request Devices */}
+                  {applications.length > 0 && (
                     <button
                       onClick={() => {
                         setUserMenuOpen(false);
@@ -280,52 +285,53 @@ export default function MerchantHeader(props) {
                         setReqScreenQuantity('1');
                         setReqDeviceError('');
                       }}
-                      className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
                     >
-                      <Tablet className="w-4 h-4 text-blue-500" />
-                      <span>Get More Devices</span>
+                      <Tablet className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                      <span>Request Devices</span>
                     </button>
+                  )}
 
-                    {roles.includes('advertiser') && (
-                      <button
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          if (handleSwitchRole) handleSwitchRole('advertiser');
-                        }}
-                        disabled={roleActionLoading}
-                        className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
-                      >
-                        <RefreshCw className={`w-4 h-4 text-indigo-500 ${roleActionLoading ? 'animate-spin' : ''}`} />
-                        <span>Switch to Advertiser</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className="p-1.5 border-b border-border/40">
+                  {/* Windows POS App */}
                   <a
                     href={config.downloadPageUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setUserMenuOpen(false)}
-                    className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-foreground font-bold"
+                    className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
                   >
-                    <Monitor className="w-4 h-4 text-primary" />
+                    <Monitor className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                     <span className="flex-1">Windows POS App</span>
-                    <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Download className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                   </a>
+
+                  {/* Switch Role (if advertiser) */}
+                  {roles.includes('advertiser') && (
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        if (handleSwitchRole) handleSwitchRole('advertiser');
+                      }}
+                      disabled={roleActionLoading}
+                      className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-muted/80 rounded-xl transition-colors cursor-pointer text-foreground font-semibold group"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0 ${roleActionLoading ? 'animate-spin' : ''}`} />
+                      <span>Switch to Advertiser</span>
+                    </button>
+                  )}
                 </div>
 
-                <div className="p-1.5">
+                {/* Logout Action */}
+                <div className="pt-1 mt-1 border-t border-border/40">
                   <button
                     onClick={() => {
                       setUserMenuOpen(false);
                       if (handleLogout) handleLogout();
                     }}
-                    className="w-full flex items-center space-x-2 px-2.5 py-2 text-left hover:bg-muted rounded-lg transition-colors cursor-pointer text-destructive font-bold"
+                    className="w-full flex items-center space-x-3 px-3 py-2.5 text-left hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer text-rose-500 font-semibold group"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Sign Out</span>
+                    <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>Logout</span>
                   </button>
                 </div>
               </div>

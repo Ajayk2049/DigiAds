@@ -7,7 +7,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function DownloadHeader({ userPortalUrl, downloadUrl }) {
   return (
-    <header className="h-16 bg-background px-6 border-b border-border/40 flex items-center justify-between z-30 shrink-0 sticky top-0 backdrop-blur-md bg-background/90">
+    <header className="h-16 bg-background px-6 border-b border-border/40 flex items-center justify-between z-30 shrink-0 sticky top-0">
       <div className="w-full max-w-[1700px] mx-auto flex items-center justify-between">
         <div className="flex items-center space-x-10">
           <a href="/" className="flex items-center space-x-3 group">
@@ -27,10 +27,6 @@ export default function DownloadHeader({ userPortalUrl, downloadUrl }) {
             <a href="/#features" className="hover:text-foreground transition-colors hover:text-accent">Features</a>
             <a href="/#demo" className="hover:text-foreground transition-colors hover:text-accent">Device Demo</a>
             <a href="/locations" className="hover:text-foreground transition-colors hover:text-accent">Locations</a>
-            <a href="/download" className="text-foreground transition-colors hover:text-accent flex items-center space-x-1.5 font-bold">
-              <span>Download POS</span>
-              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent/15 text-accent border border-accent/20">Win</span>
-            </a>
             <a href="/#how-it-works" className="hover:text-foreground transition-colors hover:text-accent">How It Works</a>
             <a href="/#guides" className="hover:text-foreground transition-colors hover:text-accent">User Guide</a>
             <a href="/#faq" className="hover:text-foreground transition-colors hover:text-accent">FAQ</a>

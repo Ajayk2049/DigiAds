@@ -160,15 +160,15 @@ export default function EditApplicationModal(props) {
   const displayError = error || localError;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto">
-      <div className="w-full max-w-xl bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-5 my-8">
-        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      <div className="w-full max-w-xl bg-card border border-border/40 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh] sm:max-h-[82vh] overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5 shrink-0 bg-card">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
-              <Pencil className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+              <Pencil className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-outfit text-md font-bold tracking-tight text-foreground">Edit Venue & Application Details</h3>
+              <h3 className="font-outfit text-sm sm:text-base font-bold tracking-tight text-foreground">Edit Venue & Application Details</h3>
               <p className="text-[11px] text-muted-foreground font-semibold">Update contact person, mobile number, address or outlet details.</p>
             </div>
           </div>
@@ -180,12 +180,13 @@ export default function EditApplicationModal(props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-semibold text-foreground">
-          {displayError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-bold">
-              {displayError}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 text-xs font-semibold text-foreground">
+            {displayError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl font-bold">
+                {displayError}
+              </div>
+            )}
 
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -382,13 +383,15 @@ export default function EditApplicationModal(props) {
                 </p>
               </div>
             </div>
+            </div>
           </div>
 
-          <div className="flex space-x-3 pt-4 border-t border-border/40">
+          {/* Pinned Action Footer */}
+          <div className="flex space-x-3 px-5 py-3.5 border-t border-border/40 bg-card shrink-0">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-primary hover:bg-primary/95 text-primary-foreground font-bold py-3 rounded-xl transition-all text-xs cursor-pointer shadow-lg flex items-center justify-center space-x-2"
+              className="flex-1 bg-primary hover:bg-primary/95 text-primary-foreground font-bold py-2.5 rounded-xl transition-all text-xs cursor-pointer shadow-md flex items-center justify-center space-x-2"
             >
               <span>{loading ? 'Saving Changes...' : 'Save Changes'}</span>
             </button>

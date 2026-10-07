@@ -145,6 +145,7 @@
 - **Sample Preview Modals**: Live preview components for KOT and Customer Bills with authentic brand logos, watermark, and footer feedback QR codes.
 - **Windows System Tray & Autostart**: Runs continuously in the background, minimizes to the notification tray, and autostarts on Windows boot via registry entries.
 - **Reporting & Excel Exports**: Server-paginated completed order histories and full-range `.xlsx` Excel statement generator.
+- **Direct Installer Distribution**: Packaged as a single-click Windows setup executable (`DigiAds-POS-Setup.exe`) hosted via GitHub Releases and downloadable directly from `/download` on the marketing landing page and the merchant portal devices tab.
 
 ---
 
@@ -176,7 +177,7 @@ digiads/
 │       ├── windows/           # Native Win32 CMake runner & window hooks
 │       └── installer.iss      # Inno Setup single-click installer configuration
 │
-├── landing-page/              # Public marketing website (Next.js 16, Port 4100)
+├── landing-page/              # Public marketing website (Next.js 16, Port 4100; includes `/download` & `/locations`)
 ├── user-portal/               # Merchant & Advertiser portal (Next.js 16, Port 4200)
 ├── admin-portal/              # Platform Admin management dashboard (Next.js 16, Port 4300)
 │
