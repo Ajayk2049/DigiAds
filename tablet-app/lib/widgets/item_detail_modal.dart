@@ -157,10 +157,20 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
         int defaultIdx = g.options.indexWhere((o) => o.isDefault);
         if (defaultIdx < 0 && g.options.isNotEmpty) defaultIdx = 0;
         _selections[i] = defaultIdx >= 0 ? {defaultIdx} : {};
-      } else if (g.isRequired && !g.isMultiple && g.options.isNotEmpty) {
-        _selections[i] = {0};
       } else {
-        _selections[i] = {};
+        final defaultIndices = <int>{};
+        for (int optIdx = 0; optIdx < g.options.length; optIdx++) {
+          if (g.options[optIdx].isDefault) {
+            defaultIndices.add(optIdx);
+          }
+        }
+        if (defaultIndices.isNotEmpty) {
+          _selections[i] = g.isMultiple ? defaultIndices : {defaultIndices.first};
+        } else if (g.isRequired && !g.isMultiple && g.options.isNotEmpty) {
+          _selections[i] = {0};
+        } else {
+          _selections[i] = {};
+        }
       }
     }
     _quantity = 1;

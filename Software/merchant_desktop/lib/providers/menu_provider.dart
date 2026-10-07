@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/menu_models.dart';
 import '../services/api_service.dart';
+import '../services/websocket_service.dart';
 import '../utils/error_utils.dart';
 
 class MenuProvider extends ChangeNotifier {
@@ -21,10 +23,36 @@ class MenuProvider extends ChangeNotifier {
   bool _isSaving = false;
   bool _hasChanges = false;
   String? _error;
+  String? _lastHostApplicationId;
 
   String _popularCategoryName = 'Popular';
   String _popularCategoryIcon = 'star';
 
+  MenuProvider() {
+    _setupWebSocketListeners();
+  }
+
+  void _setupWebSocketListeners() {
+    WebSocketService().addListener('menu_updated', _handleMenuUpdated);
+  }
+
+  void _handleMenuUpdated(Map<String, dynamic> data) {
+    final eventAppId = (data['hostApplicationId'] ?? data['data']?['hostApplicationId'])?.toString();
+    if (_lastHostApplicationId != null && (eventAppId == null || eventAppId == _lastHostApplicationId)) {
+      if (!_hasChanges && !_isSaving) {
+        if (kDebugMode) print('[MenuProvider] Live menu_updated signal received. Refreshing menu items...');
+        fetchMenu(_lastHostApplicationId!, silent: true);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WebSocketService().removeListener('menu_updated', _handleMenuUpdated);
+    super.dispose();
+  }
+
+  String? get lastHostApplicationId => _lastHostApplicationId;
   MenuModel? get menu => _menu;
   List<MenuItemModel> get items => _draftItems;
   List<String> get categories => _categories;
@@ -64,10 +92,13 @@ class MenuProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchMenu(String hostApplicationId) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+  Future<void> fetchMenu(String hostApplicationId, {bool silent = false}) async {
+    _lastHostApplicationId = hostApplicationId;
+    if (!silent) {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+    }
 
     try {
       final res = await _api.get('/host/menu', queryParameters: {'hostApplicationId': hostApplicationId});
@@ -80,13 +111,20 @@ class MenuProvider extends ChangeNotifier {
         _popularCategoryIcon = _menu!.popularCategoryIcon;
         _shifts = List.from(_menu!.shifts);
         _activeShift = _menu!.activeShift;
-        _selectedViewingShift = _activeShift;
+        if (!silent) {
+          _selectedViewingShift = _activeShift;
+        }
         _hasChanges = false;
+        _error = null;
       }
     } catch (e) {
-      _error = ErrorUtils.parseError(e);
+      if (!silent) {
+        _error = ErrorUtils.parseError(e);
+      }
     } finally {
-      _isLoading = false;
+      if (!silent) {
+        _isLoading = false;
+      }
       notifyListeners();
     }
   }

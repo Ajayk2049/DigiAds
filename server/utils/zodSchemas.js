@@ -113,8 +113,15 @@ const menuItemSchema = z.object({
   description: z.string().optional().default(''),
   imageUrl: z.string().optional().default(''),
   isAvailable: z.boolean().optional().default(true),
-  shifts: z.array(z.string()).optional()
-});
+  isVeg: z.boolean().optional().default(true),
+  isPopular: z.boolean().optional().default(false),
+  isAllShifts: z.boolean().optional().default(false),
+  shifts: z.array(z.string()).optional().default([]),
+  gst: z.number().nullable().optional(),
+  otherCharges: z.number().nullable().optional(),
+  otherChargesType: z.enum(['percentage', 'rupees', 'fixed']).optional().default('percentage'),
+  customizations: z.array(z.any()).optional().default([])
+}).passthrough();
 
 const menuUpdateSchema = z.object({
   hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId is required'),
@@ -125,9 +132,9 @@ const menuUpdateSchema = z.object({
   shift: z.string().optional(),
   defaultGst: z.number().min(0).max(100).optional(),
   defaultOtherCharges: z.number().min(0).optional(),
-  defaultOtherChargesType: z.enum(['percentage', 'fixed']).optional(),
+  defaultOtherChargesType: z.enum(['percentage', 'rupees', 'fixed']).optional(),
   popularCategory: z.any().optional()
-});
+}).passthrough();
 
 const paymentConfigSchema = z.object({
   hostApplicationId: z.string({ required_error: 'hostApplicationId is required' }).min(1, 'hostApplicationId is required'),

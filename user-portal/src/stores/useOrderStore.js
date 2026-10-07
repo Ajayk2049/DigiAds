@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { config } from '../config';
 import { useUIStore } from './useUIStore';
+import { useMenuStore } from './useMenuStore';
 
 const getApiBase = () => config.apiUrl;
 const getWsBase = () => config.wsUrl;
@@ -184,6 +185,12 @@ export const useOrderStore = create((set, get) => ({
             }
           } else if (data.event === 'device_status_changed') {
             if (onDeviceStatusChanged) onDeviceStatusChanged();
+          } else if (data.event === 'menu_updated') {
+            const menuStore = useMenuStore.getState();
+            const targetVenueId = data.hostApplicationId || (data.data && data.data.hostApplicationId);
+            if (!menuStore.isSavingMenu && targetVenueId) {
+              menuStore.fetchMenu(token, targetVenueId);
+            }
           }
         } catch (parseErr) {
           if (process.env.NODE_ENV !== 'production') {

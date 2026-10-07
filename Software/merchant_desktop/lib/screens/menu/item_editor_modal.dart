@@ -769,11 +769,12 @@ class _ItemEditorModalState extends State<ItemEditorModal> {
 
               const Spacer(),
 
-              if (isDirect)
-                const Text(
-                  '★ Click star to set Default Card Price',
-                  style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.amber),
-                ),
+              Text(
+                isDirect
+                    ? '★ Click star to set Default Card Price'
+                    : '★ Click star to set Default Option',
+                style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.amber),
+              ),
             ],
           ),
 
@@ -819,29 +820,40 @@ class _ItemEditorModalState extends State<ItemEditorModal> {
 
     return Row(
       children: [
-        if (isDirect) ...[
-          IconButton(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-            icon: Icon(
-              opt.isDefault ? Icons.star : Icons.star_border,
-              size: 18,
-              color: opt.isDefault ? Colors.amber : (isDark ? Colors.white38 : Colors.grey.shade400),
-            ),
-            tooltip: opt.isDefault ? 'Default / Card Price' : 'Click to set as Default Card Price',
-            onPressed: () {
-              setState(() {
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          icon: Icon(
+            opt.isDefault ? Icons.star : Icons.star_border,
+            size: 18,
+            color: opt.isDefault ? Colors.amber : (isDark ? Colors.white38 : Colors.grey.shade400),
+          ),
+          tooltip: opt.isDefault
+              ? (isDirect ? 'Default / Card Price' : 'Default Pre-selected Option')
+              : (isDirect ? 'Click to set as Default Card Price' : 'Click to set as Default Option'),
+          onPressed: () {
+            setState(() {
+              if (isDirect) {
                 for (int i = 0; i < group.options.length; i++) {
                   group.options[i].isDefault = (i == oIdx);
                 }
                 if (opt.extraPrice > 0) {
                   _priceController.text = opt.extraPriceInRupees.toStringAsFixed(2);
                 }
-              });
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
+              } else {
+                final isCurrent = opt.isDefault;
+                for (int i = 0; i < group.options.length; i++) {
+                  if (i == oIdx) {
+                    group.options[i].isDefault = !isCurrent;
+                  } else if (!group.isMultiple) {
+                    group.options[i].isDefault = false;
+                  }
+                }
+              }
+            });
+          },
+        ),
+        const SizedBox(width: 4),
 
         // Option Name
         Expanded(

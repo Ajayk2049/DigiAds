@@ -178,6 +178,9 @@ class MenuController {
             oldItem.name !== newItem.name ||
             oldItem.category !== newItem.category ||
             oldItem.imageUrl !== newItem.imageUrl ||
+            oldItem.isVeg !== newItem.isVeg ||
+            oldItem.isAllShifts !== newItem.isAllShifts ||
+            JSON.stringify(oldItem.shifts || []) !== JSON.stringify(newItem.shifts || []) ||
             JSON.stringify(oldItem.customizations || []) !== JSON.stringify(newItem.customizations || []);
 
           if (hasStructuralChange) {
@@ -223,6 +226,15 @@ class MenuController {
             socket.send(wsPayload);
           }
         }
+      }
+
+      // Notify active merchant sockets (Windows Desktop POS client & web portal)
+      if (typeof global.sendToMerchant === 'function') {
+        global.sendToMerchant(req.user.uid, {
+          event: 'menu_updated',
+          hostApplicationId: hostApplicationId.toString(),
+          activeShift: menu.activeShift
+        });
       }
 
       return res.status(200).send({
@@ -271,6 +283,15 @@ class MenuController {
             socket.send(JSON.stringify({ event: 'reload_menu', activeShift }));
           }
         }
+      }
+
+      // Notify active merchant sockets (Windows Desktop POS client & web portal)
+      if (typeof global.sendToMerchant === 'function') {
+        global.sendToMerchant(req.user.uid, {
+          event: 'menu_updated',
+          hostApplicationId: hostApplicationId.toString(),
+          activeShift
+        });
       }
 
       return res.status(200).send({

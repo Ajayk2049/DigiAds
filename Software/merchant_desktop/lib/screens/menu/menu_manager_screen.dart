@@ -23,8 +23,9 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final venueId = context.read<VenueProvider>().selectedVenue?.id;
-      if (venueId != null && context.read<MenuProvider>().menu == null) {
-        context.read<MenuProvider>().fetchMenu(venueId);
+      final menuProv = context.read<MenuProvider>();
+      if (venueId != null && (!menuProv.hasChanges || menuProv.menu == null)) {
+        menuProv.fetchMenu(venueId, silent: menuProv.menu != null);
       }
     });
   }
@@ -240,6 +241,22 @@ class _MenuManagerScreenState extends State<MenuManagerScreen> {
                   },
                   icon: const Icon(LucideIcons.settings, size: 13),
                   label: const Text('Manage Categories', style: TextStyle(fontSize: 11)),
+                ),
+                const SizedBox(width: 8),
+
+                // Refresh / Sync from Cloud
+                IconButton(
+                  tooltip: 'Sync with Cloud',
+                  onPressed: menuProv.isLoading
+                      ? null
+                      : () {
+                          if (venueId != null) {
+                            menuProv.fetchMenu(venueId);
+                          }
+                        },
+                  icon: menuProv.isLoading
+                      ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(LucideIcons.refreshCw, size: 14),
                 ),
                 const SizedBox(width: 8),
 

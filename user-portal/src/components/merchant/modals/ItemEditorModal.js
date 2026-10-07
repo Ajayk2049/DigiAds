@@ -543,17 +543,19 @@ export default function ItemEditorModal(props) {
                     <div className="space-y-2 pl-2 border-l-2 border-primary/30">
                       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         <span>{isDirect ? "Pack Sizes / Variants (Direct Retail Price)" : "Options & Extra Pricing"}</span>
-                        {isDirect && <span className="text-amber-500 lowercase font-normal italic">★ Click star to set default / card price</span>}
+                        <span className="text-amber-500 lowercase font-normal italic">
+                          {isDirect ? "★ Click star to set default / card price" : "★ Click star to set default option"}
+                        </span>
                       </div>
 
                       {group.options.map((opt, oIdx) => (
                         <div key={oIdx} className="flex items-center space-x-2">
-                          {isDirect && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setModalForm(prev => {
-                                  const cust = [...prev.customizations];
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalForm(prev => {
+                                const cust = [...prev.customizations];
+                                if (isDirect) {
                                   const opts = cust[gIdx].options.map((o, idx) => ({
                                     ...o,
                                     isDefault: idx === oIdx
@@ -565,14 +567,27 @@ export default function ItemEditorModal(props) {
                                     price: newCardPrice || prev.price,
                                     customizations: cust
                                   };
-                                });
-                              }}
-                              className={`p-1 rounded-md transition-all cursor-pointer ${opt.isDefault ? 'text-amber-400 bg-amber-500/15 border border-amber-400/30' : 'text-muted-foreground hover:text-foreground'}`}
-                              title={opt.isDefault ? "Default / Featured Card Price" : "Click to set as Default Card Price"}
-                            >
-                              ★
-                            </button>
-                          )}
+                                } else {
+                                  const isCurrentlyDefault = opt.isDefault === true;
+                                  const opts = cust[gIdx].options.map((o, idx) => {
+                                    if (idx === oIdx) {
+                                      return { ...o, isDefault: !isCurrentlyDefault };
+                                    }
+                                    return group.isMultiple ? o : { ...o, isDefault: false };
+                                  });
+                                  cust[gIdx] = { ...cust[gIdx], options: opts };
+                                  return {
+                                    ...prev,
+                                    customizations: cust
+                                  };
+                                }
+                              });
+                            }}
+                            className={`p-1 rounded-card transition-all cursor-pointer ${opt.isDefault ? 'text-amber-400 bg-amber-500/15 border border-amber-400/30' : 'text-muted-foreground hover:text-foreground'}`}
+                            title={opt.isDefault ? (isDirect ? "Default / Featured Card Price" : "Default Pre-selected Option") : (isDirect ? "Click to set as Default Card Price" : "Click to set as Default Option")}
+                          >
+                            ★
+                          </button>
                           <input
                             type="text"
                             placeholder={isDirect ? "Variant name (e.g. 100 Gm, 600 Gm)" : "Option name (e.g. Regular / With Sugar)"}
