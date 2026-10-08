@@ -542,25 +542,6 @@ class _ItemDetailModalState extends State<ItemDetailModal> {
                                                   color: isChosen ? kAccentBlue : Colors.grey.shade800,
                                                 ),
                                               ),
-                                              if (opt.isDefault) ...[
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.amber.shade50,
-                                                    border: Border.all(color: Colors.amber.shade300),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    "Best Value",
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Colors.amber.shade900,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
                                             ] else if (opt.extraPrice > 0) ...[
                                               const SizedBox(width: 6),
                                               Text(

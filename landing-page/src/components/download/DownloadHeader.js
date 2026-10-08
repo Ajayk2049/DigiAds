@@ -2,10 +2,10 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { ArrowRight, Download, Monitor } from 'lucide-react';
+import { ArrowRight, Monitor } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-export default function DownloadHeader({ userPortalUrl, downloadUrl }) {
+export default function DownloadHeader({ userPortalUrl }) {
   return (
     <header className="h-16 bg-background px-6 border-b border-border/40 flex items-center justify-between z-30 shrink-0 sticky top-0">
       <div className="w-full max-w-[1700px] mx-auto flex items-center justify-between">
@@ -35,15 +35,6 @@ export default function DownloadHeader({ userPortalUrl, downloadUrl }) {
         </div>
 
         <div className="flex items-center space-x-3">
-          <a
-            href={downloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center space-x-1.5 text-xs font-bold bg-accent hover:bg-accent/90 text-white px-3.5 py-2 rounded-card transition-all shadow-card hover:shadow-pop"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download .exe</span>
-          </a>
           <a
             href={`${userPortalUrl}/login`}
             target="_blank"

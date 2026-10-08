@@ -16,8 +16,8 @@ const STEPS = [
   },
   {
     step: '03',
-    title: 'Log In with Merchant OTP',
-    description: 'Open DigiAds POS, enter your registered venue mobile number, and enter the OTP. All your tables, live orders, and menu items load automatically!'
+    title: 'Log In with Mobile & Password',
+    description: 'Open DigiAds POS, enter your registered venue mobile number and password. All your tables, live orders, and menu items load automatically!'
   }
 ];
 

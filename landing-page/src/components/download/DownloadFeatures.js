@@ -3,43 +3,43 @@
 import React from 'react';
 import {
   Printer,
-  Volume2,
-  Zap,
-  ShieldCheck,
-  RefreshCw,
-  Cpu
+  Radio,
+  Cpu,
+  AppWindow,
+  Bell,
+  RefreshCw
 } from 'lucide-react';
 
 const FEATURES = [
   {
     icon: Printer,
-    title: 'Direct Thermal & KOT Printing',
-    description: 'Directly sends receipt and kitchen KOT jobs to 80mm & 58mm USB and Network ESC/POS thermal printers without browser dialog interruptions.'
+    title: 'Direct Bill & KOT Printing',
+    description: 'Directly sends thermal receipts and kitchen order tickets to 80mm & 58mm USB/Network printers without browser dialog interruptions or print delays.'
   },
   {
-    icon: Volume2,
-    title: 'Loud Kitchen Sound Chimes',
-    description: 'High-visibility audio notifications alert counter staff instantly when diners place orders from their tabletop tablets, even in busy, noisy environments.'
-  },
-  {
-    icon: Zap,
-    title: 'Sub-Second Live WebSocket Sync',
-    description: 'Orders flow instantly from guest table tablets to your billing screen in under 300ms, ensuring immediate kitchen dispatch and zero order latency.'
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Order Cancellation Protection',
-    description: 'Double-confirmation safety prompts prevent accidental order cancellations and protect kitchen prep workflows.'
-  },
-  {
-    icon: RefreshCw,
-    title: 'Offline Resilience & Auto-Reconnect',
-    description: 'Maintains local state and gracefully reconnects the moment internet connectivity restores without disrupting cashier operations.'
+    icon: Radio,
+    title: 'Live WebSockets Order Updates',
+    description: 'Real-time two-way synchronization ensures table orders, menu edits, and status transitions reflect across counter screens in milliseconds.'
   },
   {
     icon: Cpu,
-    title: 'Native 64-Bit Performance',
-    description: 'Built with Flutter for Windows desktop. Ultra-fast rendering, low memory footprint, and zero reliance on sluggish browser tabs.'
+    title: 'Native Windows App for Quick Launch',
+    description: 'Built natively for 64-bit Windows with near-instant boot times, snappy navigation, and an ultra-lean memory footprint without heavy browser bloat.'
+  },
+  {
+    icon: AppWindow,
+    title: 'Runs in the Background',
+    description: 'Silently minimizes to the Windows system tray and taskbar so counter workstations stay active and cashiers never miss an incoming table order.'
+  },
+  {
+    icon: Bell,
+    title: 'Notifications for Orders & Requests',
+    description: 'Clear visual badges, native OS alerts, and distinct audio chimes notify staff instantly whenever customers place orders or request assistance.'
+  },
+  {
+    icon: RefreshCw,
+    title: 'Auto Reconnect',
+    description: 'Resilient network layer automatically detects dropped connections and reconnects to the cloud without requiring cashiers to refresh or restart.'
   }
 ];
 
