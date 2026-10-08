@@ -191,6 +191,7 @@ export default function AdminPortal() {
                 onResetQuota={modals.handleResetQuotaNow}
                 onTogglePauseVenue={modals.handleTogglePauseVenue}
                 onOpenPromoDurations={() => modals.setIsPromoDurationsModalOpen(true)}
+                onOpenBillingModal={modals.openBillingModal}
               />
             )}
 

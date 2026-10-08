@@ -23,6 +23,8 @@ import PlatformAdPreviewModal from './PlatformAdPreviewModal';
 import PlatformAdResolutionModal from './PlatformAdResolutionModal';
 import DeployDeviceModal from './DeployDeviceModal';
 import AdvertiserAdsModal from './AdvertiserAdsModal';
+import VenueBillingModal from './VenueBillingModal';
+import InvoiceViewerModal from './InvoiceViewerModal';
 
 export default function AdminModalContainer({
   // Venue modals
@@ -49,6 +51,15 @@ export default function AdminModalContainer({
   setActiveQuotaTab,
   handleSaveQuotas,
   handleResetQuotaDefaults,
+
+  // Venue Billing modals
+  selectedBillingVenue,
+  showBillingModal,
+  setShowBillingModal,
+  openInvoiceViewer,
+  selectedInvoice,
+  showInvoiceViewerModal,
+  setShowInvoiceViewerModal,
 
   // Device request & deploy
   selectedDeviceReq,
@@ -445,6 +456,23 @@ export default function AdminModalContainer({
           setRevokeReason('');
           setShowRevokeModal(true);
         }}
+      />
+
+      {/* Venue Subscription Billing Modal */}
+      <VenueBillingModal
+        venue={selectedBillingVenue}
+        isOpen={showBillingModal}
+        onClose={() => setShowBillingModal(false)}
+        onViewInvoice={(invoice) => {
+          if (openInvoiceViewer) openInvoiceViewer(invoice);
+        }}
+      />
+
+      {/* Tax Invoice Viewer Modal with QR Code */}
+      <InvoiceViewerModal
+        invoice={selectedInvoice}
+        isOpen={showInvoiceViewerModal}
+        onClose={() => setShowInvoiceViewerModal(false)}
       />
     </>
   );

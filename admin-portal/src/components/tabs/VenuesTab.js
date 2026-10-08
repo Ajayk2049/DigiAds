@@ -9,8 +9,7 @@ import {
   Eye,
   Settings,
   Clock,
-  Play,
-  Pause
+  Receipt
 } from 'lucide-react';
 import { useAdminStore } from '@/stores/useAdminStore';
 import Pagination from '@/components/common/Pagination';
@@ -20,7 +19,8 @@ export default function VenuesTab({
   onOpenQuotaModal,
   onOpenWatermarkModal,
   onOpenPromoDurations,
-  onTogglePauseVenue
+  onTogglePauseVenue,
+  onOpenBillingModal
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const hosts = useAdminStore((s) => s.hosts);
@@ -266,7 +266,7 @@ export default function VenuesTab({
                           className="px-3 py-1.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 mx-auto cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>View Form Popup</span>
+                          <span>Details</span>
                         </button>
                       </td>
                       <td className="p-4 text-right pr-6">
@@ -274,26 +274,14 @@ export default function VenuesTab({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onTogglePauseVenue) onTogglePauseVenue(app);
+                              if (onOpenBillingModal) onOpenBillingModal(app);
                             }}
-                            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer border ${
-                              app.isPaused
-                                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
-                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/25'
-                            }`}
-                            title={app.isPaused ? 'Resume Venue Streaming' : 'Pause Venue Streaming'}
+                            className="px-2.5 py-1.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
+                            title="Venue Subscription Billing & Invoices"
+                            aria-label="Venue Billing"
                           >
-                            {app.isPaused ? (
-                              <>
-                                <Play className="w-3.5 h-3.5" />
-                                <span>Resume</span>
-                              </>
-                            ) : (
-                              <>
-                                <Pause className="w-3.5 h-3.5" />
-                                <span>Pause</span>
-                              </>
-                            )}
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Billing</span>
                           </button>
                           <button
                             onClick={(e) => {

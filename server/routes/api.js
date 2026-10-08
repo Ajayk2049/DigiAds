@@ -3,6 +3,7 @@ const deviceAuthController = require('../controllers/deviceAuthController');
 const adminController = require('../controllers/adminController');
 const releaseController = require('../controllers/releaseController');
 const publicController = require('../controllers/publicController');
+const venueBillingController = require('../controllers/admin/venueBillingController');
 
 // Host Domain Controllers
 const venueController = require('../controllers/host/venueController');
@@ -266,6 +267,13 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.put('/admin/hosts/:hostApplicationId/status', adminController.updateHostStatusAndQuotas.bind(adminController));
     adminRoutes.post('/admin/hosts/:hostApplicationId/reset-quota', adminController.resetHostQuotaNow.bind(adminController));
     adminRoutes.put('/admin/hosts/:hostApplicationId/watermark', adminController.updateVenueWatermark.bind(adminController));
+    
+    // Venue Subscription Billing & Invoicing
+    adminRoutes.post('/admin/venues/:id/invoices/preview', venueBillingController.previewInvoice.bind(venueBillingController));
+    adminRoutes.post('/admin/venues/:id/invoices', venueBillingController.createInvoice.bind(venueBillingController));
+    adminRoutes.get('/admin/venues/:id/invoices', venueBillingController.getVenueInvoices.bind(venueBillingController));
+    adminRoutes.put('/admin/invoices/:id/status', venueBillingController.updateInvoiceStatus.bind(venueBillingController));
+
     adminRoutes.get('/admin/bookings', adminController.getAdBookings.bind(adminController));
     adminRoutes.post('/admin/bookings/review', { preHandler: validate({ body: reviewAdBookingSchema }) }, adminController.reviewAdBooking.bind(adminController));
     adminRoutes.put('/admin/bookings/:bookingId/category', adminController.updateBookingCategory.bind(adminController));

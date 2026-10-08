@@ -26,6 +26,22 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
     customDailyScreenImageQuota: ''
   });
 
+  // Venue Billing & Invoices
+  const [selectedBillingVenue, setSelectedBillingVenue] = useState(null);
+  const [showBillingModal, setShowBillingModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showInvoiceViewerModal, setShowInvoiceViewerModal] = useState(false);
+
+  const openBillingModal = (venue) => {
+    setSelectedBillingVenue(venue);
+    setShowBillingModal(true);
+  };
+
+  const openInvoiceViewer = (invoice) => {
+    setSelectedInvoice(invoice);
+    setShowInvoiceViewerModal(true);
+  };
+
   // Device Requests & Deploy
   const [selectedDeviceReq, setSelectedDeviceReq] = useState(null);
   const [showDeviceReqModal, setShowDeviceReqModal] = useState(false);
@@ -376,6 +392,18 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
     selectedAdvertiserUser,
     setSelectedAdvertiserUser,
     showAdvertiserAdsModal,
-    setShowAdvertiserAdsModal
+    setShowAdvertiserAdsModal,
+
+    // Venue Billing & Invoices
+    selectedBillingVenue,
+    setSelectedBillingVenue,
+    showBillingModal,
+    setShowBillingModal,
+    openBillingModal,
+    selectedInvoice,
+    setSelectedInvoice,
+    showInvoiceViewerModal,
+    setShowInvoiceViewerModal,
+    openInvoiceViewer
   };
 }
