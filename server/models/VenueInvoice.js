@@ -75,6 +75,14 @@ const VenueInvoiceSchema = new mongoose.Schema({
 
   items: [InvoiceItemSchema],
 
+  ordersBreakdown: [{
+    orderId: { type: String, required: true },
+    tableNumber: { type: String, default: '' },
+    orderDate: { type: Date, required: true },
+    orderValueRupees: { type: Number, required: true },
+    commissionAmount: { type: Number, required: true }
+  }],
+
   subtotal: {
     type: Number,
     required: true
@@ -97,8 +105,8 @@ const VenueInvoiceSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['draft', 'sent', 'paid', 'cancelled'],
-    default: 'sent',
+    enum: ['draft', 'issued', 'sent', 'paid', 'cancelled'],
+    default: 'issued',
     index: true
   },
   paidAt: {

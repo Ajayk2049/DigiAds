@@ -124,6 +124,7 @@ export default function VenueBillingModal({
         toast.success(`Invoice ${res.data.invoice.invoiceNumber} generated successfully!`);
         fetchInvoices();
         if (onViewInvoice) {
+          onClose();
           onViewInvoice(res.data.invoice);
         }
       }

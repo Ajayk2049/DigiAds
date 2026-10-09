@@ -7,7 +7,6 @@ import {
   Unlock,
   Lock,
   Eye,
-  Settings,
   Clock,
   Receipt
 } from 'lucide-react';
@@ -182,14 +181,13 @@ export default function VenuesTab({
               <th className="p-4">Owner & Location</th>
               <th className="p-4">Ad Mode</th>
               <th className="p-4">Quotas (V/I/S)</th>
-              <th className="p-4 text-center">Full Form Details</th>
-              <th className="p-4 text-right pr-6">Controls</th>
+              <th className="p-4 text-right pr-6">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
             {approvedVenuesList.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-12 text-center text-muted-foreground font-medium italic">
+                <td colSpan="5" className="p-12 text-center text-muted-foreground font-medium italic">
                   No active venues found.
                 </td>
               </tr>
@@ -257,20 +255,20 @@ export default function VenuesTab({
                           Img: {iMax}/{iDaily}d • Scr: {sMax}
                         </div>
                       </td>
-                      <td className="p-4 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSelectVenue(app);
-                          }}
-                          className="px-3 py-1.5 text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg transition-colors duration-200 flex items-center space-x-1 mx-auto cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Details</span>
-                        </button>
-                      </td>
                       <td className="p-4 text-right pr-6">
                         <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectVenue(app);
+                            }}
+                            className="px-2.5 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted-foreground/20 text-foreground border border-border rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
+                            title="View Full Venue Details"
+                            aria-label="Venue Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Details</span>
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -282,18 +280,6 @@ export default function VenuesTab({
                           >
                             <Receipt className="w-3.5 h-3.5" />
                             <span>Billing</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenQuotaModal) onOpenQuotaModal(app);
-                            }}
-                            className="px-2.5 py-1.5 text-[10px] font-bold bg-muted hover:bg-muted-foreground/20 text-foreground border border-border rounded-lg transition-colors duration-200 flex items-center space-x-1 cursor-pointer"
-                            title="Edit Custom Quotas"
-                            aria-label="Edit Quotas"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span>Quotas</span>
                           </button>
                         </div>
                       </td>

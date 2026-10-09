@@ -227,6 +227,7 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/bill-config/delete-image', billingController.deleteBillImage.bind(billingController));
     merchantRoutes.post('/host/applications/request-mode-change', { preHandler: validate({ body: modeChangeRequestSchema }) }, venuePromoController.requestModeChange.bind(venuePromoController));
     merchantRoutes.get('/host/applications/mode-change-status', venuePromoController.getModeChangeStatus.bind(venuePromoController));
+    merchantRoutes.get('/host/venues/:id/invoices', venueBillingController.getMerchantVenueInvoices.bind(venueBillingController));
     next();
   });
 

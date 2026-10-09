@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
-import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer, ChevronLeft, ChevronRight, Receipt, CreditCard } from 'lucide-react';
+import VenueSubscriptionBills from './VenueSubscriptionBills';
 import { usePaymentStore } from '@/stores/usePaymentStore';
 import { useOrderStore } from '@/stores/useOrderStore';
 import { useOutletStore } from '@/stores/useOutletStore';
@@ -40,6 +41,8 @@ export default function PaymentTab(props) {
   const setPaymentSearchInput = props.setPaymentSearchInput ?? payment.setPaymentSearchInput;
   const setDebouncedSearchQuery = props.setDebouncedSearchQuery ?? payment.setDebouncedSearchQuery;
   const openPrintBillModal = props.openPrintBillModal ?? ((ord) => order.openPrintBillModal(ord, selectedOutletId, token));
+
+  const [activeSubTab, setActiveSubTab] = useState('orders'); // 'orders' | 'bills'
 
   const searchAbortControllerRef = useRef(null);
 
@@ -157,11 +160,43 @@ export default function PaymentTab(props) {
 
   return (
     <div className="animate-fade-in w-full">
-      {/* Header row */}
-      <div className="flex justify-between items-center mb-6 border-b border-border/40 pb-4 flex-wrap gap-4">
-        <h1 className="font-outfit text-2xl font-black text-foreground uppercase tracking-wider">
-          PAYMENT HISTORY
-        </h1>
+      {/* Sub-tab Navigation */}
+      <div className="flex items-center space-x-2 mb-6 border-b border-border/60 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('orders')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'orders'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Customer POS Orders</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('bills')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubTab === 'bills'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Receipt className="w-4 h-4" />
+          <span>DigiAds Subscription Bills</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'bills' ? (
+        <VenueSubscriptionBills />
+      ) : (
+        <>
+          {/* Header row */}
+          <div className="flex justify-between items-center mb-6 border-b border-border/40 pb-4 flex-wrap gap-4">
+            <h1 className="font-outfit text-2xl font-black text-foreground uppercase tracking-wider">
+              PAYMENT HISTORY
+            </h1>
 
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
           {/* Standalone Calendar Date Picker */}
@@ -372,6 +407,8 @@ export default function PaymentTab(props) {
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -2,11 +2,10 @@
 
 import React, { useState } from 'react';
 import { X, Download, Copy, Check, QrCode, Building, Calendar, ShieldCheck } from 'lucide-react';
-import QrCodeView from '@/components/common/QrCodeView';
-import { toast } from 'sonner';
+import QrCodeView from '../common/QrCodeView';
 import { exportVenueInvoiceExcel } from '@/utils/exportVenueInvoiceExcel';
 
-export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
+export default function MerchantInvoiceModal({ invoice, isOpen, onClose }) {
   const [copied, setCopied] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -16,7 +15,6 @@ export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
     if (invoice.upiDetails?.upiId) {
       navigator.clipboard.writeText(invoice.upiDetails.upiId);
       setCopied(true);
-      toast.success('UPI ID copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -25,9 +23,6 @@ export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
     try {
       setIsExporting(true);
       await exportVenueInvoiceExcel(invoice);
-      toast.success('Excel statement downloaded successfully');
-    } catch {
-      toast.error('Failed to export Excel statement');
     } finally {
       setIsExporting(false);
     }
@@ -36,13 +31,13 @@ export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
   const isPaid = invoice.status === 'paid';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <div className="bg-card text-card-foreground border border-border w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Action Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
           <div className="flex items-center space-x-2">
             <span className="font-outfit font-bold text-base text-foreground">
-              Tax Invoice — {invoice.invoiceNumber}
+              DigiAds Bill & Statement — {invoice.invoiceNumber}
             </span>
             <span
               className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -51,7 +46,7 @@ export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
                   : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
               }`}
             >
-              {isPaid ? 'Paid' : 'Issued'}
+              {isPaid ? 'Paid' : 'Unpaid / Due'}
             </span>
           </div>
 
@@ -80,7 +75,7 @@ export default function InvoiceViewerModal({ invoice, isOpen, onClose }) {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-6">
             <div>
               <div className="font-outfit text-2xl font-black text-primary tracking-tight">
-                Digi<span className="text-accent">Ads</span>
+                Digi<span className="text-foreground">Ads</span>
               </div>
               <p className="text-xs text-muted-foreground font-medium pt-1">
                 DigiAds Media Private Limited • Tabletop Ordering & Ad Network

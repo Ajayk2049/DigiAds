@@ -45,6 +45,7 @@ class VenueBillingController {
     const flatPerOrderRate = Number(rateConfig?.flatPerOrderRate) || 0;
     const orderPercentageRate = Number(rateConfig?.orderPercentageRate) || 0;
 
+    const ordersBreakdown = [];
     if (billingModel === 'device_based') {
       if (tabletCount > 0 && tabletRate > 0) {
         const amount = tabletCount * tabletRate;
@@ -67,6 +68,23 @@ class VenueBillingController {
         subtotal += amount;
       }
     } else if (billingModel === 'order_flat') {
+      const orders = await Order.find({
+        hostApplicationId: venue._id,
+        createdAt: { $gte: start, $lte: end },
+        orderStatus: { $ne: 'cancelled' }
+      }).sort({ createdAt: -1 }).lean();
+
+      for (const ord of orders) {
+        const valRupees = Math.round((ord.totalAmount || 0) / 100);
+        ordersBreakdown.push({
+          orderId: ord.orderId,
+          tableNumber: ord.orderType === 'TAKEOUT' || ord.tableNumber === 'TAKEOUT' ? 'Takeout' : `Table ${ord.tableNumber}`,
+          orderDate: ord.createdAt,
+          orderValueRupees: valRupees,
+          commissionAmount: flatPerOrderRate
+        });
+      }
+
       const amount = Math.round(totalOrdersCount * flatPerOrderRate);
       items.push({
         description: `Service Subscription — ${totalOrdersCount} completed orders @ ₹${flatPerOrderRate.toFixed(2)}/order`,
@@ -76,7 +94,27 @@ class VenueBillingController {
       });
       subtotal += amount;
     } else if (billingModel === 'order_percentage') {
-      const amount = Math.round((totalOrdersValueRupees * orderPercentageRate) / 100);
+      const orders = await Order.find({
+        hostApplicationId: venue._id,
+        createdAt: { $gte: start, $lte: end },
+        orderStatus: { $ne: 'cancelled' }
+      }).sort({ createdAt: -1 }).lean();
+
+      let calculatedCommSum = 0;
+      for (const ord of orders) {
+        const valRupees = Math.round((ord.totalAmount || 0) / 100);
+        const comm = Math.round((valRupees * orderPercentageRate) / 100 * 100) / 100;
+        calculatedCommSum += comm;
+        ordersBreakdown.push({
+          orderId: ord.orderId,
+          tableNumber: ord.orderType === 'TAKEOUT' || ord.tableNumber === 'TAKEOUT' ? 'Takeout' : `Table ${ord.tableNumber}`,
+          orderDate: ord.createdAt,
+          orderValueRupees: valRupees,
+          commissionAmount: comm
+        });
+      }
+
+      const amount = Math.round(calculatedCommSum) || Math.round((totalOrdersValueRupees * orderPercentageRate) / 100);
       items.push({
         description: `Service Subscription — ${orderPercentageRate}% on ₹${totalOrdersValueRupees.toLocaleString('en-IN')} gross orders volume (${totalOrdersCount} orders)`,
         quantity: 1,
@@ -96,6 +134,7 @@ class VenueBillingController {
         totalOrdersCount,
         totalOrdersValuePaise
       },
+      ordersBreakdown,
       items,
       subtotal,
       taxAmount,
@@ -203,6 +242,7 @@ class VenueBillingController {
           orderPercentageRate: Number(rateConfig?.orderPercentageRate) || 0
         },
         metrics: calculation.metrics,
+        ordersBreakdown: calculation.ordersBreakdown || [],
         items: calculation.items,
         subtotal: calculation.subtotal,
         taxAmount: calculation.taxAmount,
@@ -212,7 +252,7 @@ class VenueBillingController {
           payeeName: cleanPayeeName,
           qrString
         },
-        status: 'sent',
+        status: 'issued',
         notes: notes || ''
       });
 
@@ -248,12 +288,41 @@ class VenueBillingController {
   }
 
   /**
+   * GET /api/v1/merchant/venues/:id/invoices
+   */
+  async getMerchantVenueInvoices(req, res) {
+    try {
+      const venue = await HostApplication.findById(req.params.id);
+      if (!venue) {
+        return res.status(404).send({ error: 'Venue not found' });
+      }
+
+      const uid = String(req.user?.uid || req.user?.id || req.user?._id || '');
+      if (String(venue.userId) !== uid && req.user?.role !== 'admin') {
+        return res.status(403).send({ error: 'Unauthorized to view invoices for this venue' });
+      }
+
+      const invoices = await VenueInvoice.find({ hostApplicationId: req.params.id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.send({
+        success: true,
+        invoices
+      });
+    } catch (err) {
+      req.log.error(err, 'Failed to fetch merchant venue invoices');
+      return res.status(500).send({ error: err.message });
+    }
+  }
+
+  /**
    * PUT /api/v1/admin/invoices/:id/status
    */
   async updateInvoiceStatus(req, res) {
     try {
       const { status } = req.body;
-      const validStatuses = ['draft', 'sent', 'paid', 'cancelled'];
+      const validStatuses = ['draft', 'issued', 'sent', 'paid', 'cancelled'];
       if (!validStatuses.includes(status)) {
         return res.status(400).send({ error: 'Invalid invoice status' });
       }
