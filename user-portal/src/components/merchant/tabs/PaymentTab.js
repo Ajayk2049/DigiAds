@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer, ChevronLeft, ChevronRight, Receipt, CreditCard } from 'lucide-react';
+import { Calendar, Download, FileText, Lock, Search, Loader2, Bell, Printer, ChevronLeft, ChevronRight, Receipt, CreditCard, IndianRupee } from 'lucide-react';
 import VenueSubscriptionBills from './VenueSubscriptionBills';
 import { usePaymentStore } from '@/stores/usePaymentStore';
 import { useOrderStore } from '@/stores/useOrderStore';
@@ -183,7 +183,7 @@ export default function PaymentTab(props) {
               : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground'
           }`}
         >
-          <Receipt className="w-4 h-4" />
+          <IndianRupee className="w-4 h-4" />
           <span>DigiAds Subscription Bills</span>
         </button>
       </div>

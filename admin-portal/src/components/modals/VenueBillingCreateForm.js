@@ -32,7 +32,63 @@ export default function VenueBillingCreateForm({
 }) {
   return (
     <div className="space-y-6">
-      {/* Cycle Date Range */}
+      {/* 1. Receiver UPI Payment Details (Embedded in QR) */}
+      <div className="p-4 rounded-xl bg-muted/20 border border-border space-y-3">
+        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+          <QrCode className="w-3.5 h-3.5 text-primary" />
+          <span>Receiver UPI Payment Details (Embedded in QR)</span>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] text-muted-foreground mb-1">Destination UPI ID (VPA)</label>
+            <input
+              type="text"
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value)}
+              placeholder="e.g. merchant@okhdfcbank"
+              className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-muted-foreground mb-1">Payee Name</label>
+            <input
+              type="text"
+              value={payeeName}
+              onChange={(e) => setPayeeName(e.target.value)}
+              placeholder="e.g. Business Name"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Plan Model Selector */}
+      <div className="space-y-2">
+        <label className="block text-xs font-bold text-foreground">Select Subscription Plan Model</label>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {[
+            { id: 'device_based', label: '📱 Device-Based', desc: 'Rent per active tablet & screen' },
+            { id: 'order_flat', label: '🧾 Flat ₹ per Order', desc: 'Fixed Rupees for each completed order' },
+            { id: 'order_percentage', label: '📈 % on Orders', desc: 'Percentage cut of gross order volume' }
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setBillingModel(m.id)}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                billingModel === m.id
+                  ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/30'
+                  : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
+              }`}
+            >
+              <div className="font-bold text-xs text-foreground">{m.label}</div>
+              <div className="text-[11px] text-muted-foreground pt-0.5">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Cycle Date Range */}
       <div className="grid sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/20 border border-border">
         <div>
           <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1 flex items-center gap-1">
@@ -69,33 +125,7 @@ export default function VenueBillingCreateForm({
         </div>
       </div>
 
-      {/* Plan Model Selector */}
-      <div className="space-y-2">
-        <label className="block text-xs font-bold text-foreground">Select Subscription Plan Model</label>
-        <div className="grid sm:grid-cols-3 gap-3">
-          {[
-            { id: 'device_based', label: '📱 Device-Based', desc: 'Rent per active tablet & screen' },
-            { id: 'order_flat', label: '🧾 Flat ₹ per Order', desc: 'Fixed Rupees for each completed order' },
-            { id: 'order_percentage', label: '📈 % on Orders', desc: 'Percentage cut of gross order volume' }
-          ].map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setBillingModel(m.id)}
-              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                billingModel === m.id
-                  ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/30'
-                  : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
-              }`}
-            >
-              <div className="font-bold text-xs text-foreground">{m.label}</div>
-              <div className="text-[11px] text-muted-foreground pt-0.5">{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Dynamic Rate Inputs */}
+      {/* 4. Plan Rate Configuration */}
       <div className="p-4 rounded-xl bg-muted/20 border border-border space-y-3">
         <div className="text-xs font-bold text-foreground">Plan Rate Configuration</div>
         {billingModel === 'device_based' && (
@@ -148,37 +178,7 @@ export default function VenueBillingCreateForm({
         )}
       </div>
 
-      {/* Editable Receiver UPI ID Details */}
-      <div className="p-4 rounded-xl bg-muted/20 border border-border space-y-3">
-        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-          <QrCode className="w-3.5 h-3.5 text-primary" />
-          <span>Receiver UPI Payment Details (Embedded in QR)</span>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[11px] text-muted-foreground mb-1">Destination UPI ID (VPA)</label>
-            <input
-              type="text"
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value)}
-              placeholder="e.g. digiadspay@hdfcbank"
-              className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-border bg-background text-foreground"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] text-muted-foreground mb-1">Payee Name</label>
-            <input
-              type="text"
-              value={payeeName}
-              onChange={(e) => setPayeeName(e.target.value)}
-              placeholder="e.g. DigiAds Media Private Limited"
-              className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Calculated Preview Box */}
+      {/* 5. Live Calculation Preview (Tablets, Screens, Orders, and Total Bill) */}
       <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-foreground">Live Calculation Preview</span>

@@ -99,6 +99,19 @@ const HostApplicationSchema = new mongoose.Schema({
     default: null,
     trim: true
   },
+  // Platform Billing UPI settings (receiver VPA for venue service invoices)
+  billingUpi: {
+    upiId: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    payeeName: {
+      type: String,
+      default: '',
+      trim: true
+    }
+  },
   adMode: {
     type: String,
     enum: ['open', 'closed'],

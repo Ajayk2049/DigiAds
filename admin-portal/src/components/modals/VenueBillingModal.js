@@ -40,8 +40,8 @@ export default function VenueBillingModal({
     orderPercentageRate: isOpenAds ? 1.5 : 3.0
   });
 
-  const [upiId, setUpiId] = useState('digiadspay@hdfcbank');
-  const [payeeName, setPayeeName] = useState('AIBotInk Private Limited');
+  const [upiId, setUpiId] = useState('');
+  const [payeeName, setPayeeName] = useState('');
 
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -59,14 +59,29 @@ export default function VenueBillingModal({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {
-        setInvoices(res.data.invoices || []);
+        const fetchedInvoices = res.data.invoices || [];
+        setInvoices(fetchedInvoices);
+
+        // Resolve persisted UPI details for this specific venue
+        const persistedUpi = res.data.billingUpi?.upiId
+          ? res.data.billingUpi
+          : (fetchedInvoices.length > 0 && fetchedInvoices[0]?.upiDetails?.upiId)
+            ? fetchedInvoices[0].upiDetails
+            : venue?.billingUpi?.upiId
+              ? venue.billingUpi
+              : null;
+
+        if (persistedUpi?.upiId) {
+          setUpiId(persistedUpi.upiId);
+          setPayeeName(persistedUpi.payeeName || '');
+        }
       }
     } catch {
       // Handled silently
     } finally {
       setInvoicesLoading(false);
     }
-  }, [venue?._id, token]);
+  }, [venue?._id, venue?.billingUpi, token]);
 
   // Preview calculation
   const handlePreview = useCallback(async () => {
@@ -95,15 +110,39 @@ export default function VenueBillingModal({
 
   useEffect(() => {
     if (isOpen && venue?._id) {
+      const isVenueOpen = venue?.adMode === 'open' && venue?.allowOpenAds !== false;
+      setRateConfig({
+        tabletRate: isVenueOpen ? 499 : 899,
+        screenRate: 999,
+        flatPerOrderRate: isVenueOpen ? 2.5 : 5.0,
+        orderPercentageRate: isVenueOpen ? 1.5 : 3.0
+      });
+      // Start with venue's persisted UPI details if available, otherwise completely empty
+      if (venue?.billingUpi?.upiId) {
+        setUpiId(venue.billingUpi.upiId);
+        setPayeeName(venue.billingUpi.payeeName || '');
+      } else {
+        setUpiId('');
+        setPayeeName('');
+      }
       fetchInvoices();
+    }
+  }, [isOpen, venue?._id, venue?.adMode, venue?.allowOpenAds, venue?.billingUpi, fetchInvoices]);
+
+  useEffect(() => {
+    if (isOpen && venue?._id) {
       handlePreview();
     }
-  }, [isOpen, venue?._id, fetchInvoices, handlePreview]);
+  }, [isOpen, venue?._id, handlePreview]);
 
   // Generate and save invoice
   const handleGenerateInvoice = async () => {
     if (!upiId.trim()) {
       toast.error('Please enter a valid receiver UPI ID');
+      return;
+    }
+    if (!payeeName.trim()) {
+      toast.error('Please enter the payee name');
       return;
     }
     try {
@@ -124,6 +163,12 @@ export default function VenueBillingModal({
 
       if (res.data.success) {
         toast.success(`Invoice ${res.data.invoice.invoiceNumber} generated successfully!`);
+        if (venue) {
+          venue.billingUpi = {
+            upiId: upiId.trim(),
+            payeeName: payeeName.trim()
+          };
+        }
         fetchInvoices();
         if (onViewInvoice) {
           onClose();

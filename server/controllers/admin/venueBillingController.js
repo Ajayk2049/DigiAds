@@ -202,8 +202,8 @@ class VenueBillingController {
         notes
       } = req.body;
 
-      if (!cycleStartDate || !cycleEndDate || !billingModel || !upiId) {
-        return res.status(400).send({ error: 'Missing cycle dates, plan model, or UPI ID' });
+      if (!cycleStartDate || !cycleEndDate || !billingModel || !upiId?.trim() || !payeeName?.trim()) {
+        return res.status(400).send({ error: 'Missing cycle dates, plan model, destination UPI ID, or Payee Name' });
       }
 
       const calculation = await this._calculateBillingData(venue, {
@@ -236,7 +236,15 @@ class VenueBillingController {
       const finalDueDate = dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const cleanUpiId = String(upiId).trim();
-      const cleanPayeeName = String(payeeName || 'AIBotInk Private Limited').trim();
+      const cleanPayeeName = String(payeeName).trim();
+
+      // Persist destination UPI & Payee Name for this venue's future billing cycles
+      await HostApplication.findByIdAndUpdate(venue._id, {
+        $set: {
+          'billingUpi.upiId': cleanUpiId,
+          'billingUpi.payeeName': cleanPayeeName
+        }
+      });
       const qrString = `upi://pay?pa=${cleanUpiId}&pn=${encodeURIComponent(cleanPayeeName)}&am=${calculation.totalAmount.toFixed(2)}&tn=${encodeURIComponent('Bill ' + invoiceNumber)}&cu=INR`;
 
       const invoice = new VenueInvoice({
@@ -287,12 +295,18 @@ class VenueBillingController {
    */
   async getVenueInvoices(req, res) {
     try {
-      const invoices = await VenueInvoice.find({ hostApplicationId: req.params.id })
-        .sort({ createdAt: -1 })
-        .lean();
+      const [invoices, venueDoc] = await Promise.all([
+        VenueInvoice.find({ hostApplicationId: req.params.id })
+          .sort({ createdAt: -1 })
+          .lean(),
+        HostApplication.findById(req.params.id)
+          .select('billingUpi outletName')
+          .lean()
+      ]);
 
       return res.send({
         success: true,
+        billingUpi: venueDoc?.billingUpi || null,
         invoices
       });
     } catch (err) {

@@ -7,6 +7,7 @@ import {
   Eye,
   FileText,
   Building,
+  IndianRupee,
   RefreshCw
 } from 'lucide-react';
 import { config } from '@/config';
@@ -59,7 +60,7 @@ export default function VenueSubscriptionBills() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-sm">
         <div className="space-y-0.5">
           <div className="flex items-center space-x-2">
-            <Building className="w-4 h-4 text-primary" />
+            <IndianRupee className="w-4 h-4 text-primary" />
             <span className="font-outfit font-bold text-base text-foreground">
               {activeVenue?.outletName || 'Your Venue'} — Platform Bills
             </span>

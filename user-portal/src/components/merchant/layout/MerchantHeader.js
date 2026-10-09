@@ -13,6 +13,7 @@ import {
   Megaphone,
   Salad,
   CreditCard,
+  IndianRupee,
   Sun,
   Moon,
   Menu as MenuIcon,
@@ -190,7 +191,7 @@ export default function MerchantHeader(props) {
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     }`}
                   >
-                    <CreditCard className={`w-4 h-4 ${activeTab === 'payment' ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <IndianRupee className={`w-4 h-4 ${activeTab === 'payment' ? 'text-primary-foreground' : 'text-primary'}`} />
                     <span className="hidden sm:inline">Payment History</span>
                   </button>
                 </>
@@ -475,7 +476,7 @@ export default function MerchantHeader(props) {
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     }`}
                   >
-                    <CreditCard className={`w-4 h-4 ${activeTab === 'payment' ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <IndianRupee className={`w-4 h-4 ${activeTab === 'payment' ? 'text-primary-foreground' : 'text-primary'}`} />
                     <span>Payment History</span>
                   </button>
                 </>
