@@ -4,23 +4,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Receipt,
-  QrCode,
   Eye,
-  CheckCircle2,
-  AlertCircle,
   FileText,
-  Calendar,
-  Layers,
   Building,
-  RefreshCw,
-  Download
+  RefreshCw
 } from 'lucide-react';
 import { config } from '@/config';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOutletStore } from '@/stores/useOutletStore';
-import QrCodeView from '../common/QrCodeView';
 import MerchantInvoiceModal from '../modals/MerchantInvoiceModal';
-import { exportVenueInvoiceExcel } from '@/utils/exportVenueInvoiceExcel';
 
 export default function VenueSubscriptionBills() {
   const token = useAuthStore((s) => s.token);
@@ -73,7 +65,7 @@ export default function VenueSubscriptionBills() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Monthly service subscription statements, order commissions, and official payment QR codes issued by DigiAds.
+            Monthly service subscription statements, order commissions, and official payment records issued by DigiAds.
           </p>
         </div>
 
@@ -81,14 +73,14 @@ export default function VenueSubscriptionBills() {
           type="button"
           onClick={fetchInvoices}
           disabled={loading}
-          className="px-3 py-1.5 text-xs font-semibold rounded-xl border border-border bg-background hover:bg-muted text-foreground flex items-center space-x-1.5 transition-colors cursor-pointer"
+          className="px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-border bg-background hover:bg-muted text-foreground flex items-center space-x-1.5 transition-colors cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Bills</span>
         </button>
       </div>
 
-      {/* Bill List */}
+      {/* Bill Table or Empty State */}
       {loading ? (
         <div className="py-16 text-center text-xs text-muted-foreground font-semibold">
           Loading subscription bills...
@@ -102,130 +94,79 @@ export default function VenueSubscriptionBills() {
           </p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {invoices.map((inv) => {
-            const isPaid = inv.status === 'paid';
-            const isOrderBased = inv.billingModel?.startsWith('order');
-
-            return (
-              <div
-                key={inv._id}
-                className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-3">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                        Invoice Reference
-                      </span>
-                      <span className="font-mono font-black text-sm text-foreground">
-                        {inv.invoiceNumber}
-                      </span>
-                    </div>
-
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        isPaid
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                      }`}
-                    >
-                      {isPaid ? 'Paid' : 'Unpaid / Due'}
-                    </span>
-                  </div>
-
-                  {/* Metadata Grid */}
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 rounded-xl bg-muted/30 border border-border/40">
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase block flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-primary" /> Period
-                      </span>
-                      <span className="font-medium text-foreground text-[11px]">
-                        {new Date(inv.cycleStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                        {' - '}
-                        {new Date(inv.cycleEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-muted/30 border border-border/40">
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase block flex items-center gap-1">
-                        <Layers className="w-3 h-3 text-primary" /> Plan Model
-                      </span>
-                      <span className="font-medium text-foreground text-[11px] capitalize">
-                        {inv.billingModel?.replace('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Activity Summary Badge */}
-                  <div className="text-[11px] text-muted-foreground font-medium flex items-center justify-between px-1">
-                    <span>
-                      {isOrderBased ? (
-                        <>Cycle Activity: <strong className="text-foreground">{inv.metrics?.totalOrdersCount || 0} Orders</strong></>
-                      ) : (
-                        <>Active Hardware: <strong className="text-foreground">{inv.metrics?.tabletCount || 0} Tablets</strong>, <strong className="text-foreground">{inv.metrics?.screenCount || 0} Screens</strong></>
-                      )}
-                    </span>
-                    <span>Due: <strong className="text-foreground">{new Date(inv.dueDate).toLocaleDateString('en-IN')}</strong></span>
-                  </div>
-
-                  {/* Pay QR Box (if unpaid) */}
-                  {!isPaid && inv.upiDetails?.qrString && (
-                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-3">
-                      <div className="shrink-0 bg-white p-1 rounded-lg border border-border/50">
-                        <QrCodeView value={inv.upiDetails.qrString} size={70} />
-                      </div>
-                      <div className="space-y-0.5 text-xs">
-                        <span className="font-bold text-foreground flex items-center gap-1">
-                          <QrCode className="w-3.5 h-3.5 text-primary" />
-                          <span>Pay ₹{inv.totalAmount?.toLocaleString('en-IN')} via UPI</span>
-                        </span>
-                        <p className="text-[10px] text-muted-foreground">
-                          Scan with any UPI app to pay directly.
-                        </p>
-                        <span className="font-mono text-[10px] font-bold text-primary block truncate">
-                          {inv.upiDetails.upiId}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card Footer */}
-                <div className="flex items-center justify-between border-t border-border/60 pt-3 flex-wrap gap-2">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                      Total Bill
-                    </span>
-                    <span className="font-mono text-base font-black text-foreground">
-                      ₹{inv.totalAmount?.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => exportVenueInvoiceExcel(inv)}
-                      className="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-border bg-background hover:bg-muted text-foreground flex items-center space-x-1 transition-all cursor-pointer"
-                      title="Download Excel statement"
-                    >
-                      <Download className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Excel</span>
-                    </button>
-                    <button
-                      type="button"
+        <div className="border border-border/80 rounded-2xl bg-card overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border/80 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="p-3.5 pl-5">Bill #</th>
+                  <th className="p-3.5">Invoice Number</th>
+                  <th className="p-3.5">Billing Cycle</th>
+                  <th className="p-3.5">Plan Model</th>
+                  <th className="p-3.5 text-right">Amount</th>
+                  <th className="p-3.5 text-center">Status</th>
+                  <th className="p-3.5 pr-5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60 font-medium">
+                {invoices.map((inv, index) => {
+                  const isPaid = inv.status === 'paid';
+                  return (
+                    <tr
+                      key={inv._id}
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => handleOpenDetail(inv)}
-                      className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
                     >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Details</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      <td className="p-3.5 pl-5 text-muted-foreground font-mono">
+                        {index + 1}
+                      </td>
+                      <td className="p-3.5 font-mono font-bold text-foreground">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="p-3.5 text-muted-foreground">
+                        {new Date(inv.cycleStartDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        {' — '}
+                        {new Date(inv.cycleEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="p-3.5 text-foreground capitalize">
+                        {inv.billingModel?.replace('_', ' ')}
+                      </td>
+                      <td className="p-3.5 text-right font-mono font-bold text-foreground">
+                        ₹{inv.totalAmount?.toLocaleString('en-IN')}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            isPaid
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                          }`}
+                        >
+                          {isPaid ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 pr-5 text-right">
+                        <div
+                          className="flex items-center justify-end"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(inv)}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer"
+                            title="View statement & payment details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Details</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

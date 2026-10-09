@@ -11,8 +11,14 @@ export default function PlatformAdResolutionModal({
   if (!platformAdResolutionWarning) return null;
 
   return (
-    <div className="fixed inset-0 z-[160] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-lg bg-card border border-amber-500/40 rounded-3xl p-6 shadow-2xl relative space-y-5">
+    <div
+      className="fixed inset-0 z-[160] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+      onClick={onContinue}
+    >
+      <div
+        className="w-full max-w-lg bg-card border border-amber-500/40 rounded-3xl p-6 shadow-2xl relative space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center space-x-3 pb-3 border-b border-border/50">
           <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5" />

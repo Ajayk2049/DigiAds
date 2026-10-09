@@ -18,8 +18,14 @@ export default function UserDetailsModal({
   const isAdmin = roles.includes('admin');
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex justify-between items-center pb-4 border-b border-border/50">
           <div className="flex items-center space-x-3">

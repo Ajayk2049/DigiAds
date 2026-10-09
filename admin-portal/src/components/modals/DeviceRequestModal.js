@@ -11,8 +11,14 @@ export default function DeviceRequestModal({
   if (!selectedDeviceReq) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-4 border-b border-border/50 pb-4">
           <div>
             <span className="text-[9px] font-black uppercase bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">

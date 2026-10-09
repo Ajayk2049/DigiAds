@@ -15,8 +15,12 @@ export default function ReleaseUploadModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div
+      className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in"
+      onClick={onClose}
+    >
       <motion.div
+        onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="bg-card border border-border p-6 rounded-3xl max-w-md w-full shadow-2xl space-y-5"

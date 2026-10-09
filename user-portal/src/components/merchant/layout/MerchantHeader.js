@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -67,6 +67,27 @@ export default function MerchantHeader(props) {
   const setReqDeviceError = props.setReqDeviceError ?? outlet.setReqDeviceError;
   const fetchVenueAnalytics = props.fetchVenueAnalytics ?? outlet.fetchVenueAnalytics;
   const analyticsDays = props.analyticsDays ?? outlet.analyticsDays;
+
+  // Dismiss user profile dropdown on click outside or Escape key
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleOutsideClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [userMenuOpen, setUserMenuOpen, userMenuRef]);
 
 
   return (

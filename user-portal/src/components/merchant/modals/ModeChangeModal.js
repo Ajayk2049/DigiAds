@@ -31,8 +31,14 @@ export default function ModeChangeModal(props) {
   const hasActivePromos = (promosList || []).some(p => p.isStreaming);
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-scale-up">
+    <div
+      className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center border-b border-border/40 pb-4">
           <div>
             <h3 className="text-lg font-black uppercase text-foreground">Request Ad Mode Change</h3>

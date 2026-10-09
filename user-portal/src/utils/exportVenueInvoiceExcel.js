@@ -19,7 +19,7 @@ export async function exportVenueInvoiceExcel(invoice) {
   // 1. Title Banner (Merged A1:F1)
   worksheet.mergeCells('A1:F1');
   const titleCell = worksheet.getCell('A1');
-  titleCell.value = 'DIGIADS MEDIA — VENUE SUBSCRIPTION STATEMENT';
+  titleCell.value = 'AIBOTINK — DIGIADS VENUE SUBSCRIPTION STATEMENT';
   titleCell.font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0069A8' } };
   titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -32,7 +32,7 @@ export async function exportVenueInvoiceExcel(invoice) {
 
   worksheet.mergeCells('A2:F2');
   const metaCell = worksheet.getCell('A2');
-  metaCell.value = `Venue: ${invoice.outletName}  |  Bill Ref: ${invoice.invoiceNumber}  |  Status: ${String(invoice.status).toUpperCase()}`;
+  metaCell.value = `Venue: ${invoice.outletName}  |  Bill Ref: ${invoice.invoiceNumber}`;
   metaCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: '1E293B' } };
   metaCell.alignment = { horizontal: 'center', vertical: 'middle' };
   worksheet.getRow(2).height = 20;
@@ -45,49 +45,9 @@ export async function exportVenueInvoiceExcel(invoice) {
   worksheet.getRow(3).height = 18;
 
   worksheet.getRow(4).height = 10;
+  let currentRow = 5;
 
-  // 3. Plan / Line Items Summary Section
-  const summaryHeaders = ['Sl', 'Plan / Description', 'Type / Count', 'Rate (₹)', 'Tax (₹)', 'Amount (₹)'];
-  const summaryHeaderRow = worksheet.getRow(5);
-  summaryHeaderRow.values = summaryHeaders;
-  summaryHeaderRow.height = 22;
-  summaryHeaderRow.eachCell((cell) => {
-    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E293B' } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-  });
-
-  let currentRow = 6;
-  (invoice.items || []).forEach((item, idx) => {
-    const row = worksheet.getRow(currentRow);
-    row.values = [
-      idx + 1,
-      item.description,
-      item.quantity,
-      Number(item.rate).toFixed(2),
-      '0.00',
-      Number(item.amount).toFixed(2)
-    ];
-    row.alignment = { vertical: 'middle' };
-    row.getCell(1).alignment = { horizontal: 'center' };
-    row.getCell(4).alignment = { horizontal: 'right' };
-    row.getCell(5).alignment = { horizontal: 'right' };
-    row.getCell(6).alignment = { horizontal: 'right' };
-    currentRow++;
-  });
-
-  // Total summary row
-  const totalRow = worksheet.getRow(currentRow);
-  totalRow.values = ['', 'TOTAL PAYABLE AMOUNT', '', '', '', `₹${Number(invoice.totalAmount).toLocaleString('en-IN')}`];
-  totalRow.height = 22;
-  totalRow.eachCell((cell) => {
-    cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: '0069A8' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F1F5F9' } };
-  });
-  totalRow.getCell(6).alignment = { horizontal: 'right' };
-  currentRow += 2;
-
-  // 4. Orders Breakdown Section (if order-based plan)
+  // 3. Orders Breakdown Section
   if (invoice.ordersBreakdown && invoice.ordersBreakdown.length > 0) {
     worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
     const ordersSectionHeader = worksheet.getCell(`A${currentRow}`);
@@ -137,9 +97,9 @@ export async function exportVenueInvoiceExcel(invoice) {
     const ordersSumRow = worksheet.getRow(currentRow);
     ordersSumRow.values = [
       '',
-      `Total Orders: ${invoice.ordersBreakdown.length}`,
       '',
-      'Total Volume / Commission',
+      '',
+      '',
       `₹${sumOrderValues.toLocaleString('en-IN')}`,
       `₹${sumCommissions.toFixed(2)}`
     ];
@@ -150,6 +110,28 @@ export async function exportVenueInvoiceExcel(invoice) {
     });
     ordersSumRow.getCell(5).alignment = { horizontal: 'right' };
     ordersSumRow.getCell(6).alignment = { horizontal: 'right' };
+  } else if (invoice.items && invoice.items.length > 0) {
+    // Device-based plans fallback
+    worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
+    const itemsHeader = worksheet.getCell(`A${currentRow}`);
+    itemsHeader.value = 'HARDWARE / SUBSCRIPTION ITEMS';
+    itemsHeader.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
+    itemsHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '334155' } };
+    itemsHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+    currentRow++;
+
+    invoice.items.forEach((item, idx) => {
+      const row = worksheet.getRow(currentRow);
+      row.values = [idx + 1, item.description, `${item.quantity} Units`, '', `₹${Number(item.rate).toFixed(2)}`, `₹${Number(item.amount).toFixed(2)}`];
+      row.getCell(5).alignment = { horizontal: 'right' };
+      row.getCell(6).alignment = { horizontal: 'right' };
+      currentRow++;
+    });
+
+    const totalRow = worksheet.getRow(currentRow);
+    totalRow.values = ['', '', '', '', 'Total Payable', `₹${Number(invoice.totalAmount).toLocaleString('en-IN')}`];
+    totalRow.getCell(5).alignment = { horizontal: 'right' };
+    totalRow.getCell(6).alignment = { horizontal: 'right' };
   }
 
   // Set Column Widths

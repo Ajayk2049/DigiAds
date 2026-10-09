@@ -24,8 +24,14 @@ export default function PrintBillModal(props) {
   return (
     <>
       {/* Modal Preview UI */}
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-fade-in exclude-uppercase">
-        <div className="bg-card border border-border/40 rounded-2xl w-full max-w-lg p-6 relative flex flex-col space-y-4 shadow-2xl max-h-[95vh] overflow-y-auto">
+      <div
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-fade-in exclude-uppercase"
+        onClick={onClose}
+      >
+        <div
+          className="bg-card border border-border/40 rounded-2xl w-full max-w-lg p-6 relative flex flex-col space-y-4 shadow-2xl max-h-[95vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors p-1"

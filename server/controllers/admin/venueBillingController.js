@@ -213,16 +213,30 @@ class VenueBillingController {
         rateConfig
       });
 
-      // Generate sequential-style invoice number
+      // Generate distinctive venue invoice number: DA-SUB-<VENUE_CODE>-YYYYMM-<ALPHA>
       const now = new Date();
       const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const invoiceNumber = `INV-${yearMonth}-${randomSuffix}`;
+
+      const cleanName = (venue.outletName || 'VENUE').replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      const words = cleanName.split(/\s+/).filter(Boolean);
+      let venueCode = '';
+      if (words.length >= 2) {
+        venueCode = words.map(w => w[0]).join('').toUpperCase().slice(0, 5);
+        if (venueCode.length < 3) {
+          venueCode = cleanName.replace(/\s+/g, '').toUpperCase().slice(0, 5);
+        }
+      } else {
+        venueCode = cleanName.toUpperCase().slice(0, 5);
+      }
+      if (!venueCode) venueCode = 'VEN';
+
+      const uniqueAlpha = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const invoiceNumber = `DA-SUB-${venueCode}-${yearMonth}-${uniqueAlpha}`;
 
       const finalDueDate = dueDate ? new Date(dueDate) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const cleanUpiId = String(upiId).trim();
-      const cleanPayeeName = String(payeeName || 'DigiAds Media').trim();
+      const cleanPayeeName = String(payeeName || 'AIBotInk Private Limited').trim();
       const qrString = `upi://pay?pa=${cleanUpiId}&pn=${encodeURIComponent(cleanPayeeName)}&am=${calculation.totalAmount.toFixed(2)}&tn=${encodeURIComponent('Bill ' + invoiceNumber)}&cu=INR`;
 
       const invoice = new VenueInvoice({

@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Eye, Check, Download } from 'lucide-react';
-import { exportVenueInvoiceExcel } from '@/utils/exportVenueInvoiceExcel';
+import { Eye, Check } from 'lucide-react';
 
 export default function VenueBillingHistoryTable({
   invoices = [],
@@ -78,21 +77,12 @@ export default function VenueBillingHistoryTable({
                 <div className="flex items-center justify-end space-x-1.5">
                   <button
                     type="button"
-                    onClick={() => exportVenueInvoiceExcel(inv)}
-                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-border bg-background hover:bg-muted text-foreground flex items-center space-x-1 cursor-pointer transition-colors"
-                    title="Export Bill to Excel (.xlsx)"
-                  >
-                    <Download className="w-3 h-3 text-emerald-600" />
-                    <span>Excel</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => onViewInvoice && onViewInvoice(inv)}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-border bg-background hover:bg-muted text-foreground flex items-center space-x-1 cursor-pointer transition-colors"
-                    title="View Tax Invoice"
+                    title="View bill details & orders statement"
                   >
                     <Eye className="w-3 h-3" />
-                    <span>View Bill</span>
+                    <span>Details</span>
                   </button>
                   {inv.status !== 'paid' && (
                     <button

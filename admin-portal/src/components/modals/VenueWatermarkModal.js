@@ -15,8 +15,14 @@ export default function VenueWatermarkModal({
   if (!isOpen || !selectedHostApp) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative space-y-6">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-lg rounded-[32px] shadow-2xl p-6 relative space-y-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center border-b border-border/50 pb-4">
           <div>
             <span className="text-[9px] font-black uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2.5 py-1 rounded-full border border-purple-500/20">

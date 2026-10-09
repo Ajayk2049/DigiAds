@@ -97,10 +97,14 @@ export default function UpiConfigModal(props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+      onClick={handleClose}
+    >
       <div
         className="bg-card border border-border/40 rounded-2xl w-full p-6 relative flex flex-col space-y-4 shadow-2xl overflow-y-auto"
         style={{ maxWidth: '85%', maxHeight: '80%' }}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={handleClose}

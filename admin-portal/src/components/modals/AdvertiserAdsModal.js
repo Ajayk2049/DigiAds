@@ -25,8 +25,14 @@ export default function AdvertiserAdsModal({
   const liveCount = advCampaigns.filter((c) => c.approvalStatus === 'approved').length;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-4xl rounded-[32px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto space-y-6">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-4xl rounded-[32px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto space-y-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center border-b border-border/50 pb-4">
           <div>
             <div className="flex items-center space-x-2">

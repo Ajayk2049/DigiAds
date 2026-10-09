@@ -30,8 +30,14 @@ export default function PasswordModal(props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in exclude-uppercase">
-      <div className="w-full max-w-md bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-5">
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in exclude-uppercase"
+      onClick={handleClose}
+    >
+      <div
+        className="w-full max-w-md bg-card border border-border/40 p-6 rounded-2xl shadow-2xl relative space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={handleClose}

@@ -161,6 +161,8 @@ export default function useAdminModals(token, fetchDashboardData, showNotificati
   useModalDismiss(Boolean(editingPlatformAd), () => setEditingPlatformAd(null), 'edit-platform-ad-modal');
   useModalDismiss(Boolean(platformAdResolutionWarning), () => setPlatformAdResolutionWarning(null), 'resolution-warning-modal');
   useModalDismiss(showAdvertiserAdsModal, () => setShowAdvertiserAdsModal(false), 'advertiser-ads-modal');
+  useModalDismiss(showBillingModal, () => setShowBillingModal(false), 'venue-billing-modal');
+  useModalDismiss(showInvoiceViewerModal, () => setShowInvoiceViewerModal(false), 'invoice-viewer-modal');
 
   // Quota & Watermark helpers
   const openQuotaModal = (hostApp) => {

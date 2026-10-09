@@ -36,9 +36,20 @@ export default function AdminHeader({ onSelectHost, onOpenHostModal, onSelectCam
         setShowNotifications(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        setShowNotifications(false);
+      }
+    }
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showNotifications]);
 
   const getNotificationsList = () => {
     const list = [];

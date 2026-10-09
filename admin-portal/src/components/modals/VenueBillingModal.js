@@ -8,6 +8,7 @@ import { config } from '@/config';
 import { useAdminStore } from '@/stores/useAdminStore';
 import VenueBillingCreateForm from './VenueBillingCreateForm';
 import VenueBillingHistoryTable from './VenueBillingHistoryTable';
+import useModalDismiss from '@/hooks/useModalDismiss';
 
 export default function VenueBillingModal({
   venue,
@@ -15,6 +16,7 @@ export default function VenueBillingModal({
   onClose,
   onViewInvoice
 }) {
+  useModalDismiss(isOpen && Boolean(venue), onClose, 'venue-billing-modal');
   const token = useAdminStore((s) => s.token);
   const [activeTab, setActiveTab] = useState('create'); // 'create' | 'history'
 
@@ -39,7 +41,7 @@ export default function VenueBillingModal({
   });
 
   const [upiId, setUpiId] = useState('digiadspay@hdfcbank');
-  const [payeeName, setPayeeName] = useState('DigiAds Media Private Limited');
+  const [payeeName, setPayeeName] = useState('AIBotInk Private Limited');
 
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -155,8 +157,14 @@ export default function VenueBillingModal({
   if (!isOpen || !venue) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-card text-card-foreground border border-border w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card text-card-foreground border border-border w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
           <div className="space-y-0.5">

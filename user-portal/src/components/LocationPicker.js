@@ -313,8 +313,14 @@ export default function LocationPicker({
 
       {/* Fullscreen Touch Modal (For Mobile + Desktop Enlarge) */}
       {showModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center p-0 sm:p-4">
-          <div className="bg-background w-full h-full sm:h-[88vh] sm:max-w-4xl sm:rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center p-0 sm:p-4"
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            className="bg-background w-full h-full sm:h-[88vh] sm:max-w-4xl sm:rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="px-4 py-3 bg-card border-b border-border/80 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2.5">

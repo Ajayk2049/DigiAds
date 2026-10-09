@@ -160,8 +160,14 @@ export default function EditApplicationModal(props) {
   const displayError = error || localError;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      <div className="w-full max-w-xl bg-card border border-border/40 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh] sm:max-h-[82vh] overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-xl bg-card border border-border/40 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh] sm:max-h-[82vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5 shrink-0 bg-card">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">

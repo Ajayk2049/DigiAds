@@ -17,8 +17,14 @@ export default function CampaignRevokeModal({
   if (!isOpen || !selectedCampaign) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-md rounded-[32px] shadow-2xl p-6 relative">
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-md rounded-[32px] shadow-2xl p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-4 border-b border-border/50 pb-4">
           <h3 className="font-outfit text-base font-bold text-foreground flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" />

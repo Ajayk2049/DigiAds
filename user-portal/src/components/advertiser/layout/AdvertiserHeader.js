@@ -41,13 +41,23 @@ export default function AdvertiserHeader() {
   } = useAdvertiserStore();
 
   useEffect(() => {
+    if (!userMenuOpen) return;
     const handleOutsideClick = (e) => {
-      if (userMenuOpen && userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
         setUserMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [userMenuOpen, setUserMenuOpen]);
 
   const handleLogout = () => {

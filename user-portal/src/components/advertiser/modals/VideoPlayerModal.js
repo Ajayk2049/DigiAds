@@ -7,8 +7,14 @@ export default function VideoPlayerModal() {
   if (!previewVideoUrl) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-      <div className="w-full max-w-3xl bg-card border border-border/40 p-4 rounded-2xl shadow-2xl relative flex flex-col space-y-4">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+      onClick={() => setPreviewVideoUrl('')}
+    >
+      <div
+        className="w-full max-w-3xl bg-card border border-border/40 p-4 rounded-2xl shadow-2xl relative flex flex-col space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center border-b border-border/40 pb-3">
           <h3 className="font-outfit text-sm font-bold text-foreground">Campaign Video Preview</h3>
           <button

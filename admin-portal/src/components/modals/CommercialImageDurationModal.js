@@ -14,8 +14,14 @@ export default function CommercialImageDurationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-md rounded-[28px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-md rounded-[28px] shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="flex justify-between items-center mb-4 border-b border-border/50 pb-4">
           <div className="flex items-center space-x-3">

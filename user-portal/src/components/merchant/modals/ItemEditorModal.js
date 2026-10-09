@@ -34,8 +34,14 @@ export default function ItemEditorModal(props) {
 
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in exclude-uppercase">
-      <div className="w-full max-w-2xl bg-card border border-border/40 p-5 md:p-6 rounded-2xl shadow-2xl relative text-foreground max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in exclude-uppercase"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl bg-card border border-border/40 p-5 md:p-6 rounded-2xl shadow-2xl relative text-foreground max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           onClick={onClose}

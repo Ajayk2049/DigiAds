@@ -17,8 +17,14 @@ export default function CreativePreviewModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-card border border-border w-full max-w-2xl max-h-[85vh] rounded-[24px] overflow-hidden shadow-2xl p-5 relative flex flex-col">
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border w-full max-w-2xl max-h-[85vh] rounded-[24px] overflow-hidden shadow-2xl p-5 relative flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center mb-3">
           <h3 className="font-outfit text-base font-bold text-foreground">Media Creative Preview</h3>
           <button

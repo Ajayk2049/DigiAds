@@ -54,8 +54,14 @@ export default function BillConfigModal(props) {
   if (!isOpen || !billForm) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-fade-in exclude-uppercase">
-      <div className="bg-card border border-border/40 rounded-2xl w-full max-w-5xl p-6 relative flex flex-col space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-fade-in exclude-uppercase"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-card border border-border/40 rounded-2xl w-full max-w-5xl p-6 relative flex flex-col space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors p-1"
