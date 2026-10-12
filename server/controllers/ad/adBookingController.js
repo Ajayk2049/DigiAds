@@ -224,9 +224,15 @@ class AdBookingController {
         .populate('outletId', 'outletName state city')
         .sort({ createdAt: -1 });
 
+      const now = Date.now();
       const resolved = bookings.map(b => {
         const doc = b.toObject();
         if (doc.mediaUrl) doc.mediaUrl = resolveMediaUrl(doc.mediaUrl, req.headers.host);
+        const createdTime = new Date(doc.createdAt).getTime();
+        const durationDays = Number(doc.adDurationDays) || 0;
+        const durationMs = durationDays * 86400000;
+        doc.isExpired = durationDays > 0 && (now > (createdTime + durationMs));
+        doc.expiresAt = new Date(createdTime + durationMs);
         return doc;
       });
       return res.status(200).send({ success: true, data: resolved });

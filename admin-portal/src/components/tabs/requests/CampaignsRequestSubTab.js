@@ -127,14 +127,20 @@ export default function CampaignsRequestSubTab({
                       </>
                     )
                   ) : booking.approvalStatus === 'approved' ? (
-                    <button
-                      onClick={() => onOpenRevokeCampaignModal && onOpenRevokeCampaignModal(booking)}
-                      className="px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 hover:border-destructive font-bold rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-1"
-                      title="Revoke active campaign"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Revoke</span>
-                    </button>
+                    booking.isExpired ? (
+                      <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full border border-border">
+                        Expired
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => onOpenRevokeCampaignModal && onOpenRevokeCampaignModal(booking)}
+                        className="px-3 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 hover:border-destructive font-bold rounded-lg transition-colors duration-200 cursor-pointer flex items-center space-x-1"
+                        title="Revoke active campaign"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Revoke</span>
+                      </button>
+                    )
                   ) : (
                     <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20 capitalize">
                       {booking.approvalStatus}

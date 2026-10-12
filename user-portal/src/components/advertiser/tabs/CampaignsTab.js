@@ -8,6 +8,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  AlertTriangle,
   CreditCard,
   RefreshCw,
   Trash2,
@@ -65,6 +66,15 @@ export default function CampaignsTab() {
             <tbody className="divide-y divide-border/40">
               {bookings.map((booking) => {
                 const isExpanded = expandedCampaigns[booking.bookingId];
+                const isExpired = booking.isExpired ?? (
+                  Boolean(booking.createdAt && booking.adDurationDays &&
+                    Date.now() > (new Date(booking.createdAt).getTime() + (Number(booking.adDurationDays) || 0) * 86400000))
+                );
+                const expiryDate = booking.expiresAt
+                  ? new Date(booking.expiresAt)
+                  : (booking.createdAt && booking.adDurationDays
+                      ? new Date(new Date(booking.createdAt).getTime() + (Number(booking.adDurationDays) || 0) * 86400000)
+                      : null);
                 return (
                   <React.Fragment key={booking.bookingId}>
                     <tr className="hover:bg-muted/10">
@@ -131,15 +141,25 @@ export default function CampaignsTab() {
                               </>
                             )}
                           </span>
-                          {booking.approvalStatus === 'approved' ? (
-                            <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-                              <CheckCircle className="w-2.5 h-2.5 text-sky-500 shrink-0 mr-1" />
-                              <span>Approved</span>
+                          {booking.approvalStatus === 'revoked' ? (
+                            <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                              <AlertTriangle className="w-2.5 h-2.5 text-rose-500 shrink-0 mr-1" />
+                              <span>Revoked</span>
                             </span>
                           ) : booking.approvalStatus === 'rejected' ? (
                             <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-destructive/10 text-destructive border border-destructive/20">
                               <XCircle className="w-2.5 h-2.5 text-destructive shrink-0 mr-1" />
                               <span>Rejected</span>
+                            </span>
+                          ) : booking.approvalStatus === 'approved' && isExpired ? (
+                            <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20">
+                              <Clock className="w-2.5 h-2.5 text-zinc-500 shrink-0 mr-1" />
+                              <span>Expired</span>
+                            </span>
+                          ) : booking.approvalStatus === 'approved' ? (
+                            <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+                              <CheckCircle className="w-2.5 h-2.5 text-sky-500 shrink-0 mr-1" />
+                              <span>Approved</span>
                             </span>
                           ) : booking.paymentStatus === 'completed' ? (
                             <span className="w-fit text-[9px] font-bold uppercase px-2 py-0.5 rounded flex items-center bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
@@ -234,13 +254,35 @@ export default function CampaignsTab() {
                                 <span className="text-muted-foreground font-semibold">Created At</span>
                                 <span className="col-span-2 text-foreground font-semibold">{booking.createdAt ? new Date(booking.createdAt).toLocaleString() : 'N/A'}</span>
                               </div>
+                              {expiryDate && (
+                                <div className="grid grid-cols-3 border-b border-border/40 pb-2">
+                                  <span className="text-muted-foreground font-semibold">{isExpired ? 'Concluded At' : 'Expires At'}</span>
+                                  <span className="col-span-2 text-foreground font-semibold">{expiryDate.toLocaleString()}</span>
+                                </div>
+                              )}
                               {booking.approvalStatus === 'rejected' && booking.denialReason && (
                                 <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold space-y-1">
                                   <p className="uppercase font-bold text-[9px] tracking-wider">Reason for Denial</p>
                                   <p className="text-foreground leading-relaxed font-semibold">{booking.denialReason}</p>
                                 </div>
                               )}
-                              {booking.approvalStatus === 'approved' && (
+                              {booking.approvalStatus === 'revoked' && (
+                                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold space-y-1">
+                                  <p className="uppercase font-bold text-[9px] tracking-wider">Campaign Revoked</p>
+                                  <p className="text-foreground leading-relaxed font-semibold">
+                                    {booking.denialReason || 'This ad campaign was revoked by platform administration and removed from device rotation.'}
+                                  </p>
+                                </div>
+                              )}
+                              {booking.approvalStatus === 'approved' && isExpired && (
+                                <div className="p-3 rounded-xl bg-muted/60 border border-border/40 text-muted-foreground text-xs font-semibold space-y-1">
+                                  <p className="uppercase font-bold text-[9px] tracking-wider text-foreground">Campaign Completed / Expired</p>
+                                  <p className="leading-relaxed">
+                                    This ad campaign has concluded its scheduled {booking.adDurationDays}-day rotation period.
+                                  </p>
+                                </div>
+                              )}
+                              {booking.approvalStatus === 'approved' && !isExpired && (
                                 <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
                                   Campaign Approved & Broadcasting on Target Devices.
                                 </div>

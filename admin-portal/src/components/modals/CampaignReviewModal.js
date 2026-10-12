@@ -46,12 +46,14 @@ export default function CampaignReviewModal({
               </span>
               <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full ${
                 selectedCampaign.approvalStatus === 'approved'
-                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                  : selectedCampaign.approvalStatus === 'rejected'
+                  ? selectedCampaign.isExpired
+                    ? 'bg-muted text-muted-foreground border border-border'
+                    : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                  : selectedCampaign.approvalStatus === 'rejected' || selectedCampaign.approvalStatus === 'revoked'
                   ? 'bg-destructive/10 text-destructive border border-destructive/20'
                   : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
               }`}>
-                {selectedCampaign.approvalStatus}
+                {selectedCampaign.approvalStatus === 'approved' && selectedCampaign.isExpired ? 'Expired' : selectedCampaign.approvalStatus}
               </span>
             </div>
             <h3 className="font-outfit text-xl font-bold text-foreground mt-2 font-mono">

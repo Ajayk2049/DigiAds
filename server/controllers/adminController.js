@@ -286,9 +286,15 @@ class AdminController {
         .skip(skip)
         .limit(limit);
 
+      const now = Date.now();
       const mappedBookings = bookings.map(b => {
         const obj = b.toObject();
         obj.mediaUrl = resolveMediaUrl(obj.mediaUrl, req.headers.host);
+        const createdTime = new Date(obj.createdAt).getTime();
+        const durationDays = Number(obj.adDurationDays) || 0;
+        const durationMs = durationDays * 86400000;
+        obj.isExpired = durationDays > 0 && (now > (createdTime + durationMs));
+        obj.expiresAt = new Date(createdTime + durationMs);
         return obj;
       });
 
@@ -982,6 +988,7 @@ class AdminController {
       await mediaLog.save();
 
       booking.approvalStatus = 'revoked';
+      booking.denialReason = reason ? `Revoked: ${reason.trim()}` : 'Revoked by admin';
       await booking.save();
 
       return res.status(200).send({

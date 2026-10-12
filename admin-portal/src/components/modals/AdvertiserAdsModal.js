@@ -139,13 +139,15 @@ export default function AdvertiserAdsModal({
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded capitalize ${
                               booking.approvalStatus === 'approved'
-                                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                                : booking.approvalStatus === 'rejected'
+                                ? booking.isExpired
+                                  ? 'bg-muted text-muted-foreground border border-border'
+                                  : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                : booking.approvalStatus === 'rejected' || booking.approvalStatus === 'revoked'
                                 ? 'bg-destructive/10 text-destructive border border-destructive/20'
                                 : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
                             }`}
                           >
-                            {booking.approvalStatus}
+                            {booking.approvalStatus === 'approved' && booking.isExpired ? 'Expired' : booking.approvalStatus}
                           </span>
                         </td>
                         <td className="p-3.5 text-center">
