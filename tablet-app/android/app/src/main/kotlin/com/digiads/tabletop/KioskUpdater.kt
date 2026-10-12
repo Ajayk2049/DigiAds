@@ -74,29 +74,47 @@ class KioskUpdater(private val context: Context) {
             val message = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
             Log.i(TAG, "Installation broadcast status: $status, message: $message")
 
-            if (status == PackageInstaller.STATUS_SUCCESS && context != null) {
-                Log.i(TAG, "OTA Update succeeded! Scheduling MainActivity launch...")
-                Handler(Looper.getMainLooper()).postDelayed({
-                    try {
-                        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        }
-                        if (launchIntent != null) {
-                            context.startActivity(launchIntent)
-                        } else {
-                            val mainIntent = Intent(context, MainActivity::class.java).apply {
-                                action = Intent.ACTION_MAIN
-                                addCategory(Intent.CATEGORY_LAUNCHER)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            }
-                            context.startActivity(mainIntent)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to relaunch MainActivity post-update: ${e.message}", e)
+            when (status) {
+                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    Log.i(TAG, "OTA requires user confirmation prompt. Launching installer activity...")
+                    val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent?.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                     }
-                }, 800)
-            } else {
-                Log.e(TAG, "PackageInstaller failed with status $status: $message")
+                    if (confirmIntent != null && context != null) {
+                        confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(confirmIntent)
+                    }
+                }
+                PackageInstaller.STATUS_SUCCESS -> {
+                    if (context != null) {
+                        Log.i(TAG, "OTA Update succeeded! Scheduling MainActivity launch...")
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            try {
+                                val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                }
+                                if (launchIntent != null) {
+                                    context.startActivity(launchIntent)
+                                } else {
+                                    val mainIntent = Intent(context, MainActivity::class.java).apply {
+                                        action = Intent.ACTION_MAIN
+                                        addCategory(Intent.CATEGORY_LAUNCHER)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                    }
+                                    context.startActivity(mainIntent)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to relaunch MainActivity post-update: ${e.message}", e)
+                            }
+                        }, 800)
+                    }
+                }
+                else -> {
+                    Log.e(TAG, "PackageInstaller failed with status $status: $message")
+                }
             }
         }
     }

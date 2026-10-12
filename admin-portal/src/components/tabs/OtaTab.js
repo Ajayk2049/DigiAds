@@ -19,14 +19,26 @@ export default function OtaTab({
   const setOtaSubTab = useAdminStore((s) => s.setOtaSubTab);
   const releases = useAdminStore((s) => s.releases);
   const devices = useAdminStore((s) => s.devices);
+  const fetchReleases = useAdminStore((s) => s.fetchReleases);
+  const fetchDevices = useAdminStore((s) => s.fetchDevices);
 
   const [telemetryPage, setTelemetryPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
 
   useEffect(() => {
+    fetchReleases();
+    fetchDevices();
+  }, [fetchReleases, fetchDevices]);
+
+  useEffect(() => {
     setTelemetryPage(1);
     setHistoryPage(1);
   }, [otaSubTab]);
+
+  const activeRelease = releases.find((r) => r.status === 'active');
+  const onLatestReleaseDevices = devices.filter(
+    (d) => activeRelease && d.lastKnownVersionCode === activeRelease.versionCode
+  );
 
   const updatedDevices = devices.filter(
     (d) => d.lastKnownVersionCode >= 2 || (d.lastKnownAppVersion && d.lastKnownAppVersion !== '1.0.0')
@@ -82,9 +94,16 @@ export default function OtaTab({
             <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <CheckCircle className="w-4 h-4 text-emerald-500" /> Device Release Updates Tracker
             </h4>
-            <span className="text-xs font-bold text-muted-foreground">
-              Updated Terminals: {updatedDevices.length} / {devices.length}
-            </span>
+            <div className="flex items-center gap-3">
+              {activeRelease && (
+                <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                  On Latest v{activeRelease.versionName} (#{activeRelease.versionCode}): {onLatestReleaseDevices.length}
+                </span>
+              )}
+              <span className="text-xs font-bold text-muted-foreground">
+                Updated Terminals: {updatedDevices.length} / {devices.length}
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -110,7 +129,9 @@ export default function OtaTab({
                 ) : (
                   updatedDevices
                     .slice((telemetryPage - 1) * 7, telemetryPage * 7)
-                    .map((d) => (
+                    .map((d) => {
+                    const isLatest = activeRelease && d.lastKnownVersionCode === activeRelease.versionCode;
+                    return (
                     <tr key={d._id} className="hover:bg-card/20 transition-colors">
                       <td className="p-3 pl-4 font-mono font-bold text-primary">{d.deviceId}</td>
                       <td className="p-3 text-foreground font-bold">
@@ -121,21 +142,32 @@ export default function OtaTab({
                       </td>
                       <td className="p-3 capitalize text-muted-foreground">{d.deviceType || 'tablet'}</td>
                       <td className="p-3 font-mono font-bold">
-                        <span className="px-2.5 py-1 rounded text-[11px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                        <span className={`px-2.5 py-1 rounded text-[11px] border ${
+                          isLatest
+                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                        }`}>
                           {d.lastKnownAppVersion ? `v${d.lastKnownAppVersion}` : 'v1.0.1'}{' '}
-                          {d.lastKnownVersionCode ? `(Build ${d.lastKnownVersionCode})` : '(Build 2)'}
+                          {d.lastKnownVersionCode ? `(Build #${d.lastKnownVersionCode})` : '(Build 2)'}
+                          {isLatest && ' • Latest'}
                         </span>
                       </td>
                       <td className="p-3">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center w-fit gap-1">
-                          <CheckCircle className="w-3 h-3" /> Updated
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center w-fit gap-1.5 border ${
+                          d.status === 'online'
+                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${d.status === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
+                          {d.status === 'online' ? 'Online' : 'Offline'}
                         </span>
                       </td>
                       <td className="p-3 text-muted-foreground font-normal">
                         {d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : 'Never'}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

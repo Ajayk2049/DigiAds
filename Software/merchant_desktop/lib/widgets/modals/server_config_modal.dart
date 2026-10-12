@@ -72,7 +72,7 @@ class _ServerConfigModalState extends State<ServerConfigModal> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reset to default DigiAds Cloud (test-api.digiads.space). Reconnected.')),
+          SnackBar(content: Text('Reset to default Cloud (${AppConfig.prodApiHost}). Reconnected.')),
         );
         widget.onReconnected?.call();
       }

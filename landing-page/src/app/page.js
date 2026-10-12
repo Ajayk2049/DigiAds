@@ -15,7 +15,7 @@ import AboutUsSection from '@/components/landing/AboutUsSection';
 import LandingFooter from '@/components/landing/LandingFooter';
 
 export default function LandingPage() {
-  const [userPortalUrl, setUserPortalUrl] = useState('http://localhost:3001');
+  const [userPortalUrl, setUserPortalUrl] = useState(config.userPortalUrl);
 
   useEffect(() => {
     setUserPortalUrl(config.userPortalUrl);

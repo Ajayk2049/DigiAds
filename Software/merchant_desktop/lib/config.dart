@@ -4,9 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppConfig {
   static const bool isProduction = bool.fromEnvironment('dart.vm.product');
 
-  // Default Host
-  static const String devApiHost = '127.0.0.1:4000';
-  static const String prodApiHost = 'test-api.digiads.space';
+  // Default Host configurable via --dart-define
+  static const String devApiHost = String.fromEnvironment('DEV_API_HOST', defaultValue: '127.0.0.1:4000');
+  static const String prodApiHost = String.fromEnvironment('API_HOST', defaultValue: 'api.digiads.space');
+  static const String userPortalUrl = String.fromEnvironment('USER_PORTAL_URL', defaultValue: 'https://user.digiads.space');
 
   static String _activeHost = isProduction ? prodApiHost : devApiHost;
   static bool _isExplicitHttps = isProduction;

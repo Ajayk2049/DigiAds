@@ -369,7 +369,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> {
                     controller: _serverHostController,
                     decoration: InputDecoration(
                       labelText: "Server Host / IP",
-                      hintText: "e.g. 192.168.1.100 or test-api.digiads.space",
+                      hintText: "e.g. 192.168.1.100 or api.digiads.space",
                       helperText: "Enter server IP address or domain (Default port: 4000)",
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       prefixIcon: const Icon(Icons.lan_outlined),

@@ -375,10 +375,10 @@ class OrderController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isGstExempt !== undefined ? Boolean(isGstExempt) : Boolean(removeGst);
-      applyTaxExemption(order, { isGstExempt: isExempt });
+      await applyTaxExemption(order, { isGstExempt: isExempt });
 
       await order.save();
-      notifyDeviceSessionUpdate(order);
+      await notifyDeviceSessionUpdate(order);
 
       return res.status(200).send({
         success: true,
@@ -405,10 +405,10 @@ class OrderController {
       if (!order) return res.status(404).send({ success: false, message: 'Order not found' });
 
       const isExempt = isServiceTaxExempt !== undefined ? Boolean(isServiceTaxExempt) : Boolean(removeServiceTax);
-      applyTaxExemption(order, { isServiceTaxExempt: isExempt });
+      await applyTaxExemption(order, { isServiceTaxExempt: isExempt });
 
       await order.save();
-      notifyDeviceSessionUpdate(order);
+      await notifyDeviceSessionUpdate(order);
 
       return res.status(200).send({
         success: true,

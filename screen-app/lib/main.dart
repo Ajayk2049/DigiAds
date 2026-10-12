@@ -425,7 +425,7 @@ class _ScreenSetupScreenState extends State<ScreenSetupScreen> {
                       const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     labelText: "Server Host / IP Address",
-                    hintText: "e.g. 192.168.1.100 or test-api.digiads.space",
+                    hintText: "e.g. 192.168.1.100 or api.digiads.space",
                     helperText: "Enter server IP address or domain (Default port: 4000)",
                     helperStyle: const TextStyle(color: Colors.white38, fontSize: 11),
                     hintStyle: const TextStyle(

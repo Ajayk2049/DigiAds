@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/config');
 const AppRelease = require('../models/AppRelease');
 const Device = require('../models/Device');
+const HostApplication = require('../models/HostApplication');
 const logger = require('../utils/logger');
 
 // Canonical releases upload directory within server/uploads/releases
@@ -157,7 +158,13 @@ class ReleaseController {
   async listReleases(req, reply) {
     try {
       const releases = await AppRelease.find().sort({ createdAt: -1 });
-      const devices = await Device.find({}, 'deviceId deviceType lastKnownAppVersion lastKnownVersionCode status lastHeartbeat');
+      const devices = await Device.find({}, 'deviceId deviceType hostApplicationId lastKnownAppVersion lastKnownVersionCode status lastHeartbeat')
+        .populate({
+          path: 'hostApplicationId',
+          select: 'outletName contactPerson phone city state'
+        })
+        .sort({ lastHeartbeat: -1 })
+        .lean();
 
       const releaseCounts = {};
       devices.forEach(d => {

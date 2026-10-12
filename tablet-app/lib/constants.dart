@@ -82,7 +82,7 @@ String buildServerUrl(String serverHost, {int defaultPort = 4000, String path = 
     return '$scheme://$host$cleanPath';
   }
 
-  // If host is a standard domain name without a port (e.g. test-api.digiads.space)
+  // If host is a standard domain name without a port (e.g. api.digiads.space)
   if (host.contains('.') && !RegExp(r'^\d+\.\d+\.\d+\.\d+$').hasMatch(host)) {
     return 'https://$host$cleanPath';
   }

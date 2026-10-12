@@ -366,7 +366,13 @@ export const useAdminStore = create((set, get) => ({
     if (!authToken) return;
     try {
       const res = await axios.get(`${API_BASE}/admin/releases`, { headers: { Authorization: `Bearer ${authToken}` } });
-      set({ releases: res.data?.releases || [] });
+      set({
+        releases: res.data?.releases || [],
+        ...(res.data?.devices ? { devices: res.data.devices } : {})
+      });
+      if (!res.data?.devices && (!get().devices || get().devices.length === 0)) {
+        get().fetchDevices(authToken);
+      }
     } catch (err) {
       if (err?.response?.status === 401) get().handleLogout();
     }
@@ -400,6 +406,7 @@ export const useAdminStore = create((set, get) => ({
         break;
       case 'ota':
         get().fetchReleases(authToken);
+        get().fetchDevices(authToken);
         break;
       case 'platform_ads':
       case 'platform-ads':

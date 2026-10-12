@@ -595,7 +595,7 @@ class AdminController {
           path: 'hostApplicationId',
           select: 'outletName contactPerson phone city state requestTablet tabletQuantity requestScreen screenQuantity'
         })
-        .sort({ createdAt: -1 })
+        .sort({ lastHeartbeat: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean();

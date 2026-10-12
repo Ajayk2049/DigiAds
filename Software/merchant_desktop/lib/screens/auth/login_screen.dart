@@ -7,6 +7,7 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/modals/server_config_modal.dart';
+import '../../config.dart';
 
 class _LoginBenefit {
   final IconData icon;
@@ -61,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _openSignupUrl() async {
-    const url = 'https://test-user.digiads.space/register?role=merchant';
+    final url = '${AppConfig.userPortalUrl}/register?role=merchant';
     try {
       if (Platform.isWindows) {
         await Process.run('cmd', ['/c', 'start', '', url]);

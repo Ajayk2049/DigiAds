@@ -1,4 +1,41 @@
-/** @type {import('next').NextConfig} */
+const apiHost = (() => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_API_URL).hostname;
+    } catch (_) {}
+  }
+  return null;
+})();
+
+const apiConnectOrigin = (() => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_API_URL).origin;
+    } catch (_) {}
+  }
+  return '';
+})();
+
+const extraImageHosts = (process.env.NEXT_PUBLIC_ALLOWED_IMAGE_DOMAINS || '')
+  .split(',')
+  .map(h => h.trim())
+  .filter(Boolean);
+
+const remotePatterns = [
+  { protocol: 'http', hostname: 'localhost', pathname: '/**' },
+  { protocol: 'http', hostname: '127.0.0.1', pathname: '/**' },
+];
+
+if (apiHost && !remotePatterns.some(p => p.hostname === apiHost)) {
+  remotePatterns.push({ protocol: 'https', hostname: apiHost, pathname: '/**' });
+}
+
+extraImageHosts.forEach(h => {
+  if (!remotePatterns.some(p => p.hostname === h)) {
+    remotePatterns.push({ protocol: 'https', hostname: h, pathname: '/**' });
+  }
+});
+
 const nextConfig = {
   reactStrictMode: true,
   devIndicators: {
@@ -9,12 +46,7 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
   },
   images: {
-    remotePatterns: [
-      { protocol: 'http', hostname: 'localhost', port: '4000', pathname: '/**' },
-      { protocol: 'http', hostname: '127.0.0.1', port: '4000', pathname: '/**' },
-      { protocol: 'https', hostname: 'test-api.digiads.space', pathname: '/**' },
-      { protocol: 'https', hostname: 'api.digiads.space', pathname: '/**' },
-    ],
+    remotePatterns,
   },
   // Allows local network connections without HMR blocking in Next.js development
   allowedDevOrigins: ['192.168.0.101', '192.168.31.195', '172.16.0.2', 'localhost', '127.0.0.1'],
@@ -46,13 +78,13 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
-              "connect-src 'self' http://localhost:4000 ws://localhost:* http://localhost:*",
+              `connect-src 'self' ${apiConnectOrigin} http://localhost:* ws://localhost:* wss: https:`,
               "font-src 'self' data:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
-            ].join('; '),
+            ].filter(Boolean).join('; '),
           },
         ],
       },

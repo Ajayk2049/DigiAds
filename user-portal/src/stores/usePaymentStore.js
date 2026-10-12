@@ -4,6 +4,7 @@ import { config, API_BASE } from '../config';
 import { useUIStore } from './useUIStore';
 import { useAuthStore } from './useAuthStore';
 import { useOutletStore } from './useOutletStore';
+import { useOrderStore } from './useOrderStore';
 
 const getLocalDateString = (d = new Date()) => {
   const dateObj = new Date(d);
@@ -237,6 +238,9 @@ export const usePaymentStore = create((set, get) => ({
           billForm: mergedConfig,
           originalBillConfigSnapshot: JSON.stringify(mergedConfig)
         });
+        try {
+          useOrderStore.getState().setActiveBillConfig(mergedConfig);
+        } catch (_) {}
       }
     } catch (err) {
       console.error('fetchBillConfig error:', err);
@@ -251,13 +255,27 @@ export const usePaymentStore = create((set, get) => ({
     if (!outletId) return;
     set({ billConfigSaving: true, billConfigError: '' });
     try {
-      await axios.put(`${API_BASE}/host/bill-config/${outletId}`, billForm, {
+      const res = await axios.put(`${API_BASE}/host/bill-config/${outletId}`, billForm, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      const savedConfig = res.data?.data || billForm;
       set({
-        originalBillConfigSnapshot: JSON.stringify(billForm),
+        billForm: savedConfig,
+        originalBillConfigSnapshot: JSON.stringify(savedConfig),
         showConfigureBillModal: false
       });
+      try {
+        useOrderStore.getState().setActiveBillConfig(savedConfig);
+      } catch (_) {}
+      try {
+        const outletStore = useOutletStore.getState();
+        if (outletStore.applications) {
+          const updatedApps = outletStore.applications.map(app =>
+            String(app._id) === String(outletId) ? { ...app, billConfig: savedConfig } : app
+          );
+          useOutletStore.setState({ applications: updatedApps });
+        }
+      } catch (_) {}
       showToast('Bill configuration saved successfully!', 'success');
     } catch (err) {
       console.error('handleSaveBillConfig error:', err);

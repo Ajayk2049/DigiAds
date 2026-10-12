@@ -50,6 +50,13 @@ export default function OrdersTab(props) {
     }
   }, [activeOrderVenueTab, activeVenueId]);
 
+  // Auto-fetch active venue bill configuration so tax exemptions are instantly accessible
+  React.useEffect(() => {
+    if (activeVenueId && token && typeof order.fetchVenueBillConfig === 'function') {
+      order.fetchVenueBillConfig(token, activeVenueId);
+    }
+  }, [activeVenueId, token]);
+
   if (approvedOutlets.length === 0) {
     return (
       <div className="animate-fade-in w-full">
@@ -280,8 +287,14 @@ export default function OrdersTab(props) {
                       )}
 
                       {/* Service Tax Exemption Button */}
-                      {(ord.serviceTaxPercent > 0 || ord.serviceTaxAmount > 0 || ord.isServiceTaxExempt || (activeBillConfig?.serviceTaxPercent > 0)) && (
-                        ord.isServiceTaxExempt ? (
+                      {(() => {
+                        const venueApp = (applications || []).find(a => String(a._id) === String(ord.hostApplicationId || activeVenueId));
+                        const effBillConfig = ord.billConfigSnapshot || venueApp?.billConfig || activeBillConfig || {};
+                        const effTaxPct = Number(effBillConfig?.serviceTaxPercent || 0);
+                        const showServTax = ord.serviceTaxPercent > 0 || ord.serviceTaxAmount > 0 || ord.isServiceTaxExempt || effTaxPct > 0;
+                        if (!showServTax) return null;
+
+                        return ord.isServiceTaxExempt ? (
                           <div className="flex items-center space-x-1">
                             <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
                               No Serv Tax
@@ -304,8 +317,8 @@ export default function OrdersTab(props) {
                           >
                             <span>Remove Serv Tax</span>
                           </button>
-                        )
-                      )}
+                        );
+                      })()}
                     </div>
                   </td>
 

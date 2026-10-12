@@ -39,7 +39,8 @@ const config = {
     webhookPassword: process.env.PHONEPE_WEBHOOK_PASSWORD || 'webhook_secure_pass_123',
     webhookStrict: process.env.PHONEPE_WEBHOOK_STRICT !== undefined ? process.env.PHONEPE_WEBHOOK_STRICT === 'true' : (process.env.NODE_ENV === 'production')
   },
-  merchantRedirectUrl: process.env.MERCHANT_REDIRECT_URL || 'http://localhost:4200/merchant/orders',
+  userPortalUrl: process.env.USER_PORTAL_URL || 'http://localhost:4200',
+  merchantRedirectUrl: process.env.MERCHANT_REDIRECT_URL || `${process.env.USER_PORTAL_URL || 'http://localhost:4200'}/merchant/orders`,
   maxVideoDurationSeconds: parseInt(process.env.MAX_VIDEO_DURATION_SECONDS, 10) || 60,
   logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
   clientOrigins: (() => {
@@ -48,16 +49,9 @@ const config = {
       return raw.split(',').map(o => o.trim()).filter(Boolean);
     }
     if (process.env.NODE_ENV === 'production') {
-      return [
-        'https://test-admin.digiads.space',
-        'https://test-user.digiads.space',
-        'https://test.digiads.space',
-        'https://test-landing.digiads.space',
-        'https://admin.digiads.space',
-        'https://user.digiads.space',
-        'https://digiads.space',
-        'https://landing.digiads.space'
-      ];
+      throw new Error(
+        'SECURITY & CONFIGURATION VIOLATION: CLIENT_ORIGINS (or ALLOWED_ORIGINS) must be explicitly configured in production environment variables.'
+      );
     }
     return ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:4100', 'http://localhost:4200', 'http://localhost:4300'];
   })()

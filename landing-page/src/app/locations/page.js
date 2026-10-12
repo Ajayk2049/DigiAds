@@ -33,8 +33,8 @@ export default function LocationsPage() {
   const [isOffline, setIsOffline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const userPortalUrl = config.userPortalUrl || 'http://localhost:4200';
-  const apiUrl = config.apiUrl || 'http://localhost:4000/api/v1';
+  const userPortalUrl = config.userPortalUrl;
+  const apiUrl = config.apiUrl;
 
   // Fetch public venues directory
   const fetchVenues = useCallback(async () => {

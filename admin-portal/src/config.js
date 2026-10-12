@@ -6,11 +6,13 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      if (host.includes('digiads.space')) {
-        return `${protocol}//test-api.digiads.space/api/v1`;
-      }
+    if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
       return `${protocol}//${host}:4000/api/v1`;
+    }
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      const rootDomain = parts.slice(-2).join('.');
+      return `${protocol}//api.${rootDomain}/api/v1`;
     }
   }
   return 'http://localhost:4000/api/v1';
@@ -23,11 +25,13 @@ const getWsUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      if (host.includes('digiads.space')) {
-        return `${wsProto}//test-api.digiads.space`;
-      }
+    if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
       return `${wsProto}//${host}:4000`;
+    }
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      const rootDomain = parts.slice(-2).join('.');
+      return `${wsProto}//api.${rootDomain}`;
     }
   }
   return 'ws://localhost:4000';

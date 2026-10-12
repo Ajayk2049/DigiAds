@@ -99,9 +99,7 @@ async function staticRoutes(fastify) {
     const rawUrl = req.raw.url || '';
     const queryIndex = rawUrl.indexOf('?');
     const query = queryIndex !== -1 ? rawUrl.substring(queryIndex) : '';
-    const userPortalBase = (Array.isArray(config.clientOrigins)
-      ? config.clientOrigins.find(o => o.includes('user') || o.includes('4200'))
-      : null) || 'http://localhost:4200';
+    const userPortalBase = config.userPortalUrl || 'http://localhost:4200';
     return reply.redirect(`${userPortalBase}/advertiser${query}`, 302);
   });
 
@@ -109,9 +107,7 @@ async function staticRoutes(fastify) {
     const rawUrl = req.raw.url || '';
     const queryIndex = rawUrl.indexOf('?');
     const query = queryIndex !== -1 ? rawUrl.substring(queryIndex) : '';
-    const userPortalBase = (Array.isArray(config.clientOrigins)
-      ? config.clientOrigins.find(o => o.includes('user') || o.includes('4200'))
-      : null) || 'http://localhost:4200';
+    const userPortalBase = config.userPortalUrl || 'http://localhost:4200';
     return reply.redirect(`${userPortalBase}/merchant${query}`, 302);
   });
 }

@@ -4,10 +4,11 @@ const HostApplication = require('../../models/HostApplication');
  * Calculates billing totals including CGST, SGST, Service Tax, and Auto Round-Off.
  */
 function calculateOrderTotals({ subtotalPaise, billConfig = {}, isGstExempt = false, isServiceTaxExempt = false }) {
-  const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-  const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-  const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
-  const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+  const cfg = billConfig || {};
+  const cgstPct = typeof cfg.cgstPercent === 'number' ? cfg.cgstPercent : 2.5;
+  const sgstPct = typeof cfg.sgstPercent === 'number' ? cfg.sgstPercent : 2.5;
+  const serviceTaxPct = typeof cfg.serviceTaxPercent === 'number' ? cfg.serviceTaxPercent : 0;
+  const enableAutoRoundOff = cfg.enableAutoRoundOff !== false;
 
   const cgstPaise = isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
   const sgstPaise = isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
@@ -40,9 +41,20 @@ function calculateOrderTotals({ subtotalPaise, billConfig = {}, isGstExempt = fa
 /**
  * Recalculates order amounts and tax exemptions in-place
  */
-function applyTaxExemption(order, { isGstExempt, isServiceTaxExempt }) {
+async function applyTaxExemption(order, { isGstExempt, isServiceTaxExempt }) {
   if (isGstExempt !== undefined) order.isGstExempt = isGstExempt;
   if (isServiceTaxExempt !== undefined) order.isServiceTaxExempt = isServiceTaxExempt;
+
+  let billConfig = order.billConfigSnapshot;
+  if (!billConfig || Object.keys(billConfig).length === 0) {
+    if (order.hostApplicationId) {
+      const app = await HostApplication.findById(order.hostApplicationId).lean();
+      if (app?.billConfig) {
+        billConfig = app.billConfig;
+        order.billConfigSnapshot = app.billConfig;
+      }
+    }
+  }
 
   let subtotalPaise = 0;
   for (const item of order.items || []) {
@@ -52,7 +64,7 @@ function applyTaxExemption(order, { isGstExempt, isServiceTaxExempt }) {
 
   const calc = calculateOrderTotals({
     subtotalPaise,
-    billConfig: order.billConfigSnapshot,
+    billConfig,
     isGstExempt: order.isGstExempt,
     isServiceTaxExempt: order.isServiceTaxExempt
   });
@@ -64,6 +76,7 @@ function applyTaxExemption(order, { isGstExempt, isServiceTaxExempt }) {
   order.cgstPercent = calc.cgstPct;
   order.sgstPercent = calc.sgstPct;
   order.serviceTaxPercent = calc.serviceTaxPct;
+  order.enableAutoRoundOff = calc.enableAutoRoundOff;
   order.totalAmount = calc.finalTotalPaise;
 }
 
@@ -122,11 +135,11 @@ function buildOrderSearchPipeline(matchStage, search, queryLimit) {
  * Push session update to device via WebSocket and notify merchant dashboard
  */
 async function notifyDeviceSessionUpdate(order) {
-  if (!order || !order.deviceId) return;
+  if (!order) return;
 
   try {
-    const app = await HostApplication.findById(order.hostApplicationId);
-    const billConfig = app?.billConfig || {};
+    const app = order.hostApplicationId ? await HostApplication.findById(order.hostApplicationId).lean() : null;
+    const billConfig = order.billConfigSnapshot || app?.billConfig || {};
     const defaultCgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
     const defaultSgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
     const defaultServiceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;

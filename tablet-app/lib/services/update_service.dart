@@ -171,8 +171,7 @@ class UpdateService {
           'apkPath': pendingApk.path,
         });
         debugPrint('[OTA] installApk MethodChannel result: $success');
-        // Instantly delete pending APK from sandbox so it never loops on subsequent boots
-        if (await pendingApk.exists()) {
+        if (success == true && await pendingApk.exists()) {
           await pendingApk.delete();
           debugPrint('[OTA] Cleaned up pending_update.apk sandbox file.');
         }

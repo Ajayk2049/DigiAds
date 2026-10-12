@@ -6,11 +6,13 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      if (host.includes('digiads.space')) {
-        return `${protocol}//test-api.digiads.space/api/v1`;
-      }
+    if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
       return `${protocol}//${host}:4000/api/v1`;
+    }
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      const rootDomain = parts.slice(-2).join('.');
+      return `${protocol}//api.${rootDomain}/api/v1`;
     }
   }
   return 'http://localhost:4000/api/v1';
@@ -23,11 +25,13 @@ const getWsUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      if (host.includes('digiads.space')) {
-        return `${wsProto}//test-api.digiads.space`;
-      }
+    if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
       return `${wsProto}//${host}:4000`;
+    }
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      const rootDomain = parts.slice(-2).join('.');
+      return `${wsProto}//api.${rootDomain}`;
     }
   }
   return 'ws://localhost:4000';
@@ -40,7 +44,7 @@ const getUserPortalUrl = () => {
   if (process.env.NEXT_PUBLIC_USER_PORTAL_URL) {
     return process.env.NEXT_PUBLIC_USER_PORTAL_URL.trim().replace(/\/$/, '');
   }
-  return 'http://localhost:3001';
+  return 'http://localhost:4200';
 };
 
 const getLandingPageUrl = () => {
@@ -50,11 +54,13 @@ const getLandingPageUrl = () => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      if (host.includes('digiads.space')) {
-        return `${protocol}//digiads.space`;
-      }
+    if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
       return `${protocol}//${host}:4100`;
+    }
+    const parts = host.split('.');
+    if (parts.length >= 2) {
+      const rootDomain = parts.slice(-2).join('.');
+      return `${protocol}//${rootDomain}`;
     }
   }
   return 'http://localhost:4100';
@@ -76,7 +82,9 @@ export const config = {
   get downloadPageUrl() {
     return `${getLandingPageUrl()}/download`;
   },
-  githubDownloadUrl: 'https://github.com/Ajayk2049/DigiAds/releases/latest/download/DigiAds-POS-Setup.exe',
+  get githubDownloadUrl() {
+    return process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL || `${getLandingPageUrl()}/download`;
+  },
   maxVideoDurationSeconds: parseInt(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS, 10) || 60,
 };
 

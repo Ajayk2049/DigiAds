@@ -14,6 +14,20 @@ let reconnectAttempts = 0;
 let isExplicitlyDisconnected = false;
 const cancelledOrderHold = new Map();
 
+const safeCloseSocket = (socket) => {
+  if (!socket) return;
+  socket.onmessage = null;
+  socket.onerror = null;
+  socket.onclose = null;
+  if (socket.readyState === WebSocket.CONNECTING) {
+    socket.onopen = () => {
+      try { socket.close(1000, 'Clean disconnect'); } catch (_) {}
+    };
+  } else if (socket.readyState === WebSocket.OPEN) {
+    try { socket.close(1000, 'Clean disconnect'); } catch (_) {}
+  }
+};
+
 export const useOrderStore = create((set, get) => ({
   orders: [],
   paymentOrders: [],
@@ -129,7 +143,7 @@ export const useOrderStore = create((set, get) => ({
 
     isExplicitlyDisconnected = false;
     if (ws) {
-      try { ws.close(); } catch {}
+      safeCloseSocket(ws);
       ws = null;
     }
     if (reconnectTimer) {
@@ -249,7 +263,7 @@ export const useOrderStore = create((set, get) => ({
       reconnectTimer = null;
     }
     if (ws) {
-      try { ws.close(); } catch {}
+      safeCloseSocket(ws);
       ws = null;
     }
     set({ wsConnected: false });
@@ -419,5 +433,23 @@ export const useOrderStore = create((set, get) => ({
       }
     }
     set({ showPrintBillModal: true });
+  },
+
+  fetchVenueBillConfig: async (token, venueId) => {
+    if (!token || !venueId) return;
+    try {
+      const res = await axios.get(`${getApiBase()}/host/bill-config/${venueId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data?.data) {
+        set({
+          activeBillConfig: res.data.data,
+          selectedPrintWidth: res.data.data.billWidthFormat || '80mm'
+        });
+        return res.data.data;
+      }
+    } catch (err) {
+      // Quietly ignore if not yet configured
+    }
   }
 }));
