@@ -56,7 +56,7 @@ class AdBookingController {
         return res.status(400).send({ success: false, message: validated.error });
       }
 
-      const { rate, totalAmount, bookingQty, resolvedMediaType, resolvedMaxVideoLength } = validated;
+      const { outlet, rate, totalAmount, bookingQty, resolvedMediaType, resolvedMaxVideoLength } = validated;
       const transactionId = await generateUniqueCustomId(PhonePeTransaction, 'transactionId', 'AD_PAY_');
       const orderId = `ORD_AD_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
       const bookingId = await generateBookingId();
@@ -69,9 +69,14 @@ class AdBookingController {
         ? `${redirectUrl}&verifyBookingId=${bookingId}`
         : `${redirectUrl}?verifyBookingId=${bookingId}`;
 
+      const resolvedState = req.body.state || outlet?.state || '';
+      const resolvedCity = req.body.city || outlet?.city || '';
+
       const booking = new AdBooking({
         bookingId,
         advertiserId: req.user.uid,
+        state: resolvedState,
+        city: resolvedCity,
         outletId,
         deviceType,
         mediaType: resolvedMediaType,

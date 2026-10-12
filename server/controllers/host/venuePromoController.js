@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const VenuePromo = require('../../models/VenuePromo');
 const HostApplication = require('../../models/HostApplication');
 const ModeChangeRequest = require('../../models/ModeChangeRequest');
+const { generateUniqueCustomId } = require('../../utils/idGenerator');
 const { getVenueFolderInfo } = require('./venueHelper');
 const {
   resolveVenueQuotas,
@@ -340,7 +341,7 @@ class VenuePromoController {
         });
       }
 
-      const requestId = generateCustomId('REQ_MODE_');
+      const requestId = await generateUniqueCustomId(ModeChangeRequest, 'requestId', 'REQ_MODE_');
       const modeReq = new ModeChangeRequest({
         requestId,
         hostApplicationId: app._id,

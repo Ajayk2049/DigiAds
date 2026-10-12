@@ -112,6 +112,8 @@ export const createWizardSlice = (set, get) => ({
     if (e) e.preventDefault();
     const {
       submittingBooking,
+      selectedState,
+      selectedCity,
       selectedOutlet,
       selectedMediaType,
       maxVideoLengthSeconds,
@@ -149,6 +151,8 @@ export const createWizardSlice = (set, get) => ({
         `${API_BASE}/ads/book`,
         {
           outletId: selectedOutlet._id,
+          state: selectedOutlet.state || selectedState || '',
+          city: selectedOutlet.city || selectedCity || '',
           deviceType: selectedOutlet.deviceType,
           mediaType: selectedMediaType,
           maxVideoLengthSeconds: selectedMediaType === 'video' ? maxVideoLengthSeconds : 30,

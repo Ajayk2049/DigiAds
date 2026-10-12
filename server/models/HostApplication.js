@@ -190,6 +190,15 @@ const HostApplicationSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  adMode: {
+    type: String,
+    enum: ['open', 'closed'],
+    default: 'open'
+  },
+  allowOpenAds: {
+    type: Boolean,
+    default: true
+  },
   // Admin Account Status Flags
   isPaused: {
     type: Boolean,
