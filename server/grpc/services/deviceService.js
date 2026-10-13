@@ -75,6 +75,7 @@ const deviceServiceHandlers = {
           : await getCachedVenueBillConfig(activeOrder.hostApplicationId);
         const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
         const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
+        const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
         const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
 
         let subtotalCalc = 0;
@@ -94,12 +95,14 @@ const deviceServiceHandlers = {
         let subtotalPaise = activeOrder.subtotalAmount || subtotalCalc;
         let cgstPaise = activeOrder.cgstAmount || 0;
         let sgstPaise = activeOrder.sgstAmount || 0;
+        let serviceTaxPaise = activeOrder.serviceTaxAmount || 0;
         let roundOffPaise = activeOrder.roundOffAmount || 0;
 
         if (!activeOrder.subtotalAmount && subtotalCalc > 0) {
-          cgstPaise = Math.round(subtotalCalc * (cgstPct / 100));
-          sgstPaise = Math.round(subtotalCalc * (sgstPct / 100));
-          const rawTotal = subtotalCalc + cgstPaise + sgstPaise;
+          cgstPaise = activeOrder.isGstExempt ? 0 : Math.round(subtotalCalc * (cgstPct / 100));
+          sgstPaise = activeOrder.isGstExempt ? 0 : Math.round(subtotalCalc * (sgstPct / 100));
+          serviceTaxPaise = activeOrder.isServiceTaxExempt ? 0 : Math.round(subtotalCalc * (serviceTaxPct / 100));
+          const rawTotal = subtotalCalc + cgstPaise + sgstPaise + serviceTaxPaise;
           let finalTotal = rawTotal;
           if (enableAutoRoundOff) {
             finalTotal = Math.ceil(rawTotal / 100) * 100;
@@ -109,7 +112,7 @@ const deviceServiceHandlers = {
         }
 
         const gstPaise = cgstPaise + sgstPaise;
-        const finalAmountPaise = activeOrder.totalAmount || (subtotalPaise + gstPaise + roundOffPaise);
+        const finalAmountPaise = activeOrder.totalAmount || (subtotalPaise + gstPaise + serviceTaxPaise + roundOffPaise);
 
         const upiId = app?.upiId || '';
         const payeeName = app?.payeeName || '';
@@ -131,7 +134,11 @@ const deviceServiceHandlers = {
           cgst: cgstPaise,
           sgst: sgstPaise,
           gst: gstPaise,
+          serviceTax: serviceTaxPaise,
           roundOff: roundOffPaise,
+          cgstPercent: typeof activeOrder.cgstPercent === 'number' ? activeOrder.cgstPercent : cgstPct,
+          sgstPercent: typeof activeOrder.sgstPercent === 'number' ? activeOrder.sgstPercent : sgstPct,
+          serviceTaxPercent: typeof activeOrder.serviceTaxPercent === 'number' ? activeOrder.serviceTaxPercent : serviceTaxPct,
           otherCharges: 0,
           upiUrl,
           orderStatus: activeOrder.orderStatus,

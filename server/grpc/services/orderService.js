@@ -3,6 +3,8 @@ const { v4: uuidv4 } = require('uuid');
 const Order = require('../../models/Order');
 const Device = require('../../models/Device');
 const Menu = require('../../models/Menu');
+const HostApplication = require('../../models/HostApplication');
+const { calculateOrderTotals } = require('../../controllers/host/orderHelper');
 const { verifyGrpcToken } = require('../grpcAuth');
 
 // Mutex lock to serialize concurrent order creation and item additions per table device
@@ -32,12 +34,22 @@ const orderServiceHandlers = {
       const { deviceId, hostApplicationId } = claims;
 
       const device = await Device.findOne({ deviceId })
-        .populate({ path: 'hostApplicationId', select: 'userId status' })
+        .populate({ path: 'hostApplicationId', select: 'userId status billConfig' })
         .lean();
       if (!device || !device.hostApplicationId) {
         return callback({ code: grpc.status.FAILED_PRECONDITION, message: 'Device is not linked to an application' });
       }
       const merchantId = device.hostApplicationId.userId;
+
+      // Ensure billConfig is resolved from device or direct venue host application
+      let venueBillConfig = device.hostApplicationId.billConfig;
+      if (!venueBillConfig || Object.keys(venueBillConfig).length === 0) {
+        const appDoc = await HostApplication.findById(hostApplicationId).select('billConfig').lean();
+        if (appDoc?.billConfig) {
+          venueBillConfig = appDoc.billConfig;
+        }
+      }
+      venueBillConfig = venueBillConfig || {};
 
       // Recalculate item prices server-side against active menu database & check availability
       const requestedItemIds = (items || []).map(i => i.itemId).filter(Boolean);
@@ -135,37 +147,29 @@ const orderServiceHandlers = {
           });
 
           // Recalculate subtotal, taxes, and total across all combined items in order
-          const app = device.hostApplicationId || {};
-          const billConfig = order.billConfigSnapshot || app.billConfig || {};
-          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-          const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
-          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
+          const billConfig = (order.billConfigSnapshot && Object.keys(order.billConfigSnapshot).length > 0)
+            ? order.billConfigSnapshot
+            : venueBillConfig;
 
           const subtotalPaise = order.items.reduce((acc, curr) => acc + ((curr.price || 0) * (curr.quantity || 1)), 0);
-
-          const cgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (cgstPct / 100));
-          const sgstPaise = order.isGstExempt ? 0 : Math.round(subtotalPaise * (sgstPct / 100));
-          const serviceTaxPaise = order.isServiceTaxExempt ? 0 : Math.round(subtotalPaise * (serviceTaxPct / 100));
-          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
-
-          let finalAmountPaise = rawTotalPaise;
-          let roundOffPaise = 0;
-          if (enableAutoRoundOff) {
-            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-            roundOffPaise = finalAmountPaise - rawTotalPaise;
-          }
+          const calc = calculateOrderTotals({
+            subtotalPaise,
+            billConfig,
+            isGstExempt: order.isGstExempt,
+            isServiceTaxExempt: order.isServiceTaxExempt
+          });
 
           order.subtotalAmount = subtotalPaise;
-          order.cgstAmount = cgstPaise;
-          order.sgstAmount = sgstPaise;
-          order.serviceTaxAmount = serviceTaxPaise;
-          order.roundOffAmount = roundOffPaise;
-          order.cgstPercent = order.isGstExempt ? 0 : cgstPct;
-          order.sgstPercent = order.isGstExempt ? 0 : sgstPct;
-          order.serviceTaxPercent = order.isServiceTaxExempt ? 0 : serviceTaxPct;
-          order.enableAutoRoundOff = enableAutoRoundOff;
-          order.totalAmount = finalAmountPaise;
+          order.cgstAmount = calc.cgstPaise;
+          order.sgstAmount = calc.sgstPaise;
+          order.serviceTaxAmount = calc.serviceTaxPaise;
+          order.roundOffAmount = calc.roundOffPaise;
+          order.cgstPercent = calc.cgstPct;
+          order.sgstPercent = calc.sgstPct;
+          order.serviceTaxPercent = calc.serviceTaxPct;
+          order.enableAutoRoundOff = calc.enableAutoRoundOff;
+          order.billConfigSnapshot = billConfig;
+          order.totalAmount = calc.finalTotalPaise;
 
           // Reset orderStatus to 'placed' so the kitchen knows new items are added to prepare
           order.orderStatus = 'placed';
@@ -175,25 +179,13 @@ const orderServiceHandlers = {
           // Create a new order if no active session exists
           const orderId = `ORD_${uuidv4().replace(/-/g, '').slice(0, 5).toUpperCase()}`;
 
-          const app = device.hostApplicationId || {};
-          const billConfig = app.billConfig || {};
-          const cgstPct = typeof billConfig.cgstPercent === 'number' ? billConfig.cgstPercent : 2.5;
-          const sgstPct = typeof billConfig.sgstPercent === 'number' ? billConfig.sgstPercent : 2.5;
-          const serviceTaxPct = typeof billConfig.serviceTaxPercent === 'number' ? billConfig.serviceTaxPercent : 0;
-          const enableAutoRoundOff = billConfig.enableAutoRoundOff !== false;
-
           const subtotalPaise = serverCalculatedTotal;
-          const cgstPaise = Math.round(subtotalPaise * (cgstPct / 100));
-          const sgstPaise = Math.round(subtotalPaise * (sgstPct / 100));
-          const serviceTaxPaise = Math.round(subtotalPaise * (serviceTaxPct / 100));
-          const rawTotalPaise = subtotalPaise + cgstPaise + sgstPaise + serviceTaxPaise;
-
-          let finalAmountPaise = rawTotalPaise;
-          let roundOffPaise = 0;
-          if (enableAutoRoundOff) {
-            finalAmountPaise = Math.ceil(rawTotalPaise / 100) * 100;
-            roundOffPaise = finalAmountPaise - rawTotalPaise;
-          }
+          const calc = calculateOrderTotals({
+            subtotalPaise,
+            billConfig: venueBillConfig,
+            isGstExempt: false,
+            isServiceTaxExempt: false
+          });
 
           order = new Order({
             orderId,
@@ -203,18 +195,18 @@ const orderServiceHandlers = {
             tableNumber,
             items: validatedItems,
             subtotalAmount: subtotalPaise,
-            cgstAmount: cgstPaise,
-            sgstAmount: sgstPaise,
-            serviceTaxAmount: serviceTaxPaise,
-            roundOffAmount: roundOffPaise,
-            cgstPercent: cgstPct,
-            sgstPercent: sgstPct,
-            serviceTaxPercent: serviceTaxPct,
+            cgstAmount: calc.cgstPaise,
+            sgstAmount: calc.sgstPaise,
+            serviceTaxAmount: calc.serviceTaxPaise,
+            roundOffAmount: calc.roundOffPaise,
+            cgstPercent: calc.rawCgstPct,
+            sgstPercent: calc.rawSgstPct,
+            serviceTaxPercent: calc.rawServiceTaxPct,
             isGstExempt: false,
             isServiceTaxExempt: false,
-            enableAutoRoundOff,
-            billConfigSnapshot: billConfig,
-            totalAmount: finalAmountPaise,
+            enableAutoRoundOff: calc.enableAutoRoundOff,
+            billConfigSnapshot: venueBillConfig,
+            totalAmount: calc.finalTotalPaise,
             paymentStatus: 'pending',
             orderStatus: 'placed',
             tableStatus: 'active'
