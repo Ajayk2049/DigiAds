@@ -27,6 +27,8 @@ export default function OrderTableRow({
   const effTaxPct = Number(effBillConfig?.serviceTaxPercent || 0);
   const showServTax = ord.serviceTaxPercent > 0 || ord.serviceTaxAmount > 0 || ord.isServiceTaxExempt || effTaxPct > 0;
 
+  const hasItems = Array.isArray(ord.items) && ord.items.length > 0;
+
   return (
     <tr className="hover:bg-muted/10">
       {/* Table / Type */}
@@ -56,86 +58,66 @@ export default function OrderTableRow({
       <td className="py-4 pr-2 font-mono font-bold text-foreground text-xs align-top">
         <div className="flex flex-col items-start gap-1.5">
           <span>{ord.orderId}</span>
-          <button
-            type="button"
-            onClick={() => onPrintKot?.(ord)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer transition-all shrink-0 active:scale-95"
-            title="Print Kitchen Order Ticket"
-          >
-            <Printer className="w-3 h-3" />
-            <span>PRINT KOT</span>
-          </button>
+          {hasItems && (
+            <button
+              type="button"
+              onClick={() => onPrintKot?.(ord)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm cursor-pointer transition-all shrink-0 active:scale-95"
+              title="Print Kitchen Order Ticket"
+            >
+              <Printer className="w-3 h-3" />
+              <span>PRINT KOT</span>
+            </button>
+          )}
         </div>
       </td>
 
       {/* Items Scrollable List */}
       <td className="py-4 pr-2 min-w-[180px] max-w-[260px]">
-        <div className="space-y-1 font-semibold text-foreground">
-          <div className="max-h-36 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
-            {ord.items?.map((item, idx) => (
-              <div key={idx} className="text-xs flex flex-col space-y-0.5">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-bold text-foreground break-words leading-tight" title={item.name}>
-                    {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''}
-                  </span>
-                  <span className="text-muted-foreground shrink-0 font-mono text-[11px] mt-0.5">x {item.quantity}</span>
+        {hasItems ? (
+          <div className="space-y-1 font-semibold text-foreground">
+            <div className="max-h-36 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+              {ord.items?.map((item, idx) => (
+                <div key={idx} className="text-xs flex flex-col space-y-0.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-bold text-foreground break-words leading-tight" title={item.name}>
+                      {item.name}{item.isPacked && !item.name?.includes('(PACK)') ? ' [PACK]' : ''}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 font-mono text-[11px] mt-0.5">x {item.quantity}</span>
+                  </div>
+                  {item.customization ? (
+                    <span className="text-[10px] text-primary/90 font-medium italic break-words leading-tight" title={item.customization}>
+                      ↳ {item.customization}
+                    </span>
+                  ) : null}
                 </div>
-                {item.customization ? (
-                  <span className="text-[10px] text-primary/90 font-medium italic break-words leading-tight" title={item.customization}>
-                    ↳ {item.customization}
-                  </span>
-                ) : null}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <span className="text-muted-foreground/40 font-semibold px-2 text-sm">-</span>
+        )}
       </td>
 
       {/* Amount & Tax Exemptions */}
       <td className="py-4 pr-2">
-        <div className="flex flex-col space-y-1.5 min-w-[120px]">
-          <div className="text-sm font-black font-mono text-foreground">
-            ₹{((ord.totalAmount || 0) / 100).toFixed(2)}
-          </div>
-
-          {/* GST Exemption Button */}
-          {ord.isGstExempt ? (
-            <div className="flex items-center space-x-1">
-              <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
-                No GST
-              </span>
-              <button
-                type="button"
-                onClick={() => onToggleGstExemption?.(ord.orderId, false)}
-                className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline cursor-pointer"
-                title="Restore GST calculation"
-              >
-                Restore
-              </button>
+        {hasItems ? (
+          <div className="flex flex-col space-y-1.5 min-w-[120px]">
+            <div className="text-sm font-black font-mono text-foreground">
+              ₹{((ord.totalAmount || 0) / 100).toFixed(2)}
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onToggleGstExemption?.(ord.orderId, true)}
-              className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
-              title="Remove GST for items with GST-adjusted prices (Chai, Samosa, etc.)"
-            >
-              <span>Remove GST</span>
-            </button>
-          )}
 
-          {/* Service Tax Exemption Button */}
-          {showServTax && (
-            ord.isServiceTaxExempt ? (
+            {/* GST Exemption Button */}
+            {ord.isGstExempt ? (
               <div className="flex items-center space-x-1">
-                <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
-                  No Serv Tax
+                <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                  No GST
                 </span>
                 <button
                   type="button"
-                  onClick={() => onToggleServiceTaxExemption?.(ord.orderId, false)}
+                  onClick={() => onToggleGstExemption?.(ord.orderId, false)}
                   className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline cursor-pointer"
-                  title="Restore Service Tax calculation"
+                  title="Restore GST calculation"
                 >
                   Restore
                 </button>
@@ -143,54 +125,88 @@ export default function OrderTableRow({
             ) : (
               <button
                 type="button"
-                onClick={() => onToggleServiceTaxExemption?.(ord.orderId, true)}
-                className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
-                title="Remove Service Tax from order"
+                onClick={() => onToggleGstExemption?.(ord.orderId, true)}
+                className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
+                title="Remove GST for items with GST-adjusted prices (Chai, Samosa, etc.)"
               >
-                <span>Remove Serv Tax</span>
+                <span>Remove GST</span>
               </button>
-            )
-          )}
-        </div>
+            )}
+
+            {/* Service Tax Exemption Button */}
+            {showServTax && (
+              ord.isServiceTaxExempt ? (
+                <div className="flex items-center space-x-1">
+                  <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+                    No Serv Tax
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onToggleServiceTaxExemption?.(ord.orderId, false)}
+                    className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline cursor-pointer"
+                    title="Restore Service Tax calculation"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onToggleServiceTaxExemption?.(ord.orderId, true)}
+                  className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 px-2.5 py-1 rounded-lg transition-all w-fit cursor-pointer flex items-center space-x-1"
+                  title="Remove Service Tax from order"
+                >
+                  <span>Remove Serv Tax</span>
+                </button>
+              )
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground/40 font-semibold px-2 text-sm">-</span>
+        )}
       </td>
 
       {/* Status Selector */}
       <td className="py-4 pr-2">
-        <select
-          value={ord.orderStatus}
-          disabled={ord.orderStatus === 'served' || ord.orderStatus === 'cancelled'}
-          onChange={(e) => {
-            e.stopPropagation();
-            const val = e.target.value;
-            if (val === 'cancelled') {
-              onRequestCancel?.(ord);
-            } else {
-              onStatusChange?.(ord.orderId, val);
-            }
-          }}
-          className={`text-xs font-black uppercase px-3.5 py-2.5 rounded-xl border focus:outline-none w-fit shadow-sm tracking-wide ${
-            ord.orderStatus === 'placed'
-              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 cursor-pointer'
-              : ord.orderStatus === 'cooking'
-                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 cursor-pointer'
-                : ord.orderStatus === 'served'
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 cursor-not-allowed opacity-90'
-                  : ord.orderStatus === 'cancelled'
-                    ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 cursor-not-allowed opacity-90'
-                    : 'bg-muted-foreground/15 text-muted-foreground border-border/30'
-          }`}
-        >
-          {ord.orderStatus === 'placed' && (
-            <option value="placed" className="bg-card text-foreground">Placed</option>
-          )}
-          {(ord.orderStatus === 'placed' || ord.orderStatus === 'cooking') && (
-            <option value="cooking" className="bg-card text-foreground">Accepted & Preparing</option>
-          )}
-          <option value="served" className="bg-card text-foreground">Served</option>
-          {(ord.orderStatus === 'placed' || ord.orderStatus === 'cancelled') && (
-            <option value="cancelled" className="bg-card text-foreground text-red-500 font-bold">Cancel order</option>
-          )}
-        </select>
+        {hasItems ? (
+          <select
+            value={ord.orderStatus}
+            disabled={ord.orderStatus === 'served' || ord.orderStatus === 'cancelled'}
+            onChange={(e) => {
+              e.stopPropagation();
+              const val = e.target.value;
+              if (val === 'cancelled') {
+                onRequestCancel?.(ord);
+              } else {
+                onStatusChange?.(ord.orderId, val);
+              }
+            }}
+            className={`text-xs font-black uppercase px-3.5 py-2.5 rounded-xl border focus:outline-none w-fit shadow-sm tracking-wide ${
+              ord.orderStatus === 'placed'
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 cursor-pointer'
+                : ord.orderStatus === 'cooking'
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 cursor-pointer'
+                  : ord.orderStatus === 'served'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 cursor-not-allowed opacity-90'
+                    : ord.orderStatus === 'cancelled'
+                      ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 cursor-not-allowed opacity-90'
+                      : 'bg-muted-foreground/15 text-muted-foreground border-border/30'
+            }`}
+          >
+            {ord.orderStatus === 'placed' && (
+              <option value="placed" className="bg-card text-foreground">Placed</option>
+            )}
+            {(ord.orderStatus === 'placed' || ord.orderStatus === 'cooking') && (
+              <option value="cooking" className="bg-card text-foreground">Accepted & Preparing</option>
+            )}
+            <option value="served" className="bg-card text-foreground">Served</option>
+            {(ord.orderStatus === 'placed' || ord.orderStatus === 'cancelled') && (
+              <option value="cancelled" className="bg-card text-foreground text-red-500 font-bold">Cancel order</option>
+            )}
+          </select>
+        ) : (
+          <span className="text-muted-foreground/40 font-semibold px-2 text-sm">-</span>
+        )}
       </td>
 
       {/* Waiter / Assistance Requests */}

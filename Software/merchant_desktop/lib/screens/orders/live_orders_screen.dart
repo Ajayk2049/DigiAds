@@ -284,7 +284,8 @@ class LiveOrdersScreen extends StatelessWidget {
     OrdersProvider ordersProv,
     bool isDark,
   ) {
-    final isPlaced = order.orderStatus == 'placed';
+    final hasItems = order.items.isNotEmpty;
+    final isPlaced = hasItems && order.orderStatus == 'placed';
     final printerProv = context.watch<PrinterProvider>();
 
     return Container(
@@ -355,43 +356,45 @@ class LiveOrdersScreen extends StatelessWidget {
                   order.orderId,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Courier'),
                 ),
-                const SizedBox(height: 6),
-                Builder(builder: (context) {
-                  final wasKotPrinted = printerProv.hasKotBeenPrinted(order.orderId);
-                  return ElevatedButton.icon(
-                    onPressed: () async {
-                      final success = await printerProv.printKitchenKot(order: order, isAutomatic: false);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              success
-                                  ? 'Kitchen KOT sent to printer (${order.orderId})'
-                                  : 'Failed to print KOT. Please check printer configuration.',
+                if (hasItems) ...[
+                  const SizedBox(height: 6),
+                  Builder(builder: (context) {
+                    final wasKotPrinted = printerProv.hasKotBeenPrinted(order.orderId);
+                    return ElevatedButton.icon(
+                      onPressed: () async {
+                        final success = await printerProv.printKitchenKot(order: order, isAutomatic: false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                success
+                                    ? 'Kitchen KOT sent to printer (${order.orderId})'
+                                    : 'Failed to print KOT. Please check printer configuration.',
+                              ),
+                              backgroundColor: success ? AppColors.success : AppColors.danger,
+                              duration: const Duration(seconds: 2),
                             ),
-                            backgroundColor: success ? AppColors.success : AppColors.danger,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    },
-                    icon: Icon(wasKotPrinted ? LucideIcons.check : LucideIcons.printer, size: 11),
-                    label: Text(
-                      wasKotPrinted ? 'REPRINT KOT' : 'PRINT KOT',
-                      style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: wasKotPrinted
-                          ? (isDark ? AppColors.darkCardElevated : Colors.grey.shade700)
-                          : AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      minimumSize: const Size(0, 24),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      elevation: 1,
-                    ),
-                  );
-                }),
+                          );
+                        }
+                      },
+                      icon: Icon(wasKotPrinted ? LucideIcons.check : LucideIcons.printer, size: 11),
+                      label: Text(
+                        wasKotPrinted ? 'REPRINT KOT' : 'PRINT KOT',
+                        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: wasKotPrinted
+                            ? (isDark ? AppColors.darkCardElevated : Colors.grey.shade700)
+                            : AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: const Size(0, 24),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        elevation: 1,
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           ),
@@ -399,187 +402,215 @@ class LiveOrdersScreen extends StatelessWidget {
           // 3. ITEMS (flex: 4)
           Expanded(
             flex: 4,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: order.items.map((item) {
-                return Container(
-                  constraints: const BoxConstraints(minHeight: 22),
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Column(
+            child: hasItems
+                ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: item.isVeg ? AppColors.vegGreen : AppColors.nonVegRed,
+                    children: order.items.map((item) {
+                      return Container(
+                        constraints: const BoxConstraints(minHeight: 22),
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: item.isVeg ? AppColors.vegGreen : AppColors.nonVegRed,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '${item.name}${item.isPacked ? ' [PACK]' : ''}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (item.customization.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 14, top: 1),
+                                child: Text(
+                                  '↳ ${item.customization}',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontStyle: FontStyle.italic,
+                                    color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              '${item.name}${item.isPacked ? ' [PACK]' : ''}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (item.customization.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 14, top: 1),
-                          child: Text(
-                            '↳ ${item.customization}',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontStyle: FontStyle.italic,
-                              color: isDark ? Colors.amber.shade300 : Colors.amber.shade800,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                          ],
                         ),
-                    ],
+                      );
+                    }).toList(),
+                  )
+                : const Text(
+                    '—',
+                    style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
                   ),
-                );
-              }).toList(),
-            ),
           ),
 
           // 4. QTY (flex: 1, Centered)
           Expanded(
             flex: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: order.items.map((item) {
-                return Container(
-                  constraints: const BoxConstraints(minHeight: 22),
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  alignment: Alignment.center,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkCardElevated : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+            child: hasItems
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: order.items.map((item) {
+                      return Container(
+                        constraints: const BoxConstraints(minHeight: 22),
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        alignment: Alignment.center,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkCardElevated : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'x${item.quantity}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                : const Center(
                     child: Text(
-                      'x${item.quantity}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                        color: isDark ? Colors.white70 : Colors.black87,
-                      ),
+                      '—',
+                      style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
           ),
 
           // 5. PRICE (flex: 2, Aligned right)
           Expanded(
             flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: order.items.map((item) {
-                return Container(
-                  constraints: const BoxConstraints(minHeight: 22),
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'Rs. ${item.totalInRupees.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.darkMuted : AppColors.lightMuted,
-                      fontFamily: 'Courier',
+            child: hasItems
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: order.items.map((item) {
+                      return Container(
+                        constraints: const BoxConstraints(minHeight: 22),
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Rs. ${item.totalInRupees.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.darkMuted : AppColors.lightMuted,
+                            fontFamily: 'Courier',
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                : const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '—',
+                      style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                   ),
-                );
-              }).toList(),
-            ),
           ),
 
           // 6. TOTAL (flex: 2, Aligned right)
           Expanded(
             flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Rs. ${order.totalInRupees.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
-                  alignment: WrapAlignment.end,
-                  children: [
-                    InkWell(
-                      onTap: () => ordersProv.toggleGstExemption(order.orderId, !order.isGstExempt),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? (order.isGstExempt ? const Color(0xFF062817) : const Color(0xFF2A1C08))
-                              : (order.isGstExempt ? AppColors.successBg : AppColors.warningBg),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                          border: Border.all(
-                            color: order.isGstExempt ? AppColors.success.withValues(alpha: 0.4) : AppColors.warning.withValues(alpha: 0.4),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          order.isGstExempt ? '✓ No GST' : '- GST',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: order.isGstExempt ? AppColors.success : AppColors.warning,
-                          ),
-                        ),
+            child: hasItems
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Rs. ${order.totalInRupees.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                       ),
-                    ),
-                    InkWell(
-                      onTap: () => ordersProv.toggleServiceTaxExemption(order.orderId, !order.isServiceTaxExempt),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? (order.isServiceTaxExempt ? const Color(0xFF062817) : const Color(0xFF1E103A))
-                              : (order.isServiceTaxExempt ? AppColors.successBg : AppColors.purpleBg),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                          border: Border.all(
-                            color: order.isServiceTaxExempt ? AppColors.success.withValues(alpha: 0.4) : AppColors.purple.withValues(alpha: 0.4),
-                            width: 0.8,
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          InkWell(
+                            onTap: () => ordersProv.toggleGstExemption(order.orderId, !order.isGstExempt),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? (order.isGstExempt ? const Color(0xFF062817) : const Color(0xFF2A1C08))
+                                    : (order.isGstExempt ? AppColors.successBg : AppColors.warningBg),
+                                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                border: Border.all(
+                                  color: order.isGstExempt ? AppColors.success.withValues(alpha: 0.4) : AppColors.warning.withValues(alpha: 0.4),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                order.isGstExempt ? '✓ No GST' : '- GST',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: order.isGstExempt ? AppColors.success : AppColors.warning,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          order.isServiceTaxExempt ? '✓ No ST' : '- ST',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: order.isServiceTaxExempt ? AppColors.success : AppColors.purple,
+                          InkWell(
+                            onTap: () => ordersProv.toggleServiceTaxExemption(order.orderId, !order.isServiceTaxExempt),
+                            borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? (order.isServiceTaxExempt ? const Color(0xFF062817) : const Color(0xFF1E103A))
+                                    : (order.isServiceTaxExempt ? AppColors.successBg : AppColors.purpleBg),
+                                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                                border: Border.all(
+                                  color: order.isServiceTaxExempt ? AppColors.success.withValues(alpha: 0.4) : AppColors.purple.withValues(alpha: 0.4),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                order.isServiceTaxExempt ? '✓ No ST' : '- ST',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: order.isServiceTaxExempt ? AppColors.success : AppColors.purple,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
+                    ],
+                  )
+                : const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '—',
+                      style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
           ),
 
           // 7. WAITER REQUEST (flex: 3, Centered)
@@ -639,7 +670,12 @@ class LiveOrdersScreen extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Center(
-              child: _buildStatusWidget(context, order, ordersProv),
+              child: hasItems
+                  ? _buildStatusWidget(context, order, ordersProv)
+                  : const Text(
+                      '—',
+                      style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
 
