@@ -350,6 +350,19 @@ class OrderController {
       await order.save();
       notifyDeviceSessionUpdate(order);
 
+      if (global.sendToMerchant) {
+        global.sendToMerchant(req.user.uid, {
+          event: 'new_order',
+          data: order
+        });
+      }
+      if (order.hostApplicationId && global.sendToKitchen) {
+        global.sendToKitchen(order.hostApplicationId.toString(), {
+          event: 'new_order',
+          data: order
+        });
+      }
+
       return res.status(201).send({
         success: true,
         message: 'Pickup order created successfully',

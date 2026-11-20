@@ -8,12 +8,18 @@ const merchantSockets = new Map();
 const deviceSockets = new Map();
 const adminSockets = new Map();
 const pendingDeviceCommands = new Map();
+const kdsSockets = new Map(); // venueId -> Set<WebSocket>
+const kdsStationSockets = new Map(); // stationId -> WebSocket
+const pendingKdsSockets = new Map(); // requestId -> WebSocket
 
 // Expose on global for legacy and cross-controller access
 global.merchantSockets = merchantSockets;
 global.deviceSockets = deviceSockets;
 global.adminSockets = adminSockets;
 global.pendingDeviceCommands = pendingDeviceCommands;
+global.kdsSockets = kdsSockets;
+global.kdsStationSockets = kdsStationSockets;
+global.pendingKdsSockets = pendingKdsSockets;
 
 // WebSocket connection capacity guards (protects Node process from socket descriptor exhaustion)
 const MAX_TOTAL_WS_CONNS = 2000;
@@ -197,11 +203,64 @@ global.broadcastToAdmins = (event, data = {}) => {
   }
 };
 
+/**
+ * Send real-time events to all active KDS screens of a venue
+ */
+global.sendToKitchen = (venueId, payload) => {
+  if (!venueId) return;
+  const vId = venueId.toString();
+  const sockets = global.kdsSockets ? global.kdsSockets.get(vId) : null;
+  if (sockets && sockets.size > 0) {
+    const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    for (const s of sockets) {
+      try {
+        if (s.readyState === 1) s.send(msg);
+      } catch (e) {
+        console.error('[WS] Error sending to kitchen socket:', e.message);
+      }
+    }
+  }
+};
+
+/**
+ * Send approval/rejection event to a waiting pending KDS socket
+ */
+global.sendToPendingKds = (requestId, payload) => {
+  if (!requestId || !global.pendingKdsSockets) return;
+  const socket = global.pendingKdsSockets.get(requestId);
+  if (socket && socket.readyState === 1) {
+    try {
+      const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      socket.send(msg);
+    } catch (e) {
+      console.error('[WS] Error sending to pending KDS socket:', e.message);
+    }
+  }
+};
+
+/**
+ * Disconnect a revoked KDS station
+ */
+global.disconnectKdsStation = (stationId) => {
+  if (!stationId || !global.kdsStationSockets) return;
+  const socket = global.kdsStationSockets.get(stationId);
+  if (socket) {
+    try {
+      socket.send(JSON.stringify({ error: 'Station access has been revoked by manager' }));
+      socket.close(1008, 'Station revoked');
+    } catch (_) {}
+    global.kdsStationSockets.delete(stationId);
+  }
+};
+
 module.exports = {
   merchantSockets,
   deviceSockets,
   adminSockets,
   pendingDeviceCommands,
+  kdsSockets,
+  kdsStationSockets,
+  pendingKdsSockets,
   canAcceptWebSocket,
   registerWsConnection,
   unregisterWsConnection,

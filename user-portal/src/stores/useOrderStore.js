@@ -50,6 +50,12 @@ export const useOrderStore = create((set, get) => ({
   takeoutCart: [],
   isSubmittingTakeout: false,
 
+  // KDS Station Approval State
+  showKdsApprovalModal: false,
+  pendingKdsRequest: null,
+  setShowKdsApprovalModal: (show) => set({ showKdsApprovalModal: show }),
+  setPendingKdsRequest: (req) => set({ pendingKdsRequest: req, showKdsApprovalModal: Boolean(req) }),
+
   // Setters
   setActiveOrderVenueTab: (tab) => {
     set({ activeOrderVenueTab: tab });
@@ -205,6 +211,8 @@ export const useOrderStore = create((set, get) => ({
             if (!menuStore.isSavingMenu && targetVenueId) {
               menuStore.fetchMenu(token, targetVenueId);
             }
+          } else if (data.event === 'kds_login_request') {
+            set({ pendingKdsRequest: data.data, showKdsApprovalModal: true });
           }
         } catch (parseErr) {
           if (process.env.NODE_ENV !== 'production') {

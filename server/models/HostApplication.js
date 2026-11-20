@@ -237,6 +237,19 @@ const HostApplicationSchema = new mongoose.Schema({
     qrImageUrl: { type: String, default: '' },
     qrCaption: { type: String, default: 'Scan QR to pay / provide feedback' }
   },
+  // Kitchen Display System (KDS) Configuration & Fleet
+  kitchenConfig: {
+    pin: { type: String, default: null },
+    pinCreatedAt: { type: Date, default: null },
+    activeStations: [{
+      stationId: { type: String, required: true },
+      stationName: { type: String, default: 'Kitchen Display' },
+      ip: { type: String },
+      userAgent: { type: String },
+      approvedAt: { type: Date, default: Date.now },
+      lastActiveAt: { type: Date, default: Date.now }
+    }]
+  },
   createdAt: {
     type: Date,
     default: Date.now

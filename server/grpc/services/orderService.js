@@ -226,6 +226,13 @@ const orderServiceHandlers = {
         });
       }
 
+      if (order.hostApplicationId && global.sendToKitchen) {
+        global.sendToKitchen(order.hostApplicationId.toString(), {
+          event: 'new_order',
+          data: order
+        });
+      }
+
       callback(null, {
         success: true,
         message: 'Order placed',

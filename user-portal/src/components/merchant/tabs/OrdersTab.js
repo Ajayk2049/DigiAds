@@ -121,6 +121,13 @@ export default function OrdersTab(props) {
           setTakeoutActiveCategory(menuCategories[0] || 'Starters');
           setShowTakeoutModal(true);
         }}
+        onOpenKitchenPinModal={() => {
+          const currentApp = applications.find(app => String(app._id) === String(activeVenueId))
+            || approvedOutlets[0];
+          if (currentApp) {
+            outlet.openKitchenPinModal(currentApp);
+          }
+        }}
       />
 
       {sortedOrders.length === 0 ? (

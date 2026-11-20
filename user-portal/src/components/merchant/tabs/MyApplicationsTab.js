@@ -115,9 +115,18 @@ export default function MyApplicationsTab(props) {
               )}
 
               {app.status === 'approved' && (
-                <div className="border-t border-border/40 pt-3 text-[10px] text-muted-foreground font-semibold space-y-1">
-                  <p className="uppercase text-[9px] tracking-wider font-bold">Approved Status</p>
-                  <p className="text-foreground/80 leading-relaxed font-semibold">This application is approved. Device credentials have been generated under the &quot;Devices&quot; tab.</p>
+                <div className="border-t border-border/40 pt-3 flex items-center justify-between">
+                  <div className="text-[10px] text-muted-foreground font-semibold">
+                    <p className="uppercase text-[9px] tracking-wider font-bold text-emerald-500">Approved Venue</p>
+                    <p className="text-foreground/80 font-medium">Kitchen Display System ready</p>
+                  </div>
+                  <button
+                    onClick={() => outlet.openKitchenPinModal(app)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-[#0069a8] font-bold text-xs border border-primary/20 transition-colors cursor-pointer"
+                  >
+                    <Tv className="w-3.5 h-3.5" />
+                    <span>Kitchen PIN</span>
+                  </button>
                 </div>
               )}
             </div>

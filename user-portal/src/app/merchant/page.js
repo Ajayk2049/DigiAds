@@ -42,6 +42,8 @@ const PrintBillModal = dynamic(() => import('@/components/merchant/modals/PrintB
 const ExcelExportModal = dynamic(() => import('@/components/merchant/modals/ExcelExportModal'), { ssr: false });
 const TakeoutOrderModal = dynamic(() => import('@/components/merchant/modals/TakeoutOrderModal'), { ssr: false });
 const ModeChangeModal = dynamic(() => import('@/components/merchant/modals/ModeChangeModal'), { ssr: false });
+const VenueKitchenPinModal = dynamic(() => import('@/components/merchant/modals/VenueKitchenPinModal'), { ssr: false });
+const KdsApprovalModal = dynamic(() => import('@/components/merchant/modals/KdsApprovalModal'), { ssr: false });
 
 export default function MerchantDashboard() {
   const router = useRouter();
@@ -171,6 +173,8 @@ export default function MerchantDashboard() {
       <ExcelExportModal />
       <TakeoutOrderModal />
       <ModeChangeModal />
+      <VenueKitchenPinModal />
+      <KdsApprovalModal />
     </div>
   );
 }

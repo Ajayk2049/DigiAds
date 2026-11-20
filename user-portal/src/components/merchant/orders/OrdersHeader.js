@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Clock, ShoppingBag } from 'lucide-react';
+import { Clock, ShoppingBag, Tv } from 'lucide-react';
 
 export default function OrdersHeader({
   applications = [],
@@ -10,7 +10,8 @@ export default function OrdersHeader({
   orders = [],
   activeShift,
   onSelectVenue,
-  onOpenTakeoutModal
+  onOpenTakeoutModal,
+  onOpenKitchenPinModal
 }) {
   const currentOutletName = applications.find(app => String(app._id) === String(activeVenueId))?.outletName
     || applications.find(app => app.status === 'approved')?.outletName
@@ -77,6 +78,15 @@ export default function OrdersHeader({
         >
           <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
           <span>+ Pickup Order</span>
+        </button>
+
+        <button
+          onClick={onOpenKitchenPinModal}
+          className="bg-card hover:bg-muted text-foreground border border-input font-bold px-3 py-2 rounded-lg text-[11px] sm:text-xs flex items-center space-x-1.5 cursor-pointer shadow-sm tracking-wider uppercase transition-all whitespace-nowrap shrink-0"
+          title="Configure Kitchen Display PIN & Stations"
+        >
+          <Tv className="w-3.5 h-3.5 text-[#0069a8] shrink-0" />
+          <span>Kitchen PIN</span>
         </button>
 
         {/* Live Status Pill for Desktop/Tablet */}

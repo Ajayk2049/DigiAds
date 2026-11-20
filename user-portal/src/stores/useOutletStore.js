@@ -81,6 +81,12 @@ export const useOutletStore = create((set, get) => ({
   analyticsData: null,
   analyticsLoading: false,
 
+  // Kitchen Display (KDS) PIN Modal State
+  showKitchenPinModal: false,
+  activeKitchenVenue: null,
+  openKitchenPinModal: (venue) => set({ activeKitchenVenue: venue, showKitchenPinModal: true }),
+  closeKitchenPinModal: () => set({ activeKitchenVenue: null, showKitchenPinModal: false }),
+
 
   // Getters / Selectors
   getApprovedOutlets: () => {

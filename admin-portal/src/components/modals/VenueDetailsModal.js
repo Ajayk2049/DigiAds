@@ -15,7 +15,8 @@ import {
   Check,
   Settings,
   Play,
-  Pause
+  Pause,
+  Tv
 } from 'lucide-react';
 
 export default function VenueDetailsModal({
@@ -122,6 +123,17 @@ export default function VenueDetailsModal({
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="p-4 bg-background/40 rounded-2xl border border-border/40 space-y-2">
+              <span className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-1">
+                <Tv className="w-3.5 h-3.5 text-primary" /> Kitchen Display (KDS) PIN
+              </span>
+              <p className="font-mono text-base font-black text-[#0069a8]">
+                {selectedHostApp.kitchenConfig?.pin
+                  ? `${selectedHostApp.kitchenConfig.pin.slice(0, 3)}-${selectedHostApp.kitchenConfig.pin.slice(3)}`
+                  : 'Not Generated Yet (Venue Admin Generates in Portal)'}
+              </p>
             </div>
           </div>
 

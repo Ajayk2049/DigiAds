@@ -232,6 +232,13 @@ async function notifyDeviceSessionUpdate(order) {
       reqLog('info', `[WS] Push order update to Merchant ${order.merchantId}: orderId=${order.orderId}, orderStatus=${order.orderStatus}`);
     }
 
+    if (order.hostApplicationId && global.sendToKitchen) {
+      global.sendToKitchen(order.hostApplicationId.toString(), {
+        event: 'order_update',
+        data: order
+      });
+    }
+
     if (order.tableStatus === 'completed') {
       setTimeout(async () => {
         try {

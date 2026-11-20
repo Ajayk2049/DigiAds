@@ -12,6 +12,8 @@ const orderController = require('../controllers/host/orderController');
 const billingController = require('../controllers/host/billingController');
 const venuePromoController = require('../controllers/host/venuePromoController');
 const venueAnalyticsController = require('../controllers/host/venueAnalyticsController');
+const kdsAuthController = require('../controllers/kds/kdsAuthController');
+const kdsOrderController = require('../controllers/kds/kdsOrderController');
 
 // Advertiser Domain Controllers
 const adDiscoveryController = require('../controllers/ad/adDiscoveryController');
@@ -189,6 +191,18 @@ function registerRoutes(fastify, options, done) {
   // Public Venue Directory & Map Discovery
   fastify.get('/public/venues', venueRateLimitConfig, publicController.getPublicVenues.bind(publicController));
 
+  // Kitchen Display Public Auth & Status Routes (Rate-limited §22.3)
+  const kdsAuthRateLimitConfig = {
+    config: {
+      rateLimit: {
+        max: isDevEnv ? 100 : 10,
+        timeWindow: '5 minutes'
+      }
+    }
+  };
+  fastify.post('/kds/auth/request-access', kdsAuthRateLimitConfig, kdsAuthController.requestAccess.bind(kdsAuthController));
+  fastify.get('/kds/auth/status/:requestId', kdsAuthController.checkAccessStatus.bind(kdsAuthController));
+
   // Merchant Host Routes
   fastify.register((merchantRoutes, opts, next) => {
     merchantRoutes.addHook('preHandler', authenticate);
@@ -228,6 +242,12 @@ function registerRoutes(fastify, options, done) {
     merchantRoutes.post('/host/applications/request-mode-change', { preHandler: validate({ body: modeChangeRequestSchema }) }, venuePromoController.requestModeChange.bind(venuePromoController));
     merchantRoutes.get('/host/applications/mode-change-status', venuePromoController.getModeChangeStatus.bind(venuePromoController));
     merchantRoutes.get('/host/venues/:id/invoices', venueBillingController.getMerchantVenueInvoices.bind(venueBillingController));
+
+    // Kitchen Display Management Routes for Venue Admin
+    merchantRoutes.post('/host/venues/:id/kitchen-pin', kdsAuthController.generateOrRotatePin.bind(kdsAuthController));
+    merchantRoutes.get('/host/venues/:id/kitchen-config', kdsAuthController.getVenueKitchenConfig.bind(kdsAuthController));
+    merchantRoutes.post('/kds/auth/approve-access', kdsAuthController.approveAccess.bind(kdsAuthController));
+    merchantRoutes.delete('/host/venues/:id/kitchen-stations/:stationId', kdsAuthController.revokeStation.bind(kdsAuthController));
     next();
   });
 
@@ -255,6 +275,17 @@ function registerRoutes(fastify, options, done) {
     commonRoutes.addHook('preHandler', authenticate);
     commonRoutes.get('/ads/rates', adDiscoveryController.getRates.bind(adDiscoveryController));
     commonRoutes.get('/ads/analytics/:bookingId', adAnalyticsController.getCampaignAnalytics.bind(adAnalyticsController));
+    next();
+  });
+
+  // Kitchen Display System (KDS) Protected Order Operations
+  fastify.register((kdsRoutes, opts, next) => {
+    kdsRoutes.addHook('preHandler', authenticate);
+    kdsRoutes.addHook('preHandler', authorize(['kds']));
+
+    kdsRoutes.get('/kds/orders', kdsOrderController.getKitchenOrders.bind(kdsOrderController));
+    kdsRoutes.patch('/kds/orders/:orderId/status', kdsOrderController.updateKitchenOrderStatus.bind(kdsOrderController));
+    kdsRoutes.get('/kds/orders/recall', kdsOrderController.getRecalledOrders.bind(kdsOrderController));
     next();
   });
 
