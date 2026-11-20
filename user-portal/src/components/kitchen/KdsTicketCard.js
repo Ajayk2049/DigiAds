@@ -129,37 +129,40 @@ export default function KdsTicketCard({ order, onUpdateStatus }) {
         ))}
       </div>
 
-      {/* Action Footer: Green Action & Red Reject */}
+      {/* Action Footer: Reject only available before accepting */}
       <div className="p-3 bg-muted/20 border-t border-border/60 flex items-center space-x-2">
-        {/* Red Reject Button with Confirmation */}
-        <button
-          type="button"
-          onClick={() => setShowRejectConfirm(true)}
-          disabled={updating}
-          className="py-2.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50 shrink-0"
-          title="Reject / Cancel Order"
-        >
-          <XCircle className="w-4 h-4" />
-          <span>Reject</span>
-        </button>
-
-        {/* Green Primary Action Button */}
         {!isCooking ? (
-          <button
-            type="button"
-            onClick={() => handleAction('cooking')}
-            disabled={updating}
-            className="flex-1 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
-          >
-            <ChefHat className="w-4 h-4" />
-            <span>{updating ? 'Updating...' : 'Start Preparing'}</span>
-          </button>
+          <>
+            {/* Red Reject Button with Confirmation (Only visible before accepting) */}
+            <button
+              type="button"
+              onClick={() => setShowRejectConfirm(true)}
+              disabled={updating}
+              className="py-2.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50 shrink-0"
+              title="Reject / Cancel Order"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Reject</span>
+            </button>
+
+            {/* Green Start Preparing Button */}
+            <button
+              type="button"
+              onClick={() => handleAction('cooking')}
+              disabled={updating}
+              className="flex-1 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+            >
+              <ChefHat className="w-4 h-4" />
+              <span>{updating ? 'Updating...' : 'Start Preparing'}</span>
+            </button>
+          </>
         ) : (
+          /* Once accepted / cooking: Reject is hidden, only Mark Ready / Served is available */
           <button
             type="button"
             onClick={() => handleAction('served')}
             disabled={updating}
-            className="flex-1 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
+            className="w-full py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
             <span>{updating ? 'Completing...' : 'Mark Ready / Served'}</span>
