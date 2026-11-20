@@ -20,6 +20,17 @@ export default function KdsRecallDrawer({ isOpen, onClose, token }) {
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
 
   const searchTimerRef = useRef(null);
+  const dateInputRef = useRef(null);
+
+  const handleOpenDatePicker = () => {
+    try {
+      if (dateInputRef.current && typeof dateInputRef.current.showPicker === 'function') {
+        dateInputRef.current.showPicker();
+      } else if (dateInputRef.current) {
+        dateInputRef.current.focus();
+      }
+    } catch (_) {}
+  };
 
   // Fetch recalled/served orders bounded by the selected day to safeguard database performance
   const fetchRecalledOrders = async (query = searchInput, date = selectedDate) => {
@@ -79,14 +90,22 @@ export default function KdsRecallDrawer({ isOpen, onClose, token }) {
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Date Selector defaulted to current day */}
-            <div className="flex items-center space-x-1.5 bg-background border border-input rounded-lg px-2 py-1 shadow-sm">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            {/* Date Selector defaulted to current day with click-to-open */}
+            <div
+              onClick={handleOpenDatePicker}
+              className="flex items-center space-x-1.5 bg-background hover:bg-muted/50 border border-input rounded-lg px-2.5 py-1.5 shadow-sm cursor-pointer transition-colors"
+              title="Select Date"
+            >
+              <Calendar className="w-3.5 h-3.5 text-primary shrink-0 pointer-events-none" />
               <input
+                ref={dateInputRef}
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value || getTodayDateString())}
-                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+                onClick={(e) => {
+                  try { e.target.showPicker?.(); } catch (_) {}
+                }}
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
               />
             </div>
 
