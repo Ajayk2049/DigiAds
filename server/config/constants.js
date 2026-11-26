@@ -34,6 +34,7 @@ const TIMEOUTS = {
   // WebSocket and telemetry intervals
   HEARTBEAT_INTERVAL_MS: 15000,        // 15 seconds
   DEVICE_OFFLINE_THRESHOLD_MS: 35000,  // 35 seconds without ping = offline
+  DEVICE_DETACH_THRESHOLD_MS: 120000,  // 2 minutes offline = auto-detach pairing
   WS_THROTTLE_TOUCH_MS: 20000,         // DB touch throttle for pings (20s)
   WS_MAX_CONNECTIONS: 1000,            // Total socket ceiling
   WS_PER_IP_LIMIT: 30,                 // External per-IP socket ceiling

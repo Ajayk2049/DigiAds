@@ -443,8 +443,12 @@ export const useOrderStore = create((set, get) => ({
     set({ showPrintBillModal: true });
   },
 
-  fetchVenueBillConfig: async (token, venueId) => {
+  fetchVenueBillConfig: async (token, venueId, force = false) => {
     if (!token || !venueId) return;
+    const current = get().activeBillConfig;
+    if (!force && current && String(current.hostApplicationId || current._id) === String(venueId)) {
+      return current;
+    }
     try {
       const res = await axios.get(`${getApiBase()}/host/bill-config/${venueId}`, {
         headers: { Authorization: `Bearer ${token}` }

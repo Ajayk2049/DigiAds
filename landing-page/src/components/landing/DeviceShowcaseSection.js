@@ -39,7 +39,7 @@ export default function DeviceShowcaseSection({ userPortalUrl }) {
           transition={{ duration: 0.6 }}
           className="text-center mb-10 space-y-3"
         >
-          <span className="text-xs font-extrabold text-[#0069a8] tracking-widest uppercase bg-[#0069a8]/10 px-3 py-1 rounded-md border border-[#0069a8]/20">
+          <span className="text-xs font-extrabold text-accent tracking-widest uppercase bg-accent/10 px-3 py-1 rounded-md border border-accent/20">
             Device Showcase
           </span>
           <h2 className="font-outfit text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">

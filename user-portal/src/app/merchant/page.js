@@ -93,24 +93,26 @@ export default function MerchantDashboard() {
     };
   }, [router]);
 
-  // 2. React to selectedOutletId shifts
+  // 2. React to selectedOutletId shifts and application data hydration
   useEffect(() => {
     if (!token || !selectedOutletId) return;
-    if (!applications || applications.length === 0) return;
-    if (!applications.some(a => String(a._id) === String(selectedOutletId))) return;
+    const apps = useOutletStore.getState().applications || [];
+    if (!apps || apps.length === 0) return;
+    if (!apps.some(a => String(a._id) === String(selectedOutletId))) return;
 
     menu.fetchMenu(token, selectedOutletId);
-    payment.fetchBillConfig(token, selectedOutletId, applications);
+    payment.fetchBillConfig(token, selectedOutletId, apps);
     payment.fetchPaymentConfig(token, selectedOutletId);
     promo.fetchHostPromos(token, selectedOutletId);
     outlet.fetchVenueAnalytics(token, outlet.analyticsDays, selectedOutletId);
-  }, [token, selectedOutletId, applications]);
+  }, [token, selectedOutletId, applications.length]);
 
   // 3. Tab-specific lazy refreshes
   useEffect(() => {
     if (!token || !selectedOutletId) return;
-    if (!applications || applications.length === 0) return;
-    if (!applications.some(a => String(a._id) === String(selectedOutletId))) return;
+    const apps = useOutletStore.getState().applications || [];
+    if (!apps || apps.length === 0) return;
+    if (!apps.some(a => String(a._id) === String(selectedOutletId))) return;
 
     if (activeTab === 'payment') {
       payment.fetchPaymentConfig(token, selectedOutletId);
@@ -121,7 +123,7 @@ export default function MerchantDashboard() {
     if (activeTab === 'dashboard') {
       outlet.fetchVenueAnalytics(token, outlet.analyticsDays, selectedOutletId);
     }
-  }, [activeTab, token, selectedOutletId, applications]);
+  }, [activeTab, token, selectedOutletId]);
 
   // 4. Auto-route to my-applications if user already submitted an application
   useEffect(() => {

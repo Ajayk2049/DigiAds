@@ -196,7 +196,7 @@ export const usePaymentStore = create((set, get) => ({
   },
 
   fetchBillConfig: async (token, outletId, applications = []) => {
-    if (!token || !outletId) return;
+    if (!token || !outletId || get().billConfigLoading) return;
     set({ billConfigLoading: true });
     try {
       const res = await axios.get(`${API_BASE}/host/bill-config/${outletId}`, {

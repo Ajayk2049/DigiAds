@@ -681,6 +681,46 @@ class AdminController {
   }
 
   /**
+   * Reset / unpair a hardware device so it can be re-activated
+   */
+  async resetDevice(req, res) {
+    const { deviceId } = req.params;
+    try {
+      const cleanDeviceId = (deviceId || '').trim();
+      const escapedDeviceId = cleanDeviceId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const device = await Device.findOne({
+        deviceId: { $regex: new RegExp(`^${escapedDeviceId}$`, 'i') }
+      });
+      if (!device) {
+        return res.status(404).send({ success: false, message: 'Device not found' });
+      }
+
+      // Terminate any active socket
+      if (global.deviceSockets && global.deviceSockets.has(device.deviceId)) {
+        const sock = global.deviceSockets.get(device.deviceId);
+        try { sock.terminate(); } catch (_) {}
+        global.deviceSockets.delete(device.deviceId);
+      }
+
+      device.isActivated = false;
+      device.hardwareId = null;
+      device.kioskPasswordHash = null;
+      device.status = 'offline';
+      await device.save();
+
+      logger.info({ deviceId: device.deviceId }, 'Admin manually reset/unpaired device');
+      return res.status(200).send({
+        success: true,
+        message: `Device ${device.deviceId} reset and unlinked successfully. It is now free for re-activation.`,
+        data: device
+      });
+    } catch (error) {
+      logger.error({ err: error.message }, 'resetDevice Error');
+      return res.status(500).send({ success: false, message: 'Failed to reset device' });
+    }
+  }
+
+  /**
    * Get all merchant/advertiser users
    */
   async getUsers(req, res) {

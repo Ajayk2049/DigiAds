@@ -62,12 +62,21 @@ export default function MenuTab(props) {
   const openEditModal = props.openEditModal ?? menu.openEditModal;
   const removeMenuItem = props.removeMenuItem ?? menu.removeMenuItem;
 
+  // Guarantee menu data hydration if tab is loaded directly or after a hard refresh
+  React.useEffect(() => {
+    if (selectedOutletId && token && menuItems.length === 0) {
+      menu.fetchMenu(token, selectedOutletId);
+    }
+  }, [selectedOutletId, token, menuItems.length]);
+
   // Memoize grouped items by category to avoid repeated full array scans
   const itemsByCategory = React.useMemo(() => {
     const map = {};
+    const currentShift = (selectedMenuShift || '').toLowerCase();
     for (const item of menuItems) {
       if (item.isAllShifts !== true && Array.isArray(item.shifts) && item.shifts.length > 0) {
-        if (!item.shifts.includes(selectedMenuShift)) continue;
+        const matchesShift = item.shifts.some(s => (s || '').toLowerCase() === currentShift);
+        if (!matchesShift) continue;
       }
       const catKey = (item.category || '').toLowerCase();
       if (!map[catKey]) map[catKey] = [];

@@ -335,6 +335,21 @@ export const useAdminStore = create((set, get) => ({
     }
   },
 
+  resetDevice: async (deviceId) => {
+    const authToken = get().token;
+    if (!authToken) return;
+    try {
+      const res = await axios.post(`${API_BASE}/admin/devices/${encodeURIComponent(deviceId)}/reset`, {}, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      await get().fetchDevices(authToken);
+      return res.data;
+    } catch (err) {
+      if (err?.response?.status === 401) get().handleLogout();
+      throw err;
+    }
+  },
+
   fetchUsers: async (authToken = get().token) => {
     if (!authToken) return;
     try {

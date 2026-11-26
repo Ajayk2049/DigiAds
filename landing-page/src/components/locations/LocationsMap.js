@@ -90,7 +90,7 @@ export default function LocationsMap({ venues, selectedVenue, onSelectVenue }) {
           <div class="relative group cursor-pointer flex flex-col items-center justify-center select-none" style="transform: translateY(-4px);">
             <div class="relative flex items-center justify-center transition-transform duration-300 group-hover:scale-115">
               <svg width="34" height="42" viewBox="0 0 34 42" fill="none" xmlns="http://www.w3.org/2000/svg" class="drop-shadow-lg">
-                <path d="M17 0C7.61116 0 0 7.61116 0 17C0 27.5 17 42 17 42C17 42 34 27.5 34 17C34 7.61116 26.3888 0 17 0Z" fill="#0069a8"/>
+                <path d="M17 0C7.61116 0 0 7.61116 0 17C0 27.5 17 42 17 42C17 42 34 27.5 34 17C34 7.61116 26.3888 0 17 0Z" fill="#C2185B"/>
                 <path d="M17 1.5C8.43959 1.5 1.5 8.43959 1.5 17C1.5 25.5 15.5 38.5 17 39.8C18.5 38.5 32.5 25.5 32.5 17C32.5 8.43959 25.5604 1.5 17 1.5Z" stroke="white" stroke-width="2"/>
                 <circle cx="17" cy="16" r="11" fill="white"/>
               </svg>
@@ -110,16 +110,16 @@ export default function LocationsMap({ venues, selectedVenue, onSelectVenue }) {
       const popupContent = `
         <div class="p-3.5 font-sans min-w-[240px]">
           <div class="flex items-center justify-between gap-1">
-            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-100 text-[#0069a8] border border-sky-300">
+            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-100 text-[#C2185B] border border-rose-300">
               ${venue.category || 'Restaurant'}
             </span>
-            <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+            <span class="text-[10px] font-mono font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               ${venue.venueId || ''}
             </span>
           </div>
-          <h4 class="font-bold text-sm text-slate-900 mt-1.5">${venue.outletName}</h4>
-          <p class="text-xs text-slate-500 mt-0.5 leading-tight">📍 ${venue.street ? venue.street + ', ' : ''}${venue.city}, ${venue.state}${venue.zipCode ? ' - ' + venue.zipCode : ''}</p>
-          <div class="flex items-center gap-1.5 mt-2.5 text-[11px] font-semibold text-slate-700">
+          <h4 class="font-bold text-sm text-foreground mt-1.5">${venue.outletName}</h4>
+          <p class="text-xs text-muted-foreground mt-0.5 leading-tight">📍 ${venue.street ? venue.street + ', ' : ''}${venue.city}, ${venue.state}${venue.zipCode ? ' - ' + venue.zipCode : ''}</p>
+          <div class="flex items-center gap-1.5 mt-2.5 text-[11px] font-semibold text-foreground">
             ${venue.hasTablets ? '<span class="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">📱 Tablets</span>' : ''}
             ${venue.hasScreens ? '<span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">📺 Screens</span>' : ''}
           </div>

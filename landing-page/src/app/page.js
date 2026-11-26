@@ -22,7 +22,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between overflow-x-hidden selection:bg-[#0069a8] selection:text-white">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between overflow-x-hidden selection:bg-accent selection:text-white">
       <LandingHeader userPortalUrl={userPortalUrl} />
       <HeroSection userPortalUrl={userPortalUrl} />
       <TrustRibbon />

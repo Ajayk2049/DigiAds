@@ -32,11 +32,19 @@ async function verifyGrpcToken(call) {
       throw { code: grpc.status.UNAUTHENTICATED, message: 'Invalid device credentials in token' };
     }
 
-    // Verify that device is activated and not revoked (cached for 30s)
+    // Verify that device exists and is active (cached for 30s)
     const now = Date.now();
     let cached = deviceStatusCache.get(decoded.deviceId);
     if (!cached || cached.expiresAt < now) {
-      const devDoc = await Device.findOne({ deviceId: decoded.deviceId }).select('isActivated').lean();
+      const devDoc = await Device.findOne({ deviceId: decoded.deviceId }).select('isActivated hostApplicationId').lean();
+      if (!devDoc) {
+        throw { code: grpc.status.UNAUTHENTICATED, message: 'Device not found in registry' };
+      }
+      // If device possesses a valid signed JWT for its assigned venue, restore isActivated
+      if (!devDoc.isActivated && devDoc.hostApplicationId && devDoc.hostApplicationId.toString() === decoded.hostApplicationId) {
+        await Device.updateOne({ deviceId: decoded.deviceId }, { $set: { isActivated: true, status: 'online' } });
+        devDoc.isActivated = true;
+      }
       cached = { isActivated: devDoc?.isActivated === true, expiresAt: now + 30000 };
       deviceStatusCache.set(decoded.deviceId, cached);
     }

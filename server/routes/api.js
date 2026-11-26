@@ -319,6 +319,7 @@ function registerRoutes(fastify, options, done) {
     adminRoutes.get('/admin/devices', adminController.getDevices.bind(adminController));
     adminRoutes.post('/admin/devices', { preHandler: validate({ body: createDeviceSchema }) }, adminController.createDevice.bind(adminController));
     adminRoutes.post('/admin/devices/deploy', { preHandler: validate({ body: createDeviceSchema }) }, adminController.createDevice.bind(adminController));
+    adminRoutes.post('/admin/devices/:deviceId/reset', adminController.resetDevice.bind(adminController));
     adminRoutes.get('/admin/users', adminController.getUsers.bind(adminController));
     adminRoutes.put('/admin/users/:userId', adminController.updateUser.bind(adminController));
     adminRoutes.post('/admin/users/:userId/reset-password', { preHandler: validate({ body: adminResetPasswordSchema }) }, adminController.adminResetPassword.bind(adminController));

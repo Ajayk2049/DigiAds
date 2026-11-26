@@ -57,16 +57,16 @@ export default function OrdersTab(props) {
   // Auto-synchronize activeOrderVenueTab in order store if unset
   React.useEffect(() => {
     if (!activeOrderVenueTab && activeVenueId) {
-      order.setActiveOrderVenueTab(activeVenueId);
+      useOrderStore.getState().setActiveOrderVenueTab(activeVenueId);
     }
-  }, [activeOrderVenueTab, activeVenueId, order]);
+  }, [activeOrderVenueTab, activeVenueId]);
 
   // Auto-fetch active venue bill configuration so tax exemptions are instantly accessible
   React.useEffect(() => {
-    if (activeVenueId && token && typeof order.fetchVenueBillConfig === 'function') {
-      order.fetchVenueBillConfig(token, activeVenueId);
+    if (activeVenueId && token) {
+      useOrderStore.getState().fetchVenueBillConfig(token, activeVenueId);
     }
-  }, [activeVenueId, token, order]);
+  }, [activeVenueId, token]);
 
   // Unconditionally execute order filtering and sorting hooks (Rules of Hooks guarantee)
   const filteredOrders = React.useMemo(() => {

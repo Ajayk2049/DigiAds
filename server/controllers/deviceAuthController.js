@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
+const { TIMEOUTS } = require('../config/constants');
 const Device = require('../models/Device');
 const AdBooking = require('../models/AdBooking');
 const { deviceActivationSchema } = require('../utils/zodSchemas');
@@ -56,14 +57,26 @@ class DeviceAuthController {
         });
       }
 
-      // If already activated, restrict re-activation unless it is the same hardware
-      if (device.isActivated) {
-        if (device.hardwareId !== hardwareId) {
+      // If already activated, restrict re-activation unless it is the same hardware OR previous session has been offline/inactive for >= 2 minutes (auto-detach)
+      if (device.isActivated && device.hardwareId !== hardwareId) {
+        const activeSock = global.deviceSockets ? global.deviceSockets.get(cleanDeviceId) : null;
+        const hasActiveSocket = Boolean(activeSock && activeSock.readyState === 1);
+        const lastHbTime = device.lastHeartbeat ? new Date(device.lastHeartbeat).getTime() : 0;
+        const detachThresholdMs = TIMEOUTS.DEVICE_DETACH_THRESHOLD_MS || 120000;
+        const isStale = !lastHbTime || (Date.now() - lastHbTime >= detachThresholdMs);
+        const isOffline = device.status === 'offline';
+
+        if (hasActiveSocket || (!isOffline && !isStale)) {
           return res.status(400).send({ 
             success: false, 
-            message: 'Device is already activated on another physical machine. Contact admin to reset.' 
+            message: 'Device is already activated and currently active online. Disconnect or turn off the previous machine for 2 minutes to free this ID, or contact admin to reset.' 
           });
         }
+
+        logger.info(
+          { deviceId: cleanDeviceId, previousHardwareId: device.hardwareId, newHardwareId: hardwareId },
+          '[DeviceAuth] Stale/offline device auto-released and re-paired to new hardware'
+        );
       }
 
       // Process password for tablet kiosk exit

@@ -15,9 +15,9 @@ export default function LocationsFilterBar({
 }) {
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-4xl">
-      <div className="bg-background/95 backdrop-blur-xl border border-border/80 shadow-xl rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-card border border-border shadow-card rounded-card p-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Search Input */}
-        <div className="flex-1 min-w-[200px] flex items-center space-x-2 px-3 py-1.5 bg-muted/50 rounded-lg border border-border/60">
+        <div className="flex-1 min-w-[200px] flex items-center space-x-2 px-3 py-1.5 bg-muted rounded-input border border-border">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <input
             type="text"
@@ -43,7 +43,7 @@ export default function LocationsFilterBar({
           <select
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
-            className="bg-muted/50 border border-border/60 text-foreground text-xs font-bold px-3 py-2 rounded-lg focus:outline-none cursor-pointer"
+            className="bg-muted border border-border text-foreground text-xs font-bold px-3 py-2 rounded-input focus:outline-none cursor-pointer"
           >
             <option value="all">All Cities ({availableCities.length})</option>
             {availableCities.map((city) => (
@@ -55,7 +55,7 @@ export default function LocationsFilterBar({
         </div>
 
         {/* Device Type Selector */}
-        <div className="hidden lg:flex items-center space-x-1 bg-muted/40 p-1 rounded-lg border border-border/60 text-xs font-bold">
+        <div className="hidden lg:flex items-center space-x-1 bg-muted p-1 rounded-input border border-border text-xs font-bold">
           <button
             onClick={() => setSelectedDeviceType('all')}
             className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${

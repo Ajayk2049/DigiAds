@@ -36,9 +36,9 @@ export default function LocationsSidebar({
           sidebarOpen ? 'translate-x-0' : '-translate-x-[110%]'
         }`}
       >
-        <div className="bg-background/95 backdrop-blur-xl border border-border/80 shadow-2xl rounded-2xl flex flex-col h-full overflow-hidden">
+        <div className="bg-card border border-border shadow-pop rounded-card flex flex-col h-full overflow-hidden">
           {/* Sidebar Header & Summary Strip */}
-          <div className="p-4 border-b border-border/60 bg-muted/20">
+          <div className="p-4 border-b border-border bg-background">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
                 <Compass className="w-5 h-5 text-accent" />
@@ -104,8 +104,8 @@ export default function LocationsSidebar({
                     whileHover={{ y: -2 }}
                     className={`p-3.5 rounded-xl border transition-all cursor-pointer text-left relative ${
                       isSelected
-                        ? 'bg-accent/5 border-accent shadow-md ring-1 ring-accent'
-                        : 'bg-card/90 border-border/70 hover:border-accent/40 hover:shadow-sm'
+                        ? 'bg-accent/5 border-accent shadow-card ring-1 ring-accent'
+                        : 'bg-background border-border hover:border-accent/40 hover:shadow-card'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -169,7 +169,7 @@ export default function LocationsSidebar({
           </div>
 
           {/* Sidebar Footer */}
-          <div className="p-3 bg-muted/20 border-t border-border/60 text-center">
+          <div className="p-3 bg-background border-t border-border text-center">
             <p className="text-[11px] text-muted-foreground">
               Showing public outlet locations. Real-time fleet sync enabled.
             </p>

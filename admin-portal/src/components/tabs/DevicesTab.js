@@ -2,16 +2,34 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAdminStore } from '@/stores/useAdminStore';
 import Pagination from '@/components/common/Pagination';
 
 export default function DevicesTab({ onOpenDeployModal }) {
   const [deviceSubTab, setDeviceSubTab] = useState('tablet'); // 'tablet' | 'screen'
   const [currentPage, setCurrentPage] = useState(1);
+  const [resettingId, setResettingId] = useState(null);
 
   const devices = useAdminStore((s) => s.devices);
   const searchQuery = useAdminStore((s) => s.searchQuery);
+  const resetDevice = useAdminStore((s) => s.resetDevice);
+
+  const handleReset = async (deviceId) => {
+    if (!window.confirm(`Are you sure you want to unbind/reset device ${deviceId}? This will allow it to be re-activated on a new physical machine.`)) {
+      return;
+    }
+    setResettingId(deviceId);
+    try {
+      await resetDevice(deviceId);
+      toast.success(`Device ${deviceId} unlinked and reset successfully. Ready for re-activation.`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to reset device');
+    } finally {
+      setResettingId(null);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -111,12 +129,13 @@ export default function DevicesTab({ onOpenDeployModal }) {
               <th className="p-4">App Version</th>
               <th className="p-4">Status</th>
               <th className="p-4">Last Sync Heartbeat</th>
+              <th className="p-4 pr-6 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
             {filteredDevices.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-12 text-center text-muted-foreground font-medium italic">
+                <td colSpan="6" className="p-12 text-center text-muted-foreground font-medium italic">
                   No deployed hardware terminals found for {deviceSubTab}.
                 </td>
               </tr>
@@ -167,6 +186,21 @@ export default function DevicesTab({ onOpenDeployModal }) {
                         <span className="text-muted-foreground/60 italic text-[11px]">Never synced</span>
                       ) : (
                         new Date(d.lastHeartbeat).toLocaleString()
+                      )}
+                    </td>
+                    <td className="p-4 pr-6 text-right">
+                      {isNeverUsed ? (
+                        <span className="text-[11px] text-muted-foreground/60 italic">Ready to Pair</span>
+                      ) : (
+                        <button
+                          onClick={() => handleReset(d.deviceId)}
+                          disabled={resettingId === d.deviceId}
+                          title="Unlink hardware ID & allow re-activation on any machine"
+                          className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 transition-colors duration-150 cursor-pointer disabled:opacity-50 inline-flex items-center space-x-1"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${resettingId === d.deviceId ? 'animate-spin' : ''}`} />
+                          <span>{resettingId === d.deviceId ? 'Resetting...' : 'Unbind / Reset'}</span>
+                        </button>
                       )}
                     </td>
                   </tr>
